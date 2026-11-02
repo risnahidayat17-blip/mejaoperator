@@ -127,7 +127,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     type="button"
                     disabled={isLocked}
                     aria-disabled={isLocked}
-                    title={isLocked ? 'Terkunci \u2014 khusus Operator' : undefined}
+                    title={isLocked ? 'Terkunci — khusus Operator' : undefined}
                     onClick={() => !isLocked && onSelectTab(item.id)}
                     className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition ${
                       isLocked
@@ -170,20 +170,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       {/* Supabase Cloud Quick Action in Sidebar */}
-      <div className="p-3 m-3 bg-[#F8FAF9] border border-[#D3DDD9] rounded-xl text-xs space-y-2">
-        <button
-          type="button"
-          onClick={onOpenSupabaseModal}
-          className="w-full py-1.5 px-2 bg-white hover:bg-[#DAEEE7] border border-[#CBD7D2] text-[#0B6B58] rounded-lg font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
-        >
-          <Cloud className="w-3.5 h-3.5" />
-          Koneksi Supabase
-        </button>
-        <div className="text-[10px] text-[#566A6E] flex items-center justify-between">
-          <span>Proyek ID</span>
-          <code className="font-mono font-semibold text-[#0B6B58]">qpjgokdxoevjjcrrazqh</code>
+      {isOperator && (
+        <div className="p-3 m-3 bg-[#F8FAF9] border border-[#D3DDD9] rounded-xl text-xs space-y-2">
+          <button
+            type="button"
+            onClick={onOpenSupabaseModal}
+            className="w-full py-1.5 px-2 bg-white hover:bg-[#DAEEE7] border border-[#CBD7D2] text-[#0B6B58] rounded-lg font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+          >
+            <Cloud className="w-3.5 h-3.5" />
+            Koneksi Supabase
+          </button>
+          <div className="text-[10px] text-[#566A6E] flex items-center justify-between">
+            <span>Proyek ID</span>
+            <code className="font-mono font-semibold text-[#0B6B58]">qpjgokdxoevjjcrrazqh</code>
+          </div>
         </div>
-      </div>
+      )}
     </aside>
   );
 };

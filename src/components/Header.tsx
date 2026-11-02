@@ -82,31 +82,33 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Right: Supabase Cloud Badge & User Controls */}
         <div className="flex items-center gap-2.5">
           {/* Supabase Status Pill */}
-          <button
-            type="button"
-            onClick={onOpenSupabaseModal}
-            className={`px-3 py-1.5 rounded-xl border flex items-center gap-1.5 text-xs font-semibold transition cursor-pointer shadow-2xs ${
-              supabaseConnected === true
-                ? 'bg-[#DDF1E3] text-[#1D7A3A] border-[#1D7A3A]/30 hover:bg-[#c6e6db]'
-                : supabaseConnected === false
-                ? 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
-                : 'bg-[#E8EFEC] text-[#566A6E] border-[#D3DDD9]'
-            }`}
-            title="Klik untuk melihat status koneksi & sinkronisasi Supabase Cloud"
-          >
-            <Cloud className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Supabase:</span>
-            {supabaseConnected === true ? (
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                Terhubung
-              </span>
-            ) : supabaseConnected === false ? (
-              <span className="text-rose-700">Offline / Error</span>
-            ) : (
-              <span>Mengecek...</span>
-            )}
-          </button>
+          {isOperator && (
+            <button
+              type="button"
+              onClick={onOpenSupabaseModal}
+              className={`px-3 py-1.5 rounded-xl border flex items-center gap-1.5 text-xs font-semibold transition cursor-pointer shadow-2xs ${
+                supabaseConnected === true
+                  ? 'bg-[#DDF1E3] text-[#1D7A3A] border-[#1D7A3A]/30 hover:bg-[#c6e6db]'
+                  : supabaseConnected === false
+                  ? 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
+                  : 'bg-[#E8EFEC] text-[#566A6E] border-[#D3DDD9]'
+              }`}
+              title="Klik untuk melihat status koneksi & sinkronisasi Supabase Cloud"
+            >
+              <Cloud className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Supabase:</span>
+              {supabaseConnected === true ? (
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  Terhubung
+                </span>
+              ) : supabaseConnected === false ? (
+                <span className="text-rose-700">Offline / Error</span>
+              ) : (
+                <span>Mengecek...</span>
+              )}
+            </button>
+          )}
 
           {currentUser && (
             <div className="flex items-center gap-2.5">

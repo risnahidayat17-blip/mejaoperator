@@ -165,7 +165,9 @@ export default function App() {
         config={config}
         onLogout={handleLogout}
         onOpenSettingsKop={isOperator ? () => setCurrentTab('pengaturan') : undefined}
-        onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
+        onOpenSupabaseModal={() => {
+          if (isOperator) setIsSupabaseModalOpen(true);
+        }}
       />
 
       {/* Main Container */}
@@ -176,7 +178,9 @@ export default function App() {
           onSelectTab={(tab) => setCurrentTab(tab)}
           role={role}
           counts={counts}
-          onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
+          onOpenSupabaseModal={() => {
+            if (isOperator) setIsSupabaseModalOpen(true);
+          }}
         />
 
         {/* Content Area */}
@@ -196,7 +200,7 @@ export default function App() {
                     Modul Khusus Operator Sekolah
                   </h2>
                   <p className="text-xs text-[#566A6E] mt-2 leading-relaxed">
-                    Akun <span className="font-semibold text-gray-800">Guru dan Tendik</span> difokuskan pada pengelolaan data GTK, Penilaian, Absensi, dan Pembuatan Surat Keluar (dengan Kop Resmi HD).
+                    Akun <span className="font-semibold text-gray-800">Guru dan Tendik</span> difokuskan pada pengelolaan data GTK, Penilaian, Absensi, dan Pembuatan Surat Keluar (dengan Kop Resmi). Selain itu, semua akses ke konfigurasi sistem dan koneksi cloud dibatasi hanya untuk operator.
                   </p>
                 </div>
                 <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -227,7 +231,9 @@ export default function App() {
                     suratmasuk={suratMasukList}
                     suratkeluar={suratKeluarList}
                     onNavigate={(tab) => setCurrentTab(tab)}
-                    onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
+                    onOpenSupabaseModal={() => {
+                      if (isOperator) setIsSupabaseModalOpen(true);
+                    }}
                   />
                 )}
                 {currentTab === 'siswa' && (
@@ -286,7 +292,9 @@ export default function App() {
                     config={config}
                     onToast={showToast}
                     initialTab="kop"
-                    onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
+                    onOpenSupabaseModal={() => {
+                      if (isOperator) setIsSupabaseModalOpen(true);
+                    }}
                   />
                 )}
               </>
@@ -300,6 +308,7 @@ export default function App() {
         isOpen={isSupabaseModalOpen}
         onClose={() => setIsSupabaseModalOpen(false)}
         onToast={showToast}
+        role={role}
       />
 
       {/* Floating Toast Notification */}

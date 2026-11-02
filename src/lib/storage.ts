@@ -112,10 +112,29 @@ export function setToStorage<T>(key: string, value: T): boolean {
   }
 }
 
+export function removeLegacyOperatorPassword(): void {
+  try {
+    const users = getFromStorage<User[]>(KEYS.USERS, initialUsers);
+    const updated = users.map((user) =>
+      user.role === 'operator' && user.password === 'operator31'
+        ? { ...user, password: '' }
+        : user
+    );
+
+    if (JSON.stringify(updated) !== JSON.stringify(users)) {
+      localStorage.setItem(KEYS.USERS, JSON.stringify(updated));
+      notifyListeners();
+    }
+  } catch {
+    // ignore invalid localStorage data
+  }
+}
+
 export function initStorageDefaults(): void {
   if (!localStorage.getItem(KEYS.USERS)) {
     localStorage.setItem(KEYS.USERS, JSON.stringify(initialUsers));
   }
+  removeLegacyOperatorPassword();
   if (!localStorage.getItem(KEYS.CFG)) {
     localStorage.setItem(KEYS.CFG, JSON.stringify(initialSchoolConfig));
   }
@@ -166,7 +185,16 @@ export function setCurrentUser(user: User | null): void {
 export function loginOperator(password: string): { success: boolean; user?: User; message?: string } {
   const users = getFromStorage<User[]>(KEYS.USERS, initialUsers);
   const operatorUser = users.find((u) => u.role === 'operator') || initialUsers[0];
-  if (password !== operatorUser.password) {
+  const configuredPassword = (operatorUser.password ?? '').trim();
+
+  if (!configuredPassword) {
+    return {
+      success: false,
+      message: 'Password operator belum diatur. Harap setel password operator terlebih dahulu.'
+    };
+  }
+
+  if (password !== configuredPassword) {
     return { success: false, message: 'Password operator tidak sesuai. Coba lagi.' };
   }
   const loggedIn: User = { ...operatorUser, lastLogin: Date.now() };

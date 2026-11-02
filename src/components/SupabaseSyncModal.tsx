@@ -35,12 +35,14 @@ interface SupabaseSyncModalProps {
   isOpen: boolean;
   onClose: () => void;
   onToast: (msg: string, isError?: boolean) => void;
+  role?: 'operator' | 'guru';
 }
 
 export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
   isOpen,
   onClose,
   onToast,
+  role = 'operator',
 }) => {
   const [config, setConfig] = useState(getSupabaseConfig());
   const [isTesting, setIsTesting] = useState(false);
@@ -55,11 +57,11 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
   const [activeTab, setActiveTab] = useState<'status' | 'sync' | 'sql' | 'credentials'>('status');
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && role === 'operator') {
       setConfig(getSupabaseConfig());
       runQuickTest();
     }
-  }, [isOpen]);
+  }, [isOpen, role]);
 
   const runQuickTest = async () => {
     setIsTesting(true);
@@ -133,7 +135,7 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
     runQuickTest();
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || role !== 'operator') return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
@@ -305,7 +307,7 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
                   }}
                   className="sr-only peer"
                 />
-                <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#0B6B58]" />
+                <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:border-gray-300 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#0B6B58]" />
               </label>
             </div>
           </div>
@@ -377,7 +379,7 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
               <div>
                 <span className="font-bold text-[#13262A] block">Skrip DDL SQL Supabase</span>
                 <span className="text-[11px] text-[#566A6E]">
-                  Salin skrip ini dan tempel di <a href="https://supabase.com/dashboard/project/qpjgokdxoevjjcrrazqh/sql" target="_blank" rel="noreferrer" className="text-[#0B6B58] underline font-semibold">Supabase SQL Editor</a> untuk membuat tabel dan security rules.
+                  Salin skrip ini dan tempel di <a href="https://supabase.com/dashboard/project/qpjgokdxoevjjcrrazqh/sql" target="_blank" rel="noreferrer" className="text-[#0B6B58] underline font-semibold">SQL Editor Supabase</a>.
                 </span>
               </div>
               <button

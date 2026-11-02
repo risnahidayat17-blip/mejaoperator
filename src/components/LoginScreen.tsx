@@ -116,7 +116,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ config, onLoggedIn }) 
             <button
               type="button"
               onClick={handleLoginGuru}
-              className="mt-4 w-full px-4 py-2.5 bg-[#1D7A3A] hover:bg-[#17622e] text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer shadow-xs"
+              className="mt-4 w-full px-4 py-2.5 bg-[#1D7A3A] hover:bg-[#17622e] text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer shadow-sm"
             >
               <LogIn className="w-4 h-4" /> Masuk sebagai Guru / Tendik
             </button>
@@ -147,7 +147,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ config, onLoggedIn }) 
 
             <form onSubmit={handleLoginOperator} className="mt-4 flex-1 flex flex-col justify-end">
               <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">
-                Password operator (bawaan: <code className="font-mono font-bold text-[#0B6B58]">operator31</code>)
+                Password operator
               </label>
               <div className="relative">
                 <input
@@ -181,7 +181,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ config, onLoggedIn }) 
 
               <button
                 type="submit"
-                className="mt-4 w-full px-4 py-2.5 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer shadow-xs"
+                className="mt-4 w-full px-4 py-2.5 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer shadow-sm"
               >
                 <LogIn className="w-4 h-4" /> Masuk sebagai Operator
               </button>
