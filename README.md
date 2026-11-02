@@ -1,0 +1,2 @@
+# mejaoperator
+mejakerja
