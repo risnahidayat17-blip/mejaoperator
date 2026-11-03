@@ -1,0 +1,320 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+export interface User {
+  id: string;
+  username: string;
+  password?: string;
+  name: string;
+  role: 'operator' | 'guru';
+  jabatan?: string;
+  guruId?: string;
+  nip?: string;
+  email?: string;
+  phone?: string;
+  lastLogin?: number;
+}
+
+export interface SchoolConfig {
+  namaSekolah: string;
+  npsn: string;
+  alamat: string;
+  kepsek: string;
+  nipKepsek: string;
+  nss?: string;
+  statusSekolah?: string;
+  tahunBerdiri?: string;
+  desa?: string;
+  kecamatan?: string;
+  kabupaten?: string;
+  propinsi?: string;
+  bahasa?: string;
+  tempatLaporan?: string;
+  korwilJabatan?: string;
+  korwilNama?: string;
+  korwilNip?: string;
+  tahunAjaran: string;
+  semester: string;
+  kkm: number;
+  kopInduk1?: string;
+  kopInduk2?: string;
+  kopAlamat?: string;
+  formatNoSurat?: string;
+  noSuratMulai?: number;
+  noSuratTahun?: string;
+  kelas?: string;
+  katUmum?: string;
+  katPribadi?: string;
+  mapel?: string;
+  logo?: string;
+  logoPemda?: string;
+  logoSekolah?: string;
+  tataLetakLogo?: 'kiri_kedua' | 'kiri_kanan' | 'kiri_pemda_saja' | 'kiri_sekolah_saja';
+  logoHeight?: number;
+  updatedAt?: number;
+}
+
+export interface Siswa {
+  id: string;
+  nama: string;
+  nis?: string;
+  nisn?: string;
+  jk: 'L' | 'P';
+  agama?: string;
+  warga?: string;
+  tempatLahir?: string;
+  tglLahir?: string;
+  kelas: string;
+  status: 'Aktif' | 'Mutasi' | 'Lulus' | 'Keluar';
+  tahunMasuk?: number;
+  alamat?: string;
+  namaAyah?: string;
+  namaIbu?: string;
+  telpOrtu?: string;
+  catatan?: string;
+  tglMutasi?: string;
+  tujuanMutasi?: string;
+  alasanMutasi?: string;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface Guru {
+  id: string;
+  nama: string;
+  nip?: string;
+  nuptk?: string;
+  jk: 'L' | 'P';
+  tempatLahir?: string;
+  tglLahir?: string;
+  jabatan: string;
+  statusPeg: 'PNS' | 'PPPK' | 'GTT / Honorer' | string;
+  mengampu?: string;
+  pendidikan?: string;
+  tmt?: string;
+  karpeg?: string;
+  agama?: string;
+  kawin?: string;
+  anak?: number;
+  ijazah?: string;
+  masaTahun?: number;
+  masaBulan?: number;
+  masaPer?: string;
+  skTanggal?: string;
+  skNomor?: string;
+  golongan?: string;
+  tmtGol?: string;
+  gaji?: number;
+  ketLaporan?: string;
+  status: 'Aktif' | 'Nonaktif';
+  telp?: string;
+  email?: string;
+  alamat?: string;
+  jenisGtk?: 'Guru' | 'Tendik';
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+/** Referensi berkas. Isi berkas disimpan terpisah (IndexedDB + tabel Supabase mo_files). */
+export interface FileRef {
+  id: string;
+  name: string;
+  size: number;
+  type?: string;
+  /** Hanya ada pada data lama / berkas yang baru dipilih (di memori); dibuang saat disimpan. */
+  dataUrl?: string;
+}
+
+export interface DokumenGtk {
+  id: string;
+  guruId: string;
+  kategori: string;
+  judul: string;
+  nomor?: string;
+  tanggal?: string;
+  tahunAjaran?: string;
+  penerbit?: string;
+  keterangan?: string;
+  file?: FileRef;
+  isPribadi?: boolean;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface Aset {
+  id: string;
+  nama: string;
+  kode?: string;
+  merk?: string;
+  noRegister?: string;
+  kategori: string;
+  jumlah: number;
+  kondisi: 'Baik' | 'Rusak ringan' | 'Rusak berat';
+  lokasi?: string;
+  tahunPerolehan?: number;
+  sumber?: string;
+  harga?: number;
+  keterangan?: string;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface SuratMasuk {
+  id: string;
+  noAgenda: string;
+  tglTerima: string;
+  noSurat?: string;
+  tglSurat?: string;
+  sifat?: string;
+  asal: string;
+  perihal: string;
+  tujuan?: string;
+  status: 'Baru' | 'Diproses' | 'Selesai';
+  disposisi?: string;
+  keterangan?: string;
+  fotoSurat?: string;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface SuratKeluar {
+  id: string;
+  noAgenda: string;
+  tglSurat: string;
+  noSurat: string;
+  jenis: string;
+  siswaId?: string;
+  sifat?: string;
+  tempat?: string;
+  perihal: string;
+  tujuan?: string;
+  pembuka?: string;
+  isi: string;
+  penutup?: string;
+  penandatangan: string;
+  nipTtd?: string;
+  jabatanTtd?: string;
+  kop: string;
+  ukuranKertas?: 'A4' | 'Legal';
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface Mutasi {
+  id: string;
+  siswaId?: string;
+  nama: string;
+  kelas: string;
+  jenis: 'Masuk (pindahan)' | 'Keluar (pindah)' | 'Lulus' | 'Keluar lainnya';
+  tanggal: string;
+  tujuan?: string;
+  asal?: string;
+  noSurat?: string;
+  alasan?: string;
+  suratId?: string;
+  otomatis?: boolean;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface NilaiRecord {
+  id: string;
+  siswaId: string;
+  kelas: string;
+  ta: string;
+  smt: string;
+  nilai: Record<string, number>;
+  updatedAt?: number;
+}
+
+export interface BerkasPenilaian {
+  id: string;
+  judul: string;
+  jenis: string;
+  kelas: string;
+  semester: string;
+  tahunAjaran: string;
+  keterangan?: string;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface LaporanBulan {
+  id: string; // format: YYYY-MM
+  murid?: {
+    sakit?: number;
+    izin?: number;
+    alpa?: number;
+  };
+  absen?: Record<string, { s?: number; i?: number; a?: number }>;
+  updatedAt?: number;
+}
+
+export interface LetterTemplate {
+  id: string;
+  judul: string;
+  kategori: string;
+  ukuranKertas: 'A4' | 'Legal';
+  pembuka?: string;
+  isi: string;
+  penutup?: string;
+  sifat?: string;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface ArsipAbsen {
+  id: string;
+  kelas: string;
+  tahunAjaran: string;
+  periode: string;
+  keterangan?: string;
+  file: FileRef;
+  uploadedBy?: string;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface KeuanganState {
+  settings: {
+    bendaharaNama: string;
+    bendaharaNip: string;
+    sumberDana: string;
+    kota: string;
+    prefix: string;
+  };
+  bku: Array<{
+    id: string;
+    tgl: string;
+    noBukti: string;
+    uraian: string;
+    pengeluaran: number;
+  }>;
+  edits: Record<string, {
+    noKw?: string;
+    tgl?: string;
+    penerima?: string;
+    untuk?: string;
+  }>;
+  fileName?: string;
+}
+
+export interface SupabaseConfig {
+  projectName: string;
+  projectId: string;
+  projectUrl: string;
+  apiKey: string;
+  autoSync: boolean;
+  lastSyncedAt?: number;
+}
+
+export interface SupabaseSyncStatus {
+  connected: boolean;
+  status: 'idle' | 'checking' | 'syncing' | 'synced' | 'error';
+  message: string;
+  latencyMs?: number;
+  lastSyncedAt?: number;
+  tablesStatus?: Record<string, boolean>;
+}
