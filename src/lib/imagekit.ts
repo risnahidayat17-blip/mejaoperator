@@ -1,0 +1,259 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
+ * Klien ImageKit untuk foto dan berkas dokumen (Supabase hanya menyimpan teks).
+ *
+ * Unggah dari browser butuh tanda tangan (signature) yang dibuat dengan PRIVATE KEY.
+ * Private key tidak boleh ada di aplikasi, jadi aplikasi memanggil "auth endpoint" milik sendiri
+ * (contoh siap pakai: imagekit/apps-script-auth.gs, gratis di Google Apps Script) yang membalas
+ *   GET <authEndpoint>            -> { token, expire, signature }
+ *   GET <authEndpoint>?action=delete&fileId=XXX  -> { ok: true }   (opsional, untuk hapus berkas)
+ * Endpoint apa pun yang membalas format itu bisa dipakai (Cloudflare Worker, Vercel, dll).
+ */
+
+import type { ImageKitConfig } from '../types';
+import { CLOUD_DEFAULTS } from '../config/cloud.config';
+
+const STORAGE_KEY = 'mo_imagekit_config';
+const UPLOAD_URL = 'https://upload.imagekit.io/api/v1/files/upload';
+
+export const DEFAULT_IMAGEKIT_CONFIG: ImageKitConfig = {
+  publicKey: CLOUD_DEFAULTS.imagekit.publicKey,
+  urlEndpoint: CLOUD_DEFAULTS.imagekit.urlEndpoint,
+  authEndpoint: CLOUD_DEFAULTS.imagekit.authEndpoint,
+  folder: CLOUD_DEFAULTS.imagekit.folder,
+};
+
+function normalizeFolder(f: string | undefined): string {
+  const v = String(f ?? '').trim().replace(/\\/g, '/').replace(/\/+/g, '/').replace(/\/$/, '');
+  if (!v) return '';
+  return v.startsWith('/') ? v : '/' + v;
+}
+
+function normalize(raw: Partial<ImageKitConfig>): ImageKitConfig {
+  const m = { ...DEFAULT_IMAGEKIT_CONFIG, ...raw };
+  return {
+    publicKey: String(m.publicKey || '').trim(),
+    urlEndpoint: String(m.urlEndpoint || '').trim().replace(/\/+$/, ''),
+    authEndpoint: String(m.authEndpoint || '').trim(),
+    folder: normalizeFolder(m.folder),
+  };
+}
+
+export function getImageKitConfig(): ImageKitConfig {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) return normalize(JSON.parse(saved));
+  } catch {}
+  return normalize({});
+}
+
+export function saveImageKitConfig(cfg: Partial<ImageKitConfig>): ImageKitConfig {
+  const updated = normalize({ ...getImageKitConfig(), ...cfg });
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  } catch {}
+  notify();
+  return updated;
+}
+
+/** Hapus pengaturan tersimpan di browser ini -> kembali ke nilai dari .env / cloud.config.ts. */
+export function resetImageKitConfig(): ImageKitConfig {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {}
+  notify();
+  return getImageKitConfig();
+}
+
+/** ImageKit siap dipakai bila public key dan auth endpoint sudah diisi. */
+export function isImageKitReady(cfg: ImageKitConfig = getImageKitConfig()): boolean {
+  return !!(cfg.publicKey && cfg.authEndpoint);
+}
+
+const listeners = new Set<() => void>();
+export function subscribeImageKitConfig(cb: () => void): () => void {
+  listeners.add(cb);
+  return () => {
+    listeners.delete(cb);
+  };
+}
+function notify(): void {
+  listeners.forEach((cb) => {
+    try {
+      cb();
+    } catch {}
+  });
+}
+
+// ---------------------------------------------------------------------------
+
+interface AuthParams {
+  token: string;
+  expire: number;
+  signature: string;
+}
+
+function withQuery(url: string, query: string): string {
+  return url + (url.includes('?') ? '&' : '?') + query;
+}
+
+async function fetchAuth(cfg: ImageKitConfig): Promise<AuthParams> {
+  let res: Response;
+  try {
+    res = await fetch(withQuery(cfg.authEndpoint, 'action=auth'), { method: 'GET', cache: 'no-store' });
+  } catch {
+    throw new Error('Auth endpoint ImageKit tidak dapat dihubungi. Periksa internet dan alamat Auth Endpoint.');
+  }
+  if (!res.ok) throw new Error(`Auth endpoint ImageKit membalas HTTP ${res.status}.`);
+  let body: Partial<AuthParams> & { error?: string };
+  try {
+    body = await res.json();
+  } catch {
+    throw new Error('Auth endpoint ImageKit tidak membalas JSON. Pastikan skrip sudah di-deploy sebagai Web App (akses: Anyone).');
+  }
+  if (body.error) throw new Error(`Auth endpoint ImageKit: ${body.error}`);
+  if (!body.token || !body.signature || !body.expire) {
+    throw new Error('Balasan auth endpoint harus berisi token, expire, dan signature.');
+  }
+  return { token: body.token, expire: Number(body.expire), signature: body.signature };
+}
+
+export interface ImageKitUploadResult {
+  url: string;
+  fileId: string;
+  filePath: string;
+  name: string;
+  size: number;
+}
+
+/** Subfolder dibersihkan: tanpa "..", tanpa karakter aneh. */
+function cleanSubfolder(sub: string | undefined): string {
+  return String(sub || '')
+    .split('/')
+    .map((p) => p.trim().replace(/[^a-zA-Z0-9._-]/g, '_'))
+    .filter((p) => p && p !== '.' && p !== '..')
+    .join('/');
+}
+
+export interface UploadOptions {
+  /** Subfolder di bawah folder induk, mis. "gtk/g_123". */
+  subfolder?: string;
+  tags?: string[];
+}
+
+export async function uploadToImageKit(
+  blob: Blob,
+  fileName: string,
+  opts: UploadOptions = {}
+): Promise<ImageKitUploadResult> {
+  const cfg = getImageKitConfig();
+  if (!isImageKitReady(cfg)) throw new Error('ImageKit belum diatur (Public Key / Auth Endpoint kosong).');
+  const auth = await fetchAuth(cfg);
+
+  const sub = cleanSubfolder(opts.subfolder);
+  const folder = normalizeFolder([cfg.folder, sub].filter(Boolean).join('/')) || '/';
+
+  const form = new FormData();
+  form.append('file', blob, fileName);
+  form.append('fileName', fileName);
+  form.append('publicKey', cfg.publicKey);
+  form.append('signature', auth.signature);
+  form.append('expire', String(auth.expire));
+  form.append('token', auth.token);
+  form.append('folder', folder);
+  form.append('useUniqueFileName', 'true');
+  if (opts.tags?.length) form.append('tags', opts.tags.join(','));
+
+  let res: Response;
+  try {
+    res = await fetch(UPLOAD_URL, { method: 'POST', body: form });
+  } catch {
+    throw new Error('Tidak dapat menghubungi ImageKit. Periksa koneksi internet.');
+  }
+  let body: { url?: string; fileId?: string; filePath?: string; name?: string; size?: number; message?: string } = {};
+  try {
+    body = await res.json();
+  } catch {}
+  if (!res.ok || !body.url || !body.fileId) {
+    throw new Error(`Unggah ke ImageKit gagal${body.message ? `: ${body.message}` : ` (HTTP ${res.status})`}`);
+  }
+  return {
+    url: body.url,
+    fileId: body.fileId,
+    filePath: body.filePath || '',
+    name: body.name || fileName,
+    size: body.size ?? blob.size,
+  };
+}
+
+export function dataUrlToBlob(dataUrl: string): Blob {
+  const [head, body] = dataUrl.split(',');
+  const mime = /data:([^;]+)/.exec(head)?.[1] || 'application/octet-stream';
+  if (/;base64/i.test(head)) {
+    const bin = atob(body);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], { type: mime });
+  }
+  return new Blob([decodeURIComponent(body)], { type: mime });
+}
+
+export function extForMime(mime: string): string {
+  if (/svg/.test(mime)) return 'svg';
+  if (/png/.test(mime)) return 'png';
+  if (/webp/.test(mime)) return 'webp';
+  if (/pdf/.test(mime)) return 'pdf';
+  return 'jpg';
+}
+
+/** Unggah gambar berbentuk data URL (logo, foto surat) dan kembalikan URL ImageKit. */
+export async function uploadDataUrlToImageKit(
+  dataUrl: string,
+  baseName: string,
+  opts: UploadOptions = {}
+): Promise<ImageKitUploadResult> {
+  const blob = dataUrlToBlob(dataUrl);
+  return uploadToImageKit(blob, `${baseName}.${extForMime(blob.type)}`, opts);
+}
+
+/** Hapus berkas di ImageKit lewat auth endpoint (butuh private key, jadi tidak bisa langsung dari browser). */
+export async function deleteFromImageKit(fileId: string | undefined): Promise<boolean> {
+  const cfg = getImageKitConfig();
+  if (!fileId || !isImageKitReady(cfg)) return false;
+  try {
+    const res = await fetch(withQuery(cfg.authEndpoint, `action=delete&fileId=${encodeURIComponent(fileId)}`), {
+      method: 'GET',
+      cache: 'no-store',
+    });
+    if (!res.ok) return false;
+    const body = await res.json().catch(() => ({}));
+    return body?.ok === true;
+  } catch {
+    return false;
+  }
+}
+
+export interface ImageKitTestResult {
+  ok: boolean;
+  message: string;
+  latencyMs: number;
+}
+
+/** Uji: pastikan Public Key terisi dan auth endpoint membalas token/expire/signature yang valid. */
+export async function testImageKitConnection(override?: Partial<ImageKitConfig>): Promise<ImageKitTestResult> {
+  const cfg = normalize({ ...getImageKitConfig(), ...override });
+  if (!cfg.publicKey) return { ok: false, latencyMs: 0, message: 'Public Key ImageKit belum diisi.' };
+  if (!cfg.authEndpoint) return { ok: false, latencyMs: 0, message: 'Auth Endpoint belum diisi (lihat imagekit/apps-script-auth.gs).' };
+  const t0 = performance.now();
+  try {
+    await fetchAuth(cfg);
+    const latencyMs = Math.round(performance.now() - t0);
+    return { ok: true, latencyMs, message: `Auth endpoint ImageKit berfungsi — ${latencyMs} ms. Unggah berkas siap dipakai.` };
+  } catch (e) {
+    return { ok: false, latencyMs: Math.round(performance.now() - t0), message: e instanceof Error ? e.message : String(e) };
+  }
+}
