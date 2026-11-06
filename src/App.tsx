@@ -280,7 +280,9 @@ export default function App() {
                 {currentTab === 'guru' && (
                   <GuruTendik role={role} config={config} onToast={showToast} />
                 )}
-                {currentTab === 'bukuinduk' && <BukuInduk config={config} />}
+                {currentTab === 'bukuinduk' && (
+                  <BukuInduk config={config} role={role} onToast={showToast} />
+                )}
                 {currentTab === 'suratkeluar' && (
                   <CompSuratKeluar role={role} config={config} onToast={showToast} />
                 )}

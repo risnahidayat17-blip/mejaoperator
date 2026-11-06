@@ -78,6 +78,7 @@ export interface Siswa {
   tempatLahir?: string;
   tglLahir?: string;
   kelas: string;
+  rombel?: string;
   status: 'Aktif' | 'Mutasi' | 'Lulus' | 'Keluar';
   tahunMasuk?: number;
   alamat?: string;
@@ -88,6 +89,19 @@ export interface Siswa {
   tglMutasi?: string;
   tujuanMutasi?: string;
   alasanMutasi?: string;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface Rombel {
+  id: string;
+  nama: string; // contoh: "1 A", "1 B", "6 B"
+  tingkat: string; // "1", "2", "3", "4", "5", "6"
+  waliKelasId?: string;
+  waliKelasNama?: string;
+  kurikulum?: string; // e.g. "Kurikulum Merdeka", "Kurikulum 2013"
+  ruangan?: string; // e.g. "Ruang Kelas 1 A"
+  catatan?: string;
   createdAt?: number;
   updatedAt?: number;
 }
@@ -287,6 +301,36 @@ export interface BerkasPenilaian {
   updatedAt?: number;
 }
 
+export interface TanahItem {
+  label: string;
+  luas: number | null;
+  persil: number | null;
+  tahun: string;
+  harga: number | null;
+}
+
+export interface BangunanRuanganItem {
+  label: string;
+  baik: [number | null, number | null];
+  sedang: [number | null, number | null];
+  rusak: [number | null, number | null];
+}
+
+export interface JenisBangunanItem {
+  label: string;
+  indent?: boolean;
+  jml: [number | null, number | null, number | null];
+  thn: [string, string, string];
+  harga: number | null;
+}
+
+export interface PerkakasItem {
+  label: string;
+  baik: number | string | null;
+  sedang: number | string | null;
+  rusak: number | string | null;
+}
+
 export interface LaporanBulan {
   id: string; // format: YYYY-MM
   murid?: {
@@ -295,6 +339,36 @@ export interface LaporanBulan {
     alpa?: number;
   };
   absen?: Record<string, { s?: number; i?: number; a?: number }>;
+  sarana?: {
+    tanah?: TanahItem[];
+    bangunanRuangan?: BangunanRuanganItem[];
+    jenisBangunan?: JenisBangunanItem[];
+    perkakas?: PerkakasItem[];
+    airBersih?: string;
+    sewaPerbulan?: string;
+    menumpang?: string;
+    bagPerKelas?: number;
+  };
+  muridOverrides?: {
+    inI?: { L: number; P: number }[];
+    outI?: { L: number; P: number }[];
+    yblI?: { L: number; P: number }[];
+    iniI?: { L: number; P: number }[];
+    kelasPembangunan?: number | string;
+  };
+  guruOverrides?: Record<string, Partial<Guru>>;
+  pengesahan?: {
+    tempatLaporan?: string;
+    tglLaporan?: string;
+    korwilJabatan?: string;
+    korwilNama?: string;
+    korwilNip?: string;
+    kepsek?: string;
+    nipKepsek?: string;
+    tahunBerdiri?: string;
+    statusSekolah?: string;
+    bahasa?: string;
+  };
   updatedAt?: number;
 }
 

@@ -7,15 +7,19 @@ import React, { useState } from 'react';
 import { SchoolConfig } from '../types';
 import { getSiswas, getNilaiRecords } from '../lib/storage';
 import { KopSuratHD } from './KopSuratHD';
-import { BookOpen, Search, Printer } from 'lucide-react';
+import { BookOpen, Search, Printer, FileSpreadsheet } from 'lucide-react';
+import { ImportDapodikSiswaModal } from './ImportDapodikSiswaModal';
 
 interface BukuIndukProps {
   config: SchoolConfig;
+  role?: 'operator' | 'guru';
+  onToast?: (msg: string, isError?: boolean) => void;
 }
 
-export const BukuInduk: React.FC<BukuIndukProps> = ({ config }) => {
-  const [siswaList] = useState(getSiswas());
+export const BukuInduk: React.FC<BukuIndukProps> = ({ config, role = 'operator', onToast }) => {
+  const [siswaList, setSiswaList] = useState(getSiswas());
   const [nilaiList] = useState(getNilaiRecords());
+  const [isImportDapodikOpen, setIsImportDapodikOpen] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterKelas, setFilterKelas] = useState('');
@@ -60,15 +64,26 @@ export const BukuInduk: React.FC<BukuIndukProps> = ({ config }) => {
           </p>
         </div>
 
-        {currentSiswa && (
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => window.print()}
-            className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 cursor-pointer"
+            onClick={() => setIsImportDapodikOpen(true)}
+            className="px-3.5 py-2 text-xs font-semibold bg-[#E6F2EE] hover:bg-[#d8e9e4] text-[#0B6B58] border border-[#B8D7CD] rounded-lg transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            title="Impor profil peserta didik dari berkas Dapodik (.xlsx, .xls, .csv)"
           >
-            <Printer className="w-4 h-4" /> Cetak Lembar Buku Induk
+            <FileSpreadsheet className="w-4 h-4 text-[#0B6B58]" /> Impor Data PD Dapodik
           </button>
-        )}
+
+          {currentSiswa && (
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 cursor-pointer"
+            >
+              <Printer className="w-4 h-4" /> Cetak Lembar Buku Induk
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -282,6 +297,26 @@ export const BukuInduk: React.FC<BukuIndukProps> = ({ config }) => {
           )}
         </div>
       </div>
+
+      {/* MODAL IMPOR DATA PD DAPODIK */}
+      <ImportDapodikSiswaModal
+        role={role}
+        config={config}
+        isOpen={isImportDapodikOpen}
+        onClose={() => setIsImportDapodikOpen(false)}
+        onToast={onToast || ((msg) => console.log(msg))}
+        onSuccess={(res, count) => {
+          const fresh = getSiswas();
+          setSiswaList(fresh);
+          if (fresh.length > 0 && !selectedSiswaId) {
+            setSelectedSiswaId(fresh[0].id);
+          }
+          let msg = `Berhasil mengimpor ${count} data Dapodik: ${res.added} siswa baru ditambahkan`;
+          if (res.updated > 0) msg += `, ${res.updated} data diperbarui`;
+          if (res.skipped > 0) msg += `, ${res.skipped} dilewati`;
+          if (onToast) onToast(msg + '.');
+        }}
+      />
     </div>
   );
 };

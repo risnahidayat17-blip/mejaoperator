@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { SchoolConfig, Siswa, Mutasi } from '../types';
+import { SchoolConfig, Siswa, Mutasi, Rombel, Guru } from '../types';
 import {
   getSiswas,
   saveSiswa,
@@ -12,8 +12,14 @@ import {
   getMutasi,
   saveMutasi,
   deleteMutasi,
+  getRombels,
+  saveRombel,
+  deleteRombelRecord,
+  syncRombelsFromSiswa,
+  getGurus,
 } from '../lib/storage';
 import { KopSuratHD } from './KopSuratHD';
+import { ImportDapodikSiswaModal } from './ImportDapodikSiswaModal';
 import {
   Users,
   UserPlus,
@@ -25,6 +31,15 @@ import {
   Trash2,
   CheckCircle,
   X,
+  FileSpreadsheet,
+  School,
+  GraduationCap,
+  Plus,
+  RefreshCw,
+  Check,
+  Sparkles,
+  Layers,
+  BookOpen,
 } from 'lucide-react';
 
 interface SiswaMutasiProps {
@@ -41,14 +56,20 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
   onNavigateToSurat,
 }) => {
   const isOperator = role === 'operator';
-  const [activeTab, setActiveTab] = useState<'daftar' | 'mutasi'>('daftar');
+  const [activeTab, setActiveTab] = useState<'daftar' | 'rombel' | 'mutasi'>('daftar');
   const [siswaList, setSiswaList] = useState<Siswa[]>(getSiswas());
   const [mutasiList, setMutasiList] = useState<Mutasi[]>(getMutasi());
+  const [rombelList, setRombelList] = useState<Rombel[]>(getRombels());
+  const [guruList, setGuruList] = useState<Guru[]>(getGurus());
 
   // Search & Filter
   const [searchSiswa, setSearchSiswa] = useState('');
   const [filterKelas, setFilterKelas] = useState('');
+  const [filterRombel, setFilterRombel] = useState('');
   const [filterJk, setFilterJk] = useState('');
+
+  const [searchRombel, setSearchRombel] = useState('');
+  const [filterTingkatRombel, setFilterTingkatRombel] = useState('');
 
   const [searchMutasi, setSearchMutasi] = useState('');
   const [filterJenisMutasi, setFilterJenisMutasi] = useState('');
@@ -57,15 +78,30 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
   const [isModalSiswaOpen, setIsModalSiswaOpen] = useState(false);
   const [editingSiswa, setEditingSiswa] = useState<Siswa | null>(null);
 
+  const [isModalRombelOpen, setIsModalRombelOpen] = useState(false);
+  const [editingRombel, setEditingRombel] = useState<Rombel | null>(null);
+
   const [mutatingSiswa, setMutatingSiswa] = useState<Siswa | null>(null);
   const [isModalMutasiKeluarOpen, setIsModalMutasiKeluarOpen] = useState(false);
 
   const [isModalMutasiMasukOpen, setIsModalMutasiMasukOpen] = useState(false);
   const [isModalPrintRekapOpen, setIsModalPrintRekapOpen] = useState(false);
+  const [isImportDapodikOpen, setIsImportDapodikOpen] = useState(false);
 
   const reloadData = () => {
     setSiswaList(getSiswas());
     setMutasiList(getMutasi());
+    setRombelList(getRombels());
+    setGuruList(getGurus());
+  };
+
+  const getStudentRombel = (s: Siswa): string => {
+    if (s.rombel) return s.rombel;
+    if (s.catatan) {
+      const m = /(?:rombel|kelas)\s+([0-9]\s*[A-Za-z])/i.exec(s.catatan);
+      if (m) return m[1].toUpperCase();
+    }
+    return s.kelas;
   };
 
   const kelasOptions = (config.kelas || '1, 2, 3, 4, 5, 6')
@@ -84,9 +120,64 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
       (s.nisn && s.nisn.includes(term)) ||
       (s.namaAyah && s.namaAyah.toLowerCase().includes(term));
     const matchKelas = !filterKelas || s.kelas === filterKelas;
+    const matchRombel =
+      !filterRombel ||
+      getStudentRombel(s).replace(/\s+/g, '').toLowerCase() === filterRombel.replace(/\s+/g, '').toLowerCase();
     const matchJk = !filterJk || s.jk === filterJk;
-    return matchTerm && matchKelas && matchJk;
+    return matchTerm && matchKelas && matchRombel && matchJk;
   });
+
+  const handleSaveRombel = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    const nama = String(form.get('nama') || '').replace(/\s+/g, ' ').trim().toUpperCase();
+    if (!nama) {
+      onToast('Nama Rombel Belajar wajib diisi.', true);
+      return;
+    }
+    const tingkat = String(form.get('tingkat') || '1').trim();
+    const waliKelasId = String(form.get('waliKelasId') || '').trim() || undefined;
+    const waliGuru = guruList.find((g) => g.id === waliKelasId);
+    const kurikulum = String(form.get('kurikulum') || 'Kurikulum Merdeka').trim();
+    const ruangan = String(form.get('ruangan') || '').trim() || undefined;
+    const catatan = String(form.get('catatan') || '').trim() || undefined;
+
+    const record: Rombel = {
+      id: editingRombel ? editingRombel.id : `rmb_${Date.now()}`,
+      nama,
+      tingkat,
+      waliKelasId,
+      waliKelasNama: waliGuru ? waliGuru.nama : undefined,
+      kurikulum,
+      ruangan,
+      catatan,
+      createdAt: editingRombel?.createdAt || Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    saveRombel(record);
+    reloadData();
+    setIsModalRombelOpen(false);
+    setEditingRombel(null);
+    onToast(editingRombel ? `Rombel "${nama}" berhasil diperbarui.` : `Rombel "${nama}" berhasil ditambahkan.`);
+  };
+
+  const handleDeleteRombel = (id: string, nama: string) => {
+    if (!window.confirm(`Yakin ingin menghapus rombel belajar "${nama}"?`)) return;
+    const res = deleteRombelRecord(id);
+    onToast(res.message, !res.ok);
+    if (res.ok) reloadData();
+  };
+
+  const handleSyncRombels = () => {
+    const res = syncRombelsFromSiswa();
+    reloadData();
+    if (res.added > 0) {
+      onToast(`Berhasil menambahkan ${res.added} rombel belajar dari data siswa Dapodik.`);
+    } else {
+      onToast(`Semua rombel dari data siswa sudah sinkron (${res.total} rombel terdaftar).`);
+    }
+  };
 
   const handleSaveSiswa = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -103,6 +194,13 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
     const tujuanMutasi = String(form.get('tujuanMutasi') || '').trim();
     const alasanMutasi = String(form.get('alasanMutasi') || '').trim();
 
+    const rombel = String(form.get('rombel') || '').trim() || undefined;
+    let kelas = String(form.get('kelas') || kelasOptions[0]).trim();
+    if (rombel) {
+      const m = /([1-6])/.exec(rombel);
+      if (m) kelas = m[1];
+    }
+
     const record: Siswa = {
       id,
       nama,
@@ -112,7 +210,8 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
       agama: String(form.get('agama') || 'Islam').trim(),
       tempatLahir: String(form.get('tempatLahir') || '').trim() || undefined,
       tglLahir: String(form.get('tglLahir') || '').trim() || undefined,
-      kelas: String(form.get('kelas') || kelasOptions[0]).trim(),
+      kelas,
+      rombel,
       status,
       tglMutasi: status !== 'Aktif' && tglMutasi ? tglMutasi : undefined,
       tujuanMutasi: status !== 'Aktif' && tujuanMutasi ? tujuanMutasi : undefined,
@@ -317,8 +416,16 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          {activeTab === 'daftar' ? (
+          {activeTab === 'daftar' && (
             <>
+              <button
+                type="button"
+                onClick={() => setIsImportDapodikOpen(true)}
+                className="px-3.5 py-2 text-xs font-semibold bg-[#E6F2EE] hover:bg-[#d8e9e4] text-[#0B6B58] border border-[#B8D7CD] rounded-lg transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                title="Impor profil peserta didik dari berkas Dapodik (.xlsx, .xls, .csv)"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-[#0B6B58]" /> Impor Data PD Dapodik
+              </button>
               <button
                 type="button"
                 onClick={exportSiswaCSV}
@@ -337,7 +444,32 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
                 <UserPlus className="w-4 h-4" /> Tambah Siswa Baru
               </button>
             </>
-          ) : (
+          )}
+
+          {activeTab === 'rombel' && (
+            <>
+              <button
+                type="button"
+                onClick={handleSyncRombels}
+                className="px-3.5 py-2 text-xs font-semibold bg-[#E8EFEC] hover:bg-[#D3DDD9] text-[#13262A] rounded-lg transition flex items-center gap-1.5 cursor-pointer"
+                title="Deteksi rombel otomatis dari data siswa Dapodik"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-[#0B6B58]" /> Sinkronkan dari Siswa
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingRombel(null);
+                  setIsModalRombelOpen(true);
+                }}
+                className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 transition cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Tambah Rombel Baru
+              </button>
+            </>
+          )}
+
+          {activeTab === 'mutasi' && (
             <>
               <button
                 type="button"
@@ -363,23 +495,37 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
         <button
           type="button"
           onClick={() => setActiveTab('daftar')}
-          className={`pb-2.5 px-3 text-xs font-semibold border-b-2 transition cursor-pointer ${
+          className={`pb-2.5 px-3.5 text-xs font-semibold border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
             activeTab === 'daftar'
               ? 'border-[#0B6B58] text-[#0B6B58]'
               : 'border-transparent text-[#566A6E] hover:text-[#13262A]'
           }`}
         >
+          <Users className="w-3.5 h-3.5" />
           Daftar Siswa Aktif ({activeSiswa.length})
         </button>
         <button
           type="button"
+          onClick={() => setActiveTab('rombel')}
+          className={`pb-2.5 px-3.5 text-xs font-semibold border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
+            activeTab === 'rombel'
+              ? 'border-[#0B6B58] text-[#0B6B58]'
+              : 'border-transparent text-[#566A6E] hover:text-[#13262A]'
+          }`}
+        >
+          <School className="w-3.5 h-3.5" />
+          Rombongan Belajar ({rombelList.length})
+        </button>
+        <button
+          type="button"
           onClick={() => setActiveTab('mutasi')}
-          className={`pb-2.5 px-3 text-xs font-semibold border-b-2 transition cursor-pointer ${
+          className={`pb-2.5 px-3.5 text-xs font-semibold border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
             activeTab === 'mutasi'
               ? 'border-[#0B6B58] text-[#0B6B58]'
               : 'border-transparent text-[#566A6E] hover:text-[#13262A]'
           }`}
         >
+          <ArrowRightLeft className="w-3.5 h-3.5" />
           Catatan Mutasi Siswa ({mutasiList.length})
         </button>
       </div>
@@ -502,6 +648,36 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
                       </td>
                     </tr>
                   ))}
+                  {filteredSiswa.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-[#566A6E]">
+                        <div className="max-w-sm mx-auto space-y-3">
+                          <div className="w-12 h-12 rounded-full bg-[#E6F2EE] flex items-center justify-center text-[#0B6B58] mx-auto">
+                            <FileSpreadsheet className="w-6 h-6" />
+                          </div>
+                          <div className="font-bold text-[#13262A] text-sm">
+                            {searchSiswa || filterKelas || filterJk
+                              ? 'Tidak ada siswa yang sesuai filter pencarian'
+                              : 'Belum ada data siswa aktif'}
+                          </div>
+                          <p className="text-xs text-[#566A6E]">
+                            {searchSiswa || filterKelas || filterJk
+                              ? 'Coba ubah kata kunci atau bersihkan filter kelas/jenis kelamin.'
+                              : 'Mulai kelola kesiswaan dengan mengimpor langsung dari berkas profil Dapodik (.xlsx, .xls, .csv).'}
+                          </p>
+                          {!searchSiswa && !filterKelas && !filterJk && (
+                            <button
+                              type="button"
+                              onClick={() => setIsImportDapodikOpen(true)}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm cursor-pointer"
+                            >
+                              <FileSpreadsheet className="w-4 h-4" /> Impor Berkas Dapodik
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1049,6 +1225,22 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
           </div>
         </div>
       )}
+
+      {/* MODAL IMPOR DATA PD DAPODIK */}
+      <ImportDapodikSiswaModal
+        role={role}
+        config={config}
+        isOpen={isImportDapodikOpen}
+        onClose={() => setIsImportDapodikOpen(false)}
+        onToast={onToast}
+        onSuccess={(res, count) => {
+          reloadData();
+          let msg = `Berhasil mengimpor ${count} data Dapodik: ${res.added} siswa baru ditambahkan`;
+          if (res.updated > 0) msg += `, ${res.updated} data diperbarui`;
+          if (res.skipped > 0) msg += `, ${res.skipped} dilewati`;
+          onToast(msg + '.');
+        }}
+      />
     </div>
   );
 };

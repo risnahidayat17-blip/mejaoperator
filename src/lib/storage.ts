@@ -22,12 +22,14 @@ import {
   ArsipAbsen,
   KeuanganState,
   WorkActivity,
+  Rombel,
 } from '../types';
 import {
   initialUsers,
   initialSchoolConfig,
   initialSiswas,
   initialGurus,
+  initialRombels,
   initialAsets,
   initialBmd,
   initialStikerConfig,
@@ -51,6 +53,7 @@ export const KEYS = {
   CURRENT_USER: 'mo_current_user',
   CFG: 'mo_school_config',
   SISWA: 'mo_siswa',
+  ROMBEL: 'mo_rombel',
   GURU: 'mo_guru',
   DOKGTK: 'mo_dokgtk',
   ASET: 'mo_aset',
@@ -1027,6 +1030,122 @@ export function deleteSiswa(id: string): void {
   recordActivity('Siswa', `Hapus data siswa: ${target?.nama || 'Siswa'}`, false, 'delete');
 }
 
+export interface ImportBulkSiswaResult {
+  added: number;
+  updated: number;
+  skipped: number;
+  total: number;
+}
+
+export function importBulkSiswas(
+  incoming: Siswa[],
+  mode: 'merge' | 'add_only' | 'replace' = 'merge'
+): ImportBulkSiswaResult {
+  const currentList = getSiswas();
+  const now = Date.now();
+  let added = 0;
+  let updated = 0;
+  let skipped = 0;
+
+  if (mode === 'replace') {
+    const stamped = incoming.map((s, i) => ({
+      ...s,
+      id: s.id || `s_${now}_${i}`,
+      createdAt: s.createdAt || now,
+      updatedAt: now,
+    }));
+    replaceKeys.add(KEYS.SISWA);
+    setToStorage(KEYS.SISWA, stamped);
+    recordActivity(
+      'Siswa',
+      `Impor Dapodik (ganti total): ${stamped.length} siswa tersimpan`,
+      true,
+      'create'
+    );
+    return { added: stamped.length, updated: 0, skipped: 0, total: stamped.length };
+  }
+
+  const resultList = [...currentList];
+  const normalizeStr = (v?: string) => (v || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const cleanNum = (v?: string) => (v || '').replace(/[^0-9]/g, '');
+
+  incoming.forEach((item, i) => {
+    const itemNisn = cleanNum(item.nisn);
+    const itemNis = cleanNum(item.nis);
+    const itemNama = normalizeStr(item.nama);
+    const itemTgl = (item.tglLahir || '').trim();
+
+    // Match priority:
+    // 1. By NISN (at least 8 digits)
+    // 2. By NIS (at least 4 digits)
+    // 3. By Nama + Tgl Lahir
+    let matchIdx = -1;
+
+    if (itemNisn && itemNisn.length >= 8) {
+      matchIdx = resultList.findIndex((s) => cleanNum(s.nisn) === itemNisn);
+    }
+    if (matchIdx < 0 && itemNis && itemNis.length >= 4) {
+      matchIdx = resultList.findIndex((s) => cleanNum(s.nis) === itemNis);
+    }
+    if (matchIdx < 0 && itemNama) {
+      matchIdx = resultList.findIndex((s) => {
+        const sNama = normalizeStr(s.nama);
+        if (sNama !== itemNama) return false;
+        if (itemTgl && s.tglLahir && itemTgl === s.tglLahir) return true;
+        if (item.tempatLahir && s.tempatLahir && normalizeStr(item.tempatLahir) === normalizeStr(s.tempatLahir)) return true;
+        return false;
+      });
+    }
+
+    if (matchIdx >= 0) {
+      if (mode === 'merge') {
+        const existing = resultList[matchIdx];
+        resultList[matchIdx] = {
+          ...existing,
+          ...item,
+          id: existing.id,
+          createdAt: existing.createdAt || item.createdAt || now,
+          updatedAt: now,
+          // Jangan timpa field yang sudah ada jika data impor kosong
+          nis: item.nis || existing.nis,
+          nisn: item.nisn || existing.nisn,
+          tempatLahir: item.tempatLahir || existing.tempatLahir,
+          tglLahir: item.tglLahir || existing.tglLahir,
+          alamat: item.alamat || existing.alamat,
+          namaAyah: item.namaAyah || existing.namaAyah,
+          namaIbu: item.namaIbu || existing.namaIbu,
+          telpOrtu: item.telpOrtu || existing.telpOrtu,
+          catatan: item.catatan || existing.catatan,
+          status: item.status || existing.status || 'Aktif',
+        };
+        updated++;
+      } else {
+        skipped++;
+      }
+    } else {
+      const newSiswa: Siswa = {
+        ...item,
+        id: item.id || `s_${now}_${i}`,
+        createdAt: item.createdAt || now,
+        updatedAt: now,
+        status: item.status || 'Aktif',
+      };
+      resultList.push(newSiswa);
+      added++;
+    }
+  });
+
+  setToStorage(KEYS.SISWA, resultList);
+  recordActivity(
+    'Siswa',
+    `Impor data Dapodik: ${added} siswa baru, ${updated} diperbarui${skipped ? `, ${skipped} dilewati` : ''}`,
+    added > 0,
+    added > 0 ? 'create' : 'update'
+  );
+
+  return { added, updated, skipped, total: resultList.length };
+}
+
 // Guru
 export function getGurus(): Guru[] {
   return getFromStorage<Guru[]>(KEYS.GURU, initialGurus);
@@ -1126,6 +1245,18 @@ export function deleteAset(id: string): void {
   const filtered = getAsets().filter((a) => a.id !== id);
   setToStorage(KEYS.ASET, filtered);
   recordActivity('Aset', `Hapus sarpras: ${target?.nama || 'Aset'}`, false, 'delete');
+}
+
+/** Simpan atau ganti daftar aset inventaris secara massal (dipakai saat impor SIKATON). */
+export function saveAsets(list: Aset[], activity?: string): void {
+  const now = Date.now();
+  const prepared = list.map((a) => ({
+    ...a,
+    createdAt: a.createdAt || now,
+    updatedAt: a.updatedAt || now,
+  }));
+  setToStorage(KEYS.ASET, prepared);
+  recordActivity('Aset', activity || `Perbarui data inventaris (${list.length} barang)`, false, 'update');
 }
 
 // BMD & stiker inventaris
@@ -1688,4 +1819,136 @@ export function removeRombel(name: string): RombelResult {
   const value = list.filter((k) => k !== name).join(', ');
   saveSchoolConfig({ ...cfg, kelas: value });
   return { ok: true, message: `Rombel "${name}" dihapus.`, value };
+}
+
+// ---------------------------------------------------------------------------
+// Manajemen Rombongan Belajar (Rombel) Terpadu
+// ---------------------------------------------------------------------------
+
+export function getRombels(): Rombel[] {
+  return getFromStorage<Rombel[]>(KEYS.ROMBEL, initialRombels);
+}
+
+export function saveRombel(rombel: Rombel): void {
+  const list = getRombels();
+  const idx = list.findIndex((r) => r.id === rombel.id);
+  const now = Date.now();
+  const isNew = idx < 0;
+
+  const item: Rombel = {
+    ...rombel,
+    id: rombel.id || `rmb_${now}`,
+    createdAt: rombel.createdAt || now,
+    updatedAt: now,
+  };
+
+  if (idx >= 0) {
+    list[idx] = item;
+  } else {
+    list.push(item);
+  }
+
+  list.sort((a, b) => a.nama.localeCompare(b.nama, 'id', { numeric: true }));
+  setToStorage(KEYS.ROMBEL, list);
+
+  // Sync nama rombel ke config.kelas jika belum ada
+  const cfg = getSchoolConfig();
+  const currentKelas = getKelasList(cfg);
+  if (!currentKelas.some((k) => k.toLowerCase() === rombel.nama.toLowerCase())) {
+    const nextKelas = sortKelas([...currentKelas, rombel.nama]).join(', ');
+    saveSchoolConfig({ ...cfg, kelas: nextKelas });
+  }
+
+  recordActivity(
+    'Rombel',
+    isNew ? `Tambah rombel belajar: ${rombel.nama}` : `Perbarui rombel belajar: ${rombel.nama}`,
+    isNew,
+    isNew ? 'create' : 'update'
+  );
+}
+
+export function deleteRombelRecord(id: string): { ok: boolean; message: string } {
+  if (!isOperatorNow()) return { ok: false, message: 'Hanya operator yang dapat menghapus rombel belajar.' };
+  const list = getRombels();
+  const target = list.find((r) => r.id === id);
+  if (!target) return { ok: false, message: 'Rombel tidak ditemukan.' };
+
+  // Validasi jika masih ada siswa aktif di rombel ini
+  const activeCount = getSiswas().filter(
+    (s) => s.status === 'Aktif' && (s.rombel === target.nama || s.kelas === target.nama)
+  ).length;
+
+  if (activeCount > 0) {
+    return {
+      ok: false,
+      message: `Rombel "${target.nama}" masih berisi ${activeCount} siswa aktif. Pindahkan siswanya terlebih dahulu.`,
+    };
+  }
+
+  const filtered = list.filter((r) => r.id !== id);
+  setToStorage(KEYS.ROMBEL, filtered);
+
+  // Bersihkan dari config.kelas jika ada
+  const cfg = getSchoolConfig();
+  const currentKelas = getKelasList(cfg);
+  if (currentKelas.includes(target.nama)) {
+    const nextKelas = currentKelas.filter((k) => k !== target.nama).join(', ');
+    saveSchoolConfig({ ...cfg, kelas: nextKelas });
+  }
+
+  recordActivity('Rombel', `Hapus rombel belajar: ${target.nama}`, false, 'delete');
+  return { ok: true, message: `Rombel "${target.nama}" berhasil dihapus.` };
+}
+
+export function syncRombelsFromSiswa(): { added: number; total: number } {
+  const siswas = getSiswas();
+  const list = getRombels();
+  const existingNames = new Set(list.map((r) => r.nama.toLowerCase().trim()));
+  let added = 0;
+  const now = Date.now();
+
+  siswas.forEach((s) => {
+    let candidate = s.rombel?.trim();
+    if (!candidate && s.catatan) {
+      const m = /(?:rombel|kelas)\s+([0-9]\s*[A-Za-z])/i.exec(s.catatan);
+      if (m) candidate = m[1].toUpperCase();
+    }
+    if (!candidate && s.kelas) {
+      if (/^[1-6]\s*[A-Za-z]$/.test(s.kelas)) candidate = s.kelas.toUpperCase();
+    }
+
+    if (candidate) {
+      const cleanCandidate = candidate.replace(/\s+/g, ' ').trim();
+      const norm = cleanCandidate.toLowerCase();
+      if (!existingNames.has(norm)) {
+        existingNames.add(norm);
+        const mAngka = /([1-6])/.exec(cleanCandidate);
+        const tingkat = mAngka ? mAngka[1] : '1';
+        list.push({
+          id: `rmb_${now}_${list.length + 1}`,
+          nama: cleanCandidate,
+          tingkat,
+          kurikulum: 'Kurikulum Merdeka',
+          ruangan: `Ruang Kelas ${cleanCandidate}`,
+          createdAt: now,
+          updatedAt: now,
+        });
+        added++;
+      }
+    }
+  });
+
+  if (added > 0) {
+    list.sort((a, b) => a.nama.localeCompare(b.nama, 'id', { numeric: true }));
+    setToStorage(KEYS.ROMBEL, list);
+
+    const cfg = getSchoolConfig();
+    const currentKelas = getKelasList(cfg);
+    const combined = Array.from(new Set([...currentKelas, ...list.map((r) => r.nama)]));
+    saveSchoolConfig({ ...cfg, kelas: sortKelas(combined).join(', ') });
+
+    recordActivity('Rombel', `Sinkronkan ${added} rombel belajar dari data siswa`, true, 'create');
+  }
+
+  return { added, total: list.length };
 }

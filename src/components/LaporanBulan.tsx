@@ -7,7 +7,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { SchoolConfig, Siswa, Guru, LaporanBulan as ILaporanBulan } from '../types';
 import { getFromStorage, setToStorage, KEYS } from '../lib/storage';
-import { Daftar1Pages } from './Daftar1Sheet';
+import { Daftar1Pages, hitungTotalBulanMasaKerja, parseTmtDate } from './Daftar1Sheet';
+import { EditDaftar1Modal } from './EditDaftar1Modal';
 import { Printer, Pencil, X } from 'lucide-react';
 
 interface LaporanBulanProps {
@@ -26,11 +27,27 @@ export const LaporanBulan: React.FC<LaporanBulanProps> = ({
   const currentMonthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
   const [selectedMonth, setSelectedMonth] = useState(currentMonthKey);
   const [isModalAbsenOpen, setIsModalAbsenOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [laporanVersion, setLaporanVersion] = useState(0);
 
   const laporanList = getFromStorage<ILaporanBulan[]>(KEYS.LAPORAN, []);
   const reportData = laporanList.find((l) => l.id === selectedMonth) || { id: selectedMonth };
 
-  const activeGuru = guru.filter((g) => g.status !== 'Nonaktif');
+  const [yy, mm] = selectedMonth.split('-').map(Number);
+  const activeGuru = guru
+    .filter((g) => g.status !== 'Nonaktif')
+    .slice()
+    .sort((a, b) => {
+      const bMasa = hitungTotalBulanMasaKerja(b, yy || new Date().getFullYear(), mm || new Date().getMonth() + 1);
+      const aMasa = hitungTotalBulanMasaKerja(a, yy || new Date().getFullYear(), mm || new Date().getMonth() + 1);
+      if (bMasa !== aMasa) return bMasa - aMasa;
+      const aP = parseTmtDate(a.tmt);
+      const bP = parseTmtDate(b.tmt);
+      const aTmtVal = aP ? aP.y * 10000 + aP.m * 100 + aP.d : 99999999;
+      const bTmtVal = bP ? bP.y * 10000 + bP.m * 100 + bP.d : 99999999;
+      if (aTmtVal !== bTmtVal) return aTmtVal - bTmtVal;
+      return a.nama.localeCompare(b.nama);
+    });
 
   // Preview berskala: lembar F4 landscape (330 mm = 1247 px) dikecilkan agar muat di layar
   const PAGE_PX = 1247.2;
@@ -99,8 +116,21 @@ export const LaporanBulan: React.FC<LaporanBulanProps> = ({
       currentList.push(updatedReport);
     }
     setToStorage(KEYS.LAPORAN, currentList);
+    setLaporanVersion((v) => v + 1);
     setIsModalAbsenOpen(false);
     onToast(`Data absensi bulan ${selectedMonth} berhasil disimpan.`);
+  };
+
+  const handleSaveReport = (updatedReport: ILaporanBulan) => {
+    const currentList = getFromStorage<ILaporanBulan[]>(KEYS.LAPORAN, []);
+    const idx = currentList.findIndex((l) => l.id === selectedMonth);
+    if (idx >= 0) {
+      currentList[idx] = updatedReport;
+    } else {
+      currentList.push(updatedReport);
+    }
+    setToStorage(KEYS.LAPORAN, currentList);
+    setLaporanVersion((v) => v + 1);
   };
 
   return (
@@ -125,17 +155,17 @@ export const LaporanBulan: React.FC<LaporanBulanProps> = ({
           />
           <button
             type="button"
-            onClick={() => setIsModalAbsenOpen(true)}
-            className="px-3 py-1.5 text-xs font-semibold bg-[#E8EFEC] hover:bg-[#D3DDD9] text-[#13262A] rounded-lg transition flex items-center gap-1.5 cursor-pointer"
+            onClick={() => setIsEditModalOpen(true)}
+            className="px-3.5 py-1.5 text-xs font-semibold bg-[#0B6B58] hover:bg-[#095747] text-white rounded-lg shadow-sm transition flex items-center gap-1.5 cursor-pointer"
           >
-            <Pencil className="w-3.5 h-3.5" /> Isi Absen Bulan Ini
+            <Pencil className="w-3.5 h-3.5" /> Edit / Betulkan Data Daftar 1
           </button>
           <button
             type="button"
             onClick={handlePrint}
-            className="px-4 py-1.5 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 cursor-pointer"
+            className="px-4 py-1.5 bg-white border border-[#D3DDD9] hover:bg-[#F3F7F5] text-[#13262A] text-xs font-semibold rounded-lg shadow-2xs flex items-center gap-2 cursor-pointer transition"
           >
-            <Printer className="w-4 h-4" /> Cetak Daftar 1
+            <Printer className="w-4 h-4 text-[#0B6B58]" /> Cetak Daftar 1
           </button>
         </div>
       </div>
@@ -147,14 +177,28 @@ export const LaporanBulan: React.FC<LaporanBulanProps> = ({
             ref={innerRef}
             style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: PAGE_PX }}
           >
-            <Daftar1Pages config={config} siswa={siswa} guru={guru} reportData={reportData} month={selectedMonth} />
+            <Daftar1Pages
+              key={`${selectedMonth}_${laporanVersion}`}
+              config={config}
+              siswa={siswa}
+              guru={guru}
+              reportData={reportData}
+              month={selectedMonth}
+            />
           </div>
         </div>
       </div>
 
       {createPortal(
         <div id="lb-print-root">
-          <Daftar1Pages config={config} siswa={siswa} guru={guru} reportData={reportData} month={selectedMonth} />
+          <Daftar1Pages
+            key={`print_${selectedMonth}_${laporanVersion}`}
+            config={config}
+            siswa={siswa}
+            guru={guru}
+            reportData={reportData}
+            month={selectedMonth}
+          />
         </div>,
         document.body,
       )}
@@ -268,6 +312,18 @@ export const LaporanBulan: React.FC<LaporanBulanProps> = ({
           </div>
         </div>
       )}
+
+      {/* MODAL EDIT / BETULKAN DATA DAFTAR 1 */}
+      <EditDaftar1Modal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        month={selectedMonth}
+        config={config}
+        guruList={guru}
+        reportData={reportData}
+        onSave={handleSaveReport}
+        onToast={onToast}
+      />
     </div>
   );
 };

@@ -41,11 +41,21 @@ const AGAMA: Record<string, string> = {
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
-/** "YYYY-MM-DD" -> {y,m,d} tanpa efek zona waktu. */
-function parseIso(s?: string) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || '');
-  return m ? { y: +m[1], m: +m[2], d: +m[3] } : null;
+/** "YYYY-MM-DD" atau "DD-MM-YYYY" -> {y,m,d} tanpa efek zona waktu. */
+export function parseTmtDate(s?: string) {
+  if (!s) return null;
+  const clean = s.trim();
+  let m = /^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/.exec(clean);
+  if (m) return { y: +m[1], m: +m[2], d: +m[3] };
+  m = /^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/.exec(clean);
+  if (m) return { y: +m[3], m: +m[2], d: +m[1] };
+  return null;
 }
+
+export function parseIso(s?: string) {
+  return parseTmtDate(s);
+}
+
 const fmtDash = (s?: string) => {
   const p = parseIso(s);
   return p ? `${pad2(p.d)}-${pad2(p.m)}-${p.y}` : '';
@@ -60,11 +70,21 @@ const sum = (arr: Num[]) => arr.reduce<number>((a, b) => a + (b || 0), 0);
 
 type LP = { L: number; P: number };
 
+export function hitungTotalBulanMasaKerja(g: Guru, endY: number, endM: number): number {
+  if (typeof g.masaTahun === 'number' && g.masaTahun >= 0) {
+    return g.masaTahun * 12 + (g.masaBulan || 0);
+  }
+  const p = parseTmtDate(g.tmt);
+  if (!p) return 0;
+  const months = (endY - p.y) * 12 + (endM - p.m);
+  return months > 0 ? months : 0;
+}
+
 function masaKerja(g: Guru, endY: number, endM: number) {
   if (typeof g.masaTahun === 'number') {
     return `${pad2(g.masaTahun)} tahun\n${pad2(g.masaBulan || 0)} bulan`;
   }
-  const p = parseIso(g.tmt);
+  const p = parseTmtDate(g.tmt);
   if (!p) return '';
   let months = (endY - p.y) * 12 + (endM - p.m);
   if (months < 0) months = 0;
@@ -139,22 +159,65 @@ export const Daftar1Pages: React.FC<Daftar1Props> = ({ config, siswa, guru, repo
   const absenPct = grand ? ((absenTot / grand) * 100).toFixed(1).replace('.', ',') : '0,0';
   const two = (n: number) => pad2(n);
 
-  // ----- Guru -----
-  const gtk = guru.filter((g) => g.status !== 'Nonaktif');
+  // ----- Guru (Daftar 1: Urutan nama berdasarkan masa kerja terlama yang diatas) -----
+  const gtk = guru
+    .filter((g) => g.status !== 'Nonaktif')
+    .map((g) => {
+      const ov = reportData.guruOverrides?.[g.id];
+      return ov ? { ...g, ...ov } : g;
+    })
+    .slice()
+    .sort((a, b) => {
+      const bMasa = hitungTotalBulanMasaKerja(b, yy, mm);
+      const aMasa = hitungTotalBulanMasaKerja(a, yy, mm);
+      if (bMasa !== aMasa) {
+        return bMasa - aMasa; // Masa kerja terlama di atas
+      }
+      // Jika masa kerja sama, urutkan tanggal TMT lebih awal di atas
+      const aP = parseTmtDate(a.tmt);
+      const bP = parseTmtDate(b.tmt);
+      const aTmtVal = aP ? aP.y * 10000 + aP.m * 100 + aP.d : 99999999;
+      const bTmtVal = bP ? bP.y * 10000 + bP.m * 100 + bP.d : 99999999;
+      if (aTmtVal !== bTmtVal) {
+        return aTmtVal - bTmtVal;
+      }
+      return a.nama.localeCompare(b.nama);
+    });
+
   const gurus = gtk.filter((g) => g.jenisGtk !== 'Tendik');
   const gL = gurus.filter((g) => g.jk === 'L').length;
   const gP = gurus.filter((g) => g.jk === 'P').length;
 
-  const statusSel = (config.statusSekolah || '').toLowerCase();
-  const bahasaSel = (config.bahasa || 'Indonesia').toUpperCase();
+  // Nilai dinamis Sarana & Prasarana (menggunakan data edit jika ada, atau bawaan)
+  const bagPerKelas = reportData.sarana?.bagPerKelas || BAG_PER_KELAS;
+  const tanahList = reportData.sarana?.tanah || TANAH;
+  const brList = reportData.sarana?.bangunanRuangan || BANGUNAN_RUANGAN;
+  const jbList = reportData.sarana?.jenisBangunan || JENIS_BANGUNAN;
+  const perkakasList = reportData.sarana?.perkakas || PERKAKAS;
+  const airBersihVal = reportData.sarana?.airBersih || AIR_BERSIH;
+  const sewaVal = reportData.sarana?.sewaPerbulan || '…………………';
+  const menumpangVal = reportData.sarana?.menumpang || '…………………';
+  const kelasPembangunanVal = String(reportData.muridOverrides?.kelasPembangunan ?? '-');
+
+  // Nilai dinamis Pengesahan & Identitas Sekolah
+  const statusSel = (reportData.pengesahan?.statusSekolah || config.statusSekolah || '').toLowerCase();
+  const bahasaSel = (reportData.pengesahan?.bahasa || config.bahasa || 'Indonesia').toUpperCase();
+  const tahunBerdiriVal = reportData.pengesahan?.tahunBerdiri || config.tahunBerdiri || '-';
+  const tglLaporanVal = reportData.pengesahan?.tglLaporan || tglLaporan;
+  const tempatLaporanVal = reportData.pengesahan?.tempatLaporan || config.tempatLaporan || config.kecamatan || config.kabupaten || '';
+  const korwilJabatanVal = reportData.pengesahan?.korwilJabatan || config.korwilJabatan || 'Korwil Bidang Pendidikan';
+  const korwilNamaVal = reportData.pengesahan?.korwilNama || config.korwilNama || '';
+  const korwilNipVal = reportData.pengesahan?.korwilNip || config.korwilNip || '';
+  const kepsekVal = reportData.pengesahan?.kepsek || config.kepsek || '';
+  const nipKepsekVal = reportData.pengesahan?.nipKepsek || config.nipKepsek || '';
 
   // ----- Total tabel kanan -----
   const tanahTot = {
-    luas: sum(TANAH.map((t) => t.luas)),
-    persil: sum(TANAH.map((t) => t.persil)),
-    harga: sum(TANAH.map((t) => t.harga)),
+    luas: sum(tanahList.map((t) => t.luas)),
+    persil: sum(tanahList.map((t) => t.persil)),
+    harga: sum(tanahList.map((t) => t.harga)),
   };
-  const brSum = (key: 'baik' | 'sedang' | 'rusak', i: 0 | 1) => sum(BANGUNAN_RUANGAN.map((b) => b[key][i]));
+  const brSum = (key: 'baik' | 'sedang' | 'rusak', i: 0 | 1) => sum(brList.map((b) => b[key][i]));
 
   const perkakasJumlah = (p: (typeof PERKAKAS)[number]) => {
     const parts = [p.baik, p.sedang, p.rusak];
@@ -199,14 +262,14 @@ export const Daftar1Pages: React.FC<Daftar1Props> = ({ config, siswa, guru, repo
                       const sel = statusSel.includes(o.toLowerCase());
                       const letter = 'abcde'[i];
                       return (
-                        <div key={o} className="lb-opt">
+                        <div key={o} className={`lb-opt ${sel ? 'is-sel' : ''}`}>
                           <span className={sel ? 'lb-circ' : 'lb-circ0'}>{letter}</span>. {o}
                         </div>
                       );
                     })}
                   </td>
                   <td className="lb-c3">
-                    <div className="lb-kv"><span>Tahun Pendirian SD</span><span>: &nbsp;{config.tahunBerdiri || '-'}</span></div>
+                    <div className="lb-kv"><span>Tahun Pendirian SD</span><span>: &nbsp;{tahunBerdiriVal}</span></div>
                     <div className="lb-kv"><span>NSS/NPSN</span><span>: &nbsp;{config.nss || '-'}/ {config.npsn || '-'}</span></div>
                     <div className="lb-kv"><span>Alamat</span><span>: &nbsp;{config.alamat}</span></div>
                     <div className="lb-kv"><span>Desa/Kelurahan, Kecamatan</span><span>: &nbsp;{config.desa || '-'}, Kec. {config.kecamatan || '-'}</span></div>
@@ -244,11 +307,11 @@ export const Daftar1Pages: React.FC<Daftar1Props> = ({ config, siswa, guru, repo
                 <tr className="lb-sub">
                   {Array.from({ length: 6 }, (_, i) => (
                     <React.Fragment key={i}>
-                      <td>{BAG_PER_KELAS}</td>
+                      <td>{bagPerKelas}</td>
                       <td>Bag</td>
                     </React.Fragment>
                   ))}
-                  <td>{BAG_PER_KELAS * 6}</td>
+                  <td>{bagPerKelas * 6}</td>
                   <td>Bag</td>
                 </tr>
                 <tr className="lb-sub">
@@ -271,7 +334,7 @@ export const Daftar1Pages: React.FC<Daftar1Props> = ({ config, siswa, guru, repo
                         <td className="lb-lbl">Indonesia</td>
                         {a.cells}
                         <td className={g.big ? 'lb-big' : ''}>{cnt(a.total + b.total)}</td>
-                        <td />
+                        <td className={g.big ? 'lb-big' : ''}>{g.big && g.label[0] === 'Penghabisan' && g.label[1] === 'bulan ini' ? kelasPembangunanVal : ''}</td>
                       </tr>
                       <tr className="lb-r-asg">
                         <td className="lb-lbl">Asing</td>
@@ -318,7 +381,7 @@ export const Daftar1Pages: React.FC<Daftar1Props> = ({ config, siswa, guru, repo
                   <td colSpan={4}>Pembelian</td>
                   <td colSpan={3}>Rp</td>
                 </tr>
-                {TANAH.map((t) => (
+                {tanahList.map((t) => (
                   <tr key={t.label}>
                     <td className="lb-l">{t.label}</td>
                     <td colSpan={2}>{rp(t.luas)}</td>
@@ -358,7 +421,7 @@ export const Daftar1Pages: React.FC<Daftar1Props> = ({ config, siswa, guru, repo
                     <td key={i} colSpan={sp}>{i % 2 === 0 ? 'Bgn' : 'Rgn'}</td>
                   ))}
                 </tr>
-                {BANGUNAN_RUANGAN.map((b) => {
+                {brList.map((b) => {
                   const j: [number, number] = [
                     sum([b.baik[0], b.sedang[0], b.rusak[0]]),
                     sum([b.baik[1], b.sedang[1], b.rusak[1]]),
@@ -387,7 +450,7 @@ export const Daftar1Pages: React.FC<Daftar1Props> = ({ config, siswa, guru, repo
             {/* C & D */}
             <table className="lb-tbl lb-rt">
               <tbody>
-                <tr><td className="lb-txt">C. MENYEWA Perbulan Rp ………………… MENUMPANG DI SD</td></tr>
+                <tr><td className="lb-txt">C. MENYEWA Perbulan Rp {sewaVal} MENUMPANG DI SD {menumpangVal}</td></tr>
                 <tr>
                   <td className="lb-txt">
                     D. JENIS/SIFAT BANGUNAN<br />
@@ -419,7 +482,7 @@ export const Daftar1Pages: React.FC<Daftar1Props> = ({ config, siswa, guru, repo
                   <td colSpan={2}>DR</td>
                   <td colSpan={2}>Rp.</td>
                 </tr>
-                {JENIS_BANGUNAN.map((j) => (
+                {jbList.map((j) => (
                   <tr key={j.label}>
                     <td className={`lb-l ${j.indent ? 'lb-ind' : ''}`}>{j.label}</td>
                     <td>{cnt(j.jml[0] || 0)}</td>
@@ -436,7 +499,7 @@ export const Daftar1Pages: React.FC<Daftar1Props> = ({ config, siswa, guru, repo
 
             <table className="lb-tbl lb-rt">
               <tbody>
-                <tr><td className="lb-txt lb-air">E.&nbsp;&nbsp; PENYEDIAAN AIR&nbsp; BERSIH&nbsp; :&nbsp; {AIR_BERSIH}</td></tr>
+                <tr><td className="lb-txt lb-air">E.&nbsp;&nbsp; PENYEDIAAN AIR&nbsp; BERSIH&nbsp; :&nbsp; {airBersihVal}</td></tr>
               </tbody>
             </table>
 
@@ -456,7 +519,7 @@ export const Daftar1Pages: React.FC<Daftar1Props> = ({ config, siswa, guru, repo
                   <td colSpan={4}>Rusak</td>
                   <td colSpan={3}>Jumlah</td>
                 </tr>
-                {PERKAKAS.map((p) => (
+                {perkakasList.map((p) => (
                   <tr key={p.label}>
                     <td className="lb-l">{p.label}</td>
                     <td colSpan={2}>{pk(p.baik)}</td>
@@ -623,20 +686,20 @@ export const Daftar1Pages: React.FC<Daftar1Props> = ({ config, siswa, guru, repo
 
         <div className="lb-ttd">
           <div className="lb-ttd-l">
-            <div>{config.korwilJabatan || 'Korwil Bidang Pendidikan'}</div>
+            <div>{korwilJabatanVal}</div>
             <div>Kecamatan {config.kecamatan || ''}</div>
             <div className="lb-ttd-gap" />
-            <div className="lb-ttd-nm">{config.korwilNama || ''}</div>
-            <div>NIP. {config.korwilNip || ''}</div>
+            <div className="lb-ttd-nm">{korwilNamaVal || '…………………………………'}</div>
+            <div>NIP. {korwilNipVal || '…………………………………'}</div>
           </div>
           <div className="lb-ttd-r">
             <div>
-              {config.tempatLaporan || config.kecamatan || config.kabupaten}, {tglLaporan}
+              {tempatLaporanVal || config.kecamatan || config.kabupaten}, {tglLaporanVal}
             </div>
             <div>Kepala {config.namaSekolah},</div>
             <div className="lb-ttd-gap" />
-            <div className="lb-ttd-nm">{config.kepsek}</div>
-            <div>NIP. &nbsp;{config.nipKepsek}</div>
+            <div className="lb-ttd-nm">{kepsekVal}</div>
+            <div>NIP. &nbsp;{nipKepsekVal}</div>
           </div>
         </div>
       </div>

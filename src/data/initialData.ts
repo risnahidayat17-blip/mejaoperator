@@ -5,7 +5,23 @@
 
 import { siswaDapodik } from './siswaDapodik';
 import { gtkDapodik } from './gtkDapodik';
-import { User, SchoolConfig, Siswa, Guru, Aset, SuratMasuk, SuratKeluar, Mutasi, LetterTemplate, BmdItem, StikerConfig } from '../types';
+import { User, SchoolConfig, Siswa, Guru, Aset, SuratMasuk, SuratKeluar, Mutasi, LetterTemplate, BmdItem, StikerConfig, Rombel } from '../types';
+
+export const initialRombels: Rombel[] = [
+  { id: 'rmb_1a', nama: '1 A', tingkat: '1', kurikulum: 'Kurikulum Merdeka', ruangan: 'Ruang Kelas 1 A' },
+  { id: 'rmb_1b', nama: '1 B', tingkat: '1', kurikulum: 'Kurikulum Merdeka', ruangan: 'Ruang Kelas 1 B' },
+  { id: 'rmb_2a', nama: '2 A', tingkat: '2', kurikulum: 'Kurikulum Merdeka', ruangan: 'Ruang Kelas 2 A' },
+  { id: 'rmb_2b', nama: '2 B', tingkat: '2', kurikulum: 'Kurikulum Merdeka', ruangan: 'Ruang Kelas 2 B' },
+  { id: 'rmb_3a', nama: '3 A', tingkat: '3', kurikulum: 'Kurikulum Merdeka', ruangan: 'Ruang Kelas 3 A' },
+  { id: 'rmb_3b', nama: '3 B', tingkat: '3', kurikulum: 'Kurikulum Merdeka', ruangan: 'Ruang Kelas 3 B' },
+  { id: 'rmb_3c', nama: '3 C', tingkat: '3', kurikulum: 'Kurikulum Merdeka', ruangan: 'Ruang Kelas 3 C' },
+  { id: 'rmb_4a', nama: '4 A', tingkat: '4', kurikulum: 'Kurikulum Merdeka', ruangan: 'Ruang Kelas 4 A' },
+  { id: 'rmb_4b', nama: '4 B', tingkat: '4', kurikulum: 'Kurikulum Merdeka', ruangan: 'Ruang Kelas 4 B' },
+  { id: 'rmb_5a', nama: '5 A', tingkat: '5', kurikulum: 'Kurikulum Merdeka', ruangan: 'Ruang Kelas 5 A' },
+  { id: 'rmb_5b', nama: '5 B', tingkat: '5', kurikulum: 'Kurikulum Merdeka', ruangan: 'Ruang Kelas 5 B' },
+  { id: 'rmb_6a', nama: '6 A', tingkat: '6', kurikulum: 'Kurikulum Merdeka', ruangan: 'Ruang Kelas 6 A' },
+  { id: 'rmb_6b', nama: '6 B', tingkat: '6', kurikulum: 'Kurikulum Merdeka', ruangan: 'Ruang Kelas 6 B' },
+];
 
 export const initialUsers: User[] = [
   {

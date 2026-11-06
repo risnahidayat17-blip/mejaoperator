@@ -434,14 +434,16 @@ h1, h2, h3, h4 {
 .lb-c1 .lb-bln { font-weight: 700; font-size: 9.5pt; padding: 3mm 0; border-bottom: .6pt solid #000; }
 .lb-c1 .lb-bhs { font-weight: 700; font-size: 8.5pt; border-bottom: .6pt solid #000; padding: .3mm 0; }
 .lb-c1 .lb-bhs:not(.on) { font-weight: 400; }
-.lb-c2 { padding: 0 1mm !important; }
-.lb-status-h { height: 4.5mm; line-height: 4.5mm; font-size: 8.5pt; }
-.lb-opt { height: 4.5mm; line-height: 4.5mm; font-size: 8.5pt; }
+.lb-c2 { padding: 0.4mm 1.5mm !important; }
+.lb-status-h { height: 4.6mm; line-height: 4.6mm; font-size: 9.5pt; font-weight: 600; }
+.lb-opt { height: 4.6mm; line-height: 4.6mm; font-size: 10pt; }
+.lb-opt.is-sel { font-weight: 700; }
 .lb-circ {
-  display: inline-block; width: 3.4mm; height: 3.4mm; line-height: 3.2mm;
-  border: .6pt solid #000; border-radius: 50%; text-align: center;
+  display: inline-block; width: 3.8mm; height: 3.8mm; line-height: 3.5mm;
+  border: .75pt solid #000; border-radius: 50%; text-align: center;
+  font-size: 8.5pt; font-weight: 700; vertical-align: middle; margin-right: 0.5mm;
 }
-.lb-circ0 { display: inline-block; width: 3.4mm; text-align: center; }
+.lb-circ0 { display: inline-block; width: 3.8mm; text-align: center; font-size: 8.5pt; vertical-align: middle; margin-right: 0.5mm; }
 .lb-c3 { padding: 0 1mm !important; }
 .lb-kv { display: grid; grid-template-columns: 46% 54%; height: 4.5mm; line-height: 4.5mm; font-size: 8.5pt; }
 .lb-kv > span { white-space: nowrap; overflow: hidden; text-overflow: clip; }

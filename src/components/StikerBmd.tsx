@@ -7,7 +7,8 @@ import React, { useMemo, useRef, useState } from 'react';
 import { SchoolConfig, BmdItem, StikerConfig } from '../types';
 import { getBmdItems, saveBmdItems, getStikerConfig, saveStikerConfig } from '../lib/storage';
 import { LOGO_PEMDA_STIKER } from '../data/stikerLogo';
-import { Printer, Plus, Pencil, Trash2, Search, X, ClipboardPaste, FileUp } from 'lucide-react';
+import { parseSikatonFile, convertToBmdItems } from '../lib/sikatonImport';
+import { Printer, Plus, Pencil, Trash2, Search, X, ClipboardPaste, FileUp, FileSpreadsheet } from 'lucide-react';
 
 interface StikerBmdProps {
   role: 'operator' | 'guru';
@@ -227,17 +228,39 @@ export const StikerBmd: React.FC<StikerBmdProps> = ({ role, config, onToast }) =
     onToast(`${baru.length} barang BMD berhasil diimpor.`);
   };
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    if (/\.xlsx?$/i.test(file.name)) {
-      onToast('Berkas Excel belum bisa dibaca langsung. Salin sel dari Excel lalu tempel, atau simpan sebagai CSV.', true);
-      return;
+
+    try {
+      if (/\.xlsx?$/i.test(file.name)) {
+        const { result } = await parseSikatonFile(file);
+        if (!result.items.length) {
+          onToast('Tidak ditemukan baris barang yang valid pada berkas Excel SIKATON.', true);
+          return;
+        }
+        if (result.detectedSkpd && !cfg.kodeSkpd) {
+          updateCfg({ kodeSkpd: result.detectedSkpd });
+        }
+        const bmdItems = convertToBmdItems(result.items);
+        if (pasteMode === 'ganti' && !isOperator) {
+          onToast('Hanya Operator yang boleh mengganti seluruh data BMD.', true);
+          return;
+        }
+        const list = pasteMode === 'ganti' ? bmdItems : [...items, ...bmdItems];
+        persist(list, `Impor ${bmdItems.length} barang BMD dari ${file.name}`);
+        setSelected(pasteMode === 'ganti' ? new Set(bmdItems.map((b) => b.id)) : new Set([...selected, ...bmdItems.map((b) => b.id)]));
+        setIsPasteOpen(false);
+        onToast(`Berhasil membaca dan mengimpor ${bmdItems.length} barang dari ${file.name}.`);
+      } else {
+        const reader = new FileReader();
+        reader.onload = () => setPasteText(String(reader.result || ''));
+        reader.readAsText(file);
+      }
+    } catch (err: any) {
+      onToast(err?.message || 'Gagal membaca berkas Excel.', true);
     }
-    const reader = new FileReader();
-    reader.onload = () => setPasteText(String(reader.result || ''));
-    reader.readAsText(file);
   };
 
   const inputCls = 'w-full px-3 py-1.5 text-xs border border-[#D3DDD9] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0B6B58]';
@@ -485,9 +508,9 @@ export const StikerBmd: React.FC<StikerBmdProps> = ({ role, config, onToast }) =
             <textarea value={pasteText} onChange={(e) => setPasteText(e.target.value)} rows={8} className={inputCls + ' font-mono'} placeholder="Tempel data di sini..." />
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-3">
-                <input ref={fileRef} type="file" accept=".csv,.tsv,.txt" className="hidden" onChange={handleFile} />
-                <button type="button" onClick={() => fileRef.current?.click()} className="px-3 py-1.5 border border-[#D3DDD9] rounded-lg font-semibold flex items-center gap-2 cursor-pointer">
-                  <FileUp className="w-3.5 h-3.5" /> Muat CSV
+                <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv,.tsv,.txt" className="hidden" onChange={handleFile} />
+                <button type="button" onClick={() => fileRef.current?.click()} className="px-3 py-1.5 border border-[#D3DDD9] hover:bg-[#F3F7F5] rounded-lg font-semibold flex items-center gap-2 cursor-pointer">
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-[#0B6B58]" /> Muat Berkas (.xlsx / .csv)
                 </button>
                 <label className="flex items-center gap-1.5"><input type="radio" checked={pasteMode === 'tambah'} onChange={() => setPasteMode('tambah')} /> Tambahkan ke daftar</label>
                 <label className="flex items-center gap-1.5"><input type="radio" checked={pasteMode === 'ganti'} onChange={() => setPasteMode('ganti')} /> Ganti semua</label>

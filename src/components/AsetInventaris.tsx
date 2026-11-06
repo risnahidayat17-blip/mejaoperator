@@ -3,13 +3,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { StikerBmd } from './StikerBmd';
 import { SchoolConfig, Aset } from '../types';
 import {
   getAsets,
   saveAset,
+  saveAsets,
   deleteAset,
+  getBmdItems,
+  saveBmdItems,
+  getStikerConfig,
+  saveStikerConfig,
 } from '../lib/storage';
 import {
   Package,
@@ -19,7 +24,21 @@ import {
   Printer,
   Search,
   X,
+  FileSpreadsheet,
+  UploadCloud,
+  CheckCircle2,
+  AlertCircle,
+  FileUp,
 } from 'lucide-react';
+import {
+  parseSikatonFile,
+  parseSikatonRows,
+  convertToAsets,
+  convertToBmdItems,
+  ParsedSikatonRow,
+  SikatonWorkbookSheet,
+  SikatonParseResult,
+} from '../lib/sikatonImport';
 
 interface AsetInventarisProps {
   role: 'operator' | 'guru';
@@ -40,9 +59,23 @@ export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, on
   const [selectedRuangan, setSelectedRuangan] = useState<string>('Semua Ruangan');
   const [penanggungJawab, setPenanggungJawab] = useState<string>('Rudi Hartono, S.Pd.');
 
-  // Modal
+  // Modal manual tambah/ubah
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAset, setEditingAset] = useState<Aset | null>(null);
+
+  // Modal Import SIKATON
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [availableSheets, setAvailableSheets] = useState<SikatonWorkbookSheet[]>([]);
+  const [selectedSheetIndex, setSelectedSheetIndex] = useState<number>(0);
+  const [parsedResult, setParsedResult] = useState<SikatonParseResult | null>(null);
+  const [importMode, setImportMode] = useState<'tambah' | 'ganti'>('tambah');
+  const [syncToBmd, setSyncToBmd] = useState<boolean>(true);
+  const [syncSkpd, setSyncSkpd] = useState<boolean>(true);
+  const [previewSearch, setPreviewSearch] = useState<string>('');
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const reloadData = () => {
     setAsets(getAsets());
@@ -110,6 +143,78 @@ export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, on
     }
   };
 
+  const handleProcessFile = async (file: File) => {
+    setIsProcessingFile(true);
+    try {
+      const { result, sheets } = await parseSikatonFile(file);
+      setImportFile(file);
+      setAvailableSheets(sheets);
+      const chosenIdx = sheets.findIndex((s) => s.name === result.sheetName);
+      setSelectedSheetIndex(chosenIdx >= 0 ? chosenIdx : 0);
+      setParsedResult(result);
+      if (result.items.length === 0) {
+        onToast('Tidak ditemukan baris barang yang valid pada berkas yang dipilih.', true);
+      } else {
+        onToast(`Terbaca ${result.items.length} barang dari "${file.name}".`);
+      }
+    } catch (err: any) {
+      console.error('Import error:', err);
+      onToast(err?.message || 'Gagal memproses berkas SIKATON.', true);
+    } finally {
+      setIsProcessingFile(false);
+    }
+  };
+
+  const handleSheetSelect = (idx: number) => {
+    const sheet = availableSheets[idx];
+    if (!sheet) return;
+    setSelectedSheetIndex(idx);
+    const next = parseSikatonRows(sheet.rows, sheet.name);
+    next.availableSheets = availableSheets.map((s) => s.name);
+    setParsedResult(next);
+  };
+
+  const handleExecuteImport = () => {
+    if (!parsedResult || !parsedResult.items.length) {
+      onToast('Tidak ada data barang yang bisa diimpor.', true);
+      return;
+    }
+    if (importMode === 'ganti' && !isOperator) {
+      onToast('Hanya Operator yang berhak mengganti seluruh data inventaris.', true);
+      return;
+    }
+
+    const newAsets = convertToAsets(parsedResult.items);
+    const finalAsets = importMode === 'ganti' ? newAsets : [...asets, ...newAsets];
+
+    saveAsets(
+      finalAsets,
+      `Impor ${newAsets.length} barang SIKATON (${importMode === 'ganti' ? 'ganti semua' : 'tambah'})`
+    );
+
+    if (syncToBmd) {
+      const newBmd = convertToBmdItems(parsedResult.items);
+      const existingBmd = getBmdItems();
+      const finalBmd = importMode === 'ganti' ? newBmd : [...existingBmd, ...newBmd];
+      saveBmdItems(finalBmd, `Sinkronisasi ${newBmd.length} stiker BMD dari impor SIKATON`);
+    }
+
+    if (syncSkpd && parsedResult.detectedSkpd) {
+      const curCfg = getStikerConfig();
+      saveStikerConfig({
+        ...curCfg,
+        kodeSkpd: parsedResult.detectedSkpd,
+      });
+    }
+
+    reloadData();
+    setIsImportModalOpen(false);
+    setImportFile(null);
+    setParsedResult(null);
+    setAvailableSheets([]);
+    onToast(`Berhasil mengimpor ${newAsets.length} data aset dari SIKATON.`);
+  };
+
   const kirItems = asets.filter(
     (a) => selectedRuangan === 'Semua Ruangan' || (a.lokasi || 'Ruang Kelas 1') === selectedRuangan
   );
@@ -127,16 +232,28 @@ export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, on
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            setEditingAset(null);
-            setIsModalOpen(true);
-          }}
-          className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 transition cursor-pointer"
-        >
-          <Plus className="w-4 h-4" /> Catat Barang Baru
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setIsImportModalOpen(true);
+            }}
+            className="px-3.5 py-2 bg-white border border-[#D3DDD9] hover:bg-[#F3F7F5] text-[#13262A] text-xs font-semibold rounded-lg shadow-2xs flex items-center gap-2 transition cursor-pointer"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-[#0B6B58]" /> Impor SIKATON (.xlsx / .csv)
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setEditingAset(null);
+              setIsModalOpen(true);
+            }}
+            className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 transition cursor-pointer"
+          >
+            <Plus className="w-4 h-4" /> Catat Barang Baru
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -309,6 +426,26 @@ export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, on
                       </tr>
                     );
                   })}
+                  {filtered.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-[#566A6E]">
+                        <Package className="w-10 h-10 text-[#A0B0AD] mx-auto mb-2 opacity-60" />
+                        <p className="font-semibold text-sm text-[#13262A]">Tidak ada data barang yang sesuai</p>
+                        <p className="text-xs text-[#566A6E] mt-1 max-w-md mx-auto">
+                          Mulai catat barang baru atau impor berkas data aset resmi SIKATON (.xlsx / .csv).
+                        </p>
+                        <div className="mt-4 flex justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setIsImportModalOpen(true)}
+                            className="px-3.5 py-1.5 bg-white border border-[#D3DDD9] hover:bg-[#F3F7F5] text-xs font-semibold rounded-lg flex items-center gap-2 cursor-pointer shadow-2xs"
+                          >
+                            <FileSpreadsheet className="w-4 h-4 text-[#0B6B58]" /> Impor SIKATON (.xlsx / .csv)
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -590,6 +727,372 @@ export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, on
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL IMPOR SIKATON */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border border-[#D3DDD9] max-w-4xl w-full p-6 space-y-4 my-6 text-xs max-h-[92vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-[#E6EDEA] pb-3 flex-none">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#E6F2EE] flex items-center justify-center text-[#0B6B58]">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#13262A] font-display">
+                    Impor Data Aset SIKATON / BMD
+                  </h3>
+                  <p className="text-[11px] text-[#566A6E]">
+                    Unggah lembar kerja ekspor SIKATON (Excel .xlsx atau CSV) untuk disinkronkan ke daftar aset dan stiker label.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsImportModalOpen(false);
+                  setImportFile(null);
+                  setParsedResult(null);
+                  setAvailableSheets([]);
+                }}
+                className="p-1.5 text-[#566A6E] hover:text-[#13262A] rounded-lg hover:bg-gray-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+              {/* Dropzone */}
+              {!parsedResult ? (
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragging(true);
+                  }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                    const f = e.dataTransfer.files?.[0];
+                    if (f) handleProcessFile(f);
+                  }}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition ${
+                    isDragging
+                      ? 'border-[#0B6B58] bg-[#E6F2EE]/40'
+                      : 'border-[#C2D1CD] hover:border-[#0B6B58] bg-[#F8FBFA]'
+                  }`}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls,.csv,.tsv,.txt"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleProcessFile(f);
+                      e.target.value = '';
+                    }}
+                  />
+                  {isProcessingFile ? (
+                    <div className="py-6 space-y-3">
+                      <div className="w-8 h-8 border-3 border-[#0B6B58] border-t-transparent rounded-full animate-spin mx-auto" />
+                      <p className="text-xs font-semibold text-[#13262A]">Membaca struktur berkas Excel / CSV...</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="w-12 h-12 rounded-full bg-[#E6F2EE] flex items-center justify-center text-[#0B6B58] mx-auto">
+                        <UploadCloud className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-[#13262A]">
+                          Tarik berkas SIKATON ke sini, atau klik untuk memilih
+                        </p>
+                        <p className="text-[11px] text-[#566A6E] mt-1">
+                          Mendukung berkas Excel Modern (<b>.xlsx</b>, <b>.xls</b>) serta berkas teks (<b>.csv</b>, <b>.tsv</b>)
+                        </p>
+                      </div>
+                      <div className="inline-flex items-center gap-2 text-[10px] text-[#0B6B58] bg-[#E6F2EE] px-3 py-1 rounded-full font-medium">
+                        <span>Format SIKATON dikenali otomatis: DATA_BMD, KIB A-E, Kode Barang, ID Barang, Merk, Nilai, dll.</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* File info banner */}
+                  <div className="bg-[#F3F7F5] border border-[#D3DDD9] rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-white border border-[#D3DDD9] flex items-center justify-center text-[#0B6B58]">
+                        <FileSpreadsheet className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-[#13262A] text-xs flex items-center gap-2">
+                          <span>{importFile?.name}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-white text-[#566A6E] border border-[#D3DDD9]">
+                            {((importFile?.size || 0) / 1024).toFixed(1)} KB
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-[#566A6E] mt-0.5 flex flex-wrap items-center gap-2">
+                          <span>Lembar aktif: <b>{parsedResult.sheetName}</b></span>
+                          <span>&bull;</span>
+                          <span className="text-[#0B6B58] font-bold">{parsedResult.totalRowsFound} barang terdeteksi</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setParsedResult(null);
+                        setImportFile(null);
+                        setAvailableSheets([]);
+                      }}
+                      className="px-2.5 py-1.5 bg-white border border-[#D3DDD9] hover:bg-gray-50 text-[11px] font-semibold rounded-lg flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <FileUp className="w-3.5 h-3.5" /> Ganti Berkas
+                    </button>
+                  </div>
+
+                  {/* Multi-sheet selector jika berkas memiliki lebih dari 1 sheet */}
+                  {availableSheets.length > 1 && (
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#566A6E] mb-1.5">
+                        Pilih Lembar Kerja (Worksheet) Excel:
+                      </label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {availableSheets.map((sh, idx) => (
+                          <button
+                            key={sh.name}
+                            type="button"
+                            onClick={() => handleSheetSelect(idx)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+                              selectedSheetIndex === idx
+                                ? 'bg-[#0B6B58] text-white shadow-xs'
+                                : 'bg-[#F1F4F2] text-[#566A6E] hover:bg-[#E5EBE8]'
+                            }`}
+                          >
+                            <span>{sh.name}</span>
+                            <span
+                              className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                                selectedSheetIndex === idx ? 'bg-white/20 text-white' : 'bg-white text-[#566A6E]'
+                              }`}
+                            >
+                              {sh.parsedCount} barang
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Metadata terdeteksi */}
+                  {(parsedResult.detectedSkpd || parsedResult.detectedSekolah || parsedResult.detectedNpsn) && (
+                    <div className="grid sm:grid-cols-3 gap-2.5 bg-white p-3 rounded-xl border border-[#D3DDD9]">
+                      {parsedResult.detectedSkpd && (
+                        <div>
+                          <div className="text-[10px] uppercase font-bold text-[#566A6E]">Kode SKPD Terdeteksi</div>
+                          <div className="font-mono font-bold text-[#13262A] text-xs">{parsedResult.detectedSkpd}</div>
+                        </div>
+                      )}
+                      {parsedResult.detectedSekolah && (
+                        <div>
+                          <div className="text-[10px] uppercase font-bold text-[#566A6E]">Unit / Nama Sekolah</div>
+                          <div className="font-bold text-[#13262A] text-xs truncate">{parsedResult.detectedSekolah}</div>
+                        </div>
+                      )}
+                      {parsedResult.detectedNpsn && (
+                        <div>
+                          <div className="text-[10px] uppercase font-bold text-[#566A6E]">NPSN</div>
+                          <div className="font-mono font-bold text-[#13262A] text-xs">{parsedResult.detectedNpsn}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Pengaturan Impor */}
+                  <div className="bg-[#FAFBFB] p-3.5 rounded-xl border border-[#D3DDD9] space-y-3">
+                    <div className="font-bold text-[#13262A] text-xs">Opsi & Integrasi Impor</div>
+                    <div className="grid sm:grid-cols-2 gap-3 text-xs">
+                      <div className="space-y-2">
+                        <label className="block text-[11px] font-semibold text-[#566A6E]">Metode Penggabungan Data</label>
+                        <div className="space-y-1.5">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="importMode"
+                              checked={importMode === 'tambah'}
+                              onChange={() => setImportMode('tambah')}
+                              className="text-[#0B6B58] focus:ring-[#0B6B58]"
+                            />
+                            <span><b>Tambahkan</b> ke daftar aset saat ini ({asets.length} ada)</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="importMode"
+                              checked={importMode === 'ganti'}
+                              onChange={() => setImportMode('ganti')}
+                              className="text-[#0B6B58] focus:ring-[#0B6B58]"
+                            />
+                            <span className="text-amber-800"><b>Ganti seluruh</b> data aset (timpa data lama)</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="block text-[11px] font-semibold text-[#566A6E]">Integrasi Tambahan</label>
+                        <div className="space-y-1.5">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={syncToBmd}
+                              onChange={(e) => setSyncToBmd(e.target.checked)}
+                              className="rounded text-[#0B6B58] focus:ring-[#0B6B58]"
+                            />
+                            <span>Sinkronkan ke <b>Cetak Stiker BMD</b> (siap cetak 16-per-A4)</span>
+                          </label>
+                          {parsedResult.detectedSkpd && (
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={syncSkpd}
+                                onChange={(e) => setSyncSkpd(e.target.checked)}
+                                className="rounded text-[#0B6B58] focus:ring-[#0B6B58]"
+                              />
+                              <span>Perbarui Kode SKPD stiker ke <b>{parsedResult.detectedSkpd}</b></span>
+                            </label>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Pratinjau Barang */}
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="font-bold text-[#13262A] text-xs">
+                        Pratinjau Data Barang ({parsedResult.items.length} terdeteksi)
+                      </div>
+                      <input
+                        type="search"
+                        placeholder="Cari dalam pratinjau..."
+                        value={previewSearch}
+                        onChange={(e) => setPreviewSearch(e.target.value)}
+                        className="px-2.5 py-1 text-xs border border-[#D3DDD9] rounded-lg w-52"
+                      />
+                    </div>
+
+                    <div className="border border-[#D3DDD9] rounded-xl overflow-hidden max-h-[220px] overflow-y-auto bg-white">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-[#F1F4F2] text-[#566A6E] sticky top-0 text-[10px] font-semibold uppercase">
+                          <tr>
+                            <th className="py-2 px-3 border-b border-[#D3DDD9] w-8">No</th>
+                            <th className="py-2 px-3 border-b border-[#D3DDD9]">Kode / ID</th>
+                            <th className="py-2 px-3 border-b border-[#D3DDD9]">Nama Barang & Merk</th>
+                            <th className="py-2 px-3 border-b border-[#D3DDD9]">Golongan KIB</th>
+                            <th className="py-2 px-3 border-b border-[#D3DDD9] text-center">Jml</th>
+                            <th className="py-2 px-3 border-b border-[#D3DDD9] text-center">Kondisi</th>
+                            <th className="py-2 px-3 border-b border-[#D3DDD9] text-right">Nilai / Harga</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#E6EDEA]">
+                          {parsedResult.items
+                            .filter((it) => {
+                              if (!previewSearch) return true;
+                              const q = previewSearch.toLowerCase();
+                              return (
+                                it.namaBarang.toLowerCase().includes(q) ||
+                                it.kodeBarang.toLowerCase().includes(q) ||
+                                it.idBarang.toLowerCase().includes(q) ||
+                                (it.merkType || '').toLowerCase().includes(q)
+                              );
+                            })
+                            .slice(0, 50)
+                            .map((it, idx) => (
+                              <tr key={idx} className="hover:bg-gray-50/70">
+                                <td className="py-2 px-3 font-mono text-[11px]">{it.no || idx + 1}</td>
+                                <td className="py-2 px-3 font-mono text-[11px]">
+                                  <div className="font-semibold text-[#13262A]">{it.kodeBarang}</div>
+                                  <div className="text-[#566A6E] text-[10px]">ID: {it.idBarang}</div>
+                                </td>
+                                <td className="py-2 px-3">
+                                  <div className="font-bold text-[#13262A]">{it.namaBarang}</div>
+                                  {it.merkType && (
+                                    <div className="text-[10px] text-[#566A6E]">{it.merkType}</div>
+                                  )}
+                                </td>
+                                <td className="py-2 px-3">
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#E8EFEC] text-[#13262A]">
+                                    {it.kategori}
+                                  </span>
+                                </td>
+                                <td className="py-2 px-3 text-center font-bold font-mono">{it.jumlah}</td>
+                                <td className="py-2 px-3 text-center">
+                                  <span
+                                    className={`inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                                      it.kondisi === 'Baik'
+                                        ? 'bg-[#DDF1E3] text-[#1D7A3A]'
+                                        : it.kondisi === 'Rusak ringan'
+                                        ? 'bg-[#FBEFD0] text-[#8F5B00]'
+                                        : 'bg-[#FBE2DF] text-[#B3261E]'
+                                    }`}
+                                  >
+                                    {it.kondisi}
+                                  </span>
+                                </td>
+                                <td className="py-2 px-3 text-right font-mono text-[#13262A]">
+                                  {it.harga && it.harga > 0
+                                    ? new Intl.NumberFormat('id-ID', {
+                                        style: 'currency',
+                                        currency: 'IDR',
+                                        maximumFractionDigits: 0,
+                                      }).format(it.harga * (it.jumlah || 1))
+                                    : '-'}
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal footer */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[#E6EDEA] flex-none">
+              <span className="text-[11px] text-[#566A6E]">
+                {parsedResult
+                  ? `Siap mengimpor ${parsedResult.items.length} barang ke inventaris.`
+                  : 'Pilih berkas untuk memulai pratinjau.'}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsImportModalOpen(false);
+                    setImportFile(null);
+                    setParsedResult(null);
+                    setAvailableSheets([]);
+                  }}
+                  className="px-4 py-2 border border-[#D3DDD9] hover:bg-gray-50 text-[#566A6E] rounded-lg cursor-pointer font-semibold"
+                >
+                  Batal
+                </button>
+                {parsedResult && parsedResult.items.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleExecuteImport}
+                    className="px-5 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white font-semibold rounded-lg cursor-pointer flex items-center gap-2 shadow-sm"
+                  >
+                    <CheckCircle2 className="w-4 h-4" /> Impor {parsedResult.items.length} Barang Sekarang
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
