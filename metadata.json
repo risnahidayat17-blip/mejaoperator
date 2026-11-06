@@ -1,0 +1,6 @@
+{
+  "name": "Meja Operator - Administrasi Sekolah & Supabase",
+  "description": "Sistem Informasi Administrasi Sekolah Terpadu terhubung ke Supabase: Kesiswaan, Mutasi Siswa, GTK, Surat Masuk/Keluar, Sarpras, Penilaian, Kwitansi Keuangan BKU, dan Sinkronisasi Cloud.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
