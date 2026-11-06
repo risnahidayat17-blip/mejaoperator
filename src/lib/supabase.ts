@@ -331,7 +331,6 @@ export async function pullAllFromSupabase(quiet = false): Promise<{
 
     const result: Record<string, unknown> = {};
     for (const row of data) {
-      if (isUserKey(row.id)) continue; // akun & password tetap lokal
       result[row.id] = row.data;
     }
 

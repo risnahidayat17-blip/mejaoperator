@@ -19,6 +19,7 @@ import {
   LetterTemplate,
   ArsipAbsen,
   KeuanganState,
+  WorkActivity,
 } from '../types';
 import {
   initialUsers,
@@ -58,6 +59,7 @@ export const KEYS = {
   TEMPLATES: 'mo_letter_templates',
   ARSIPABSEN: 'mo_arsip_absen',
   KEUANGAN: 'mo_keuangan',
+  ACTIVITIES: 'mo_activities',
 };
 
 const listeners = new Set<() => void>();
@@ -95,7 +97,7 @@ export function getFromStorage<T>(key: string, defaultValue: T): T {
 // - Perubahan dari perangkat lain diambil otomatis (saat dibuka, tiap 15 detik,
 //   dan saat jendela kembali aktif).
 // ---------------------------------------------------------------------------
-const SYNC_SKIP_KEYS = new Set<string>([KEYS.USERS, KEYS.CURRENT_USER]);
+const SYNC_SKIP_KEYS = new Set<string>([KEYS.CURRENT_USER]);
 const TOMB_PREFIX = 'del:';
 const TOMB_LS_KEY = 'mo_tombstones';
 const TOMB_TTL_MS = 120 * 24 * 3600 * 1000;
@@ -232,6 +234,14 @@ async function pushOneKey(key: string): Promise<boolean> {
   const local = readLocal(key);
   if (local === undefined) return true;
 
+  if (key === KEYS.USERS && Array.isArray(local)) {
+    const sanitized = (local as User[]).map((u) => {
+      const { password: _p, passwordHash: _h, passwordSalt: _s, ...rest } = u;
+      return rest;
+    });
+    return upsertRemoteRows([{ id: key, data: sanitized }]);
+  }
+
   if (!isItemArray(local)) {
     return upsertRemoteRows([{ id: key, data: local }]);
   }
@@ -331,6 +341,12 @@ export async function syncFromCloud(): Promise<number> {
       const row = rows[key];
       if (!row) continue;
       const localVal = readLocal(key);
+      if (key === KEYS.USERS && Array.isArray(row.data)) {
+        mergeRemoteUsers(row.data as User[]);
+        changed++;
+        lastSeen[key] = meta[key];
+        continue;
+      }
       if (isItemArray(row.data) && (localVal === undefined || isItemArray(localVal))) {
         const remoteTombs = (rows[TOMB_PREFIX + key]?.data as Tombs) || {};
         const all = readAllTombs();
@@ -351,6 +367,9 @@ export async function syncFromCloud(): Promise<number> {
         } else {
           localStorage.setItem(key, JSON.stringify(row.data));
           changed++;
+          if (key === KEYS.CFG && (row.data as SchoolConfig)?.namaOperator) {
+            syncLocalOperatorsFromConfig(row.data as SchoolConfig);
+          }
         }
       }
       lastSeen[key] = meta[key];
@@ -435,6 +454,36 @@ export function initStorageDefaults(): void {
   if (!localStorage.getItem(KEYS.TEMPLATES)) {
     localStorage.setItem(KEYS.TEMPLATES, JSON.stringify(initialLetterTemplates));
   }
+  // Riwayat pengerjaan hanya mencatat kegiatan yang benar-benar dikerjakan di aplikasi
+  if (!localStorage.getItem('mo_activities_cleaned_v2')) {
+    localStorage.setItem(KEYS.ACTIVITIES, JSON.stringify([]));
+    localStorage.setItem('mo_activities_cleaned_v2', '1');
+  } else if (!localStorage.getItem(KEYS.ACTIVITIES)) {
+    localStorage.setItem(KEYS.ACTIVITIES, JSON.stringify([]));
+  }
+  // Pastikan nama operator selalu konsisten antara konfigurasi sekolah dan akun pengguna
+  try {
+    const cfg = getSchoolConfig();
+    const users = getFromStorage<User[]>(KEYS.USERS, initialUsers);
+    const op = users.find((u) => u.role === 'operator');
+    const canonicalName = cfg.namaOperator || op?.name;
+    if (canonicalName) {
+      let userUpdated = false;
+      const updatedUsers = users.map((u) => {
+        if (u.role === 'operator' && u.name !== canonicalName) {
+          userUpdated = true;
+          return { ...u, name: canonicalName };
+        }
+        return u;
+      });
+      if (userUpdated) {
+        localStorage.setItem(KEYS.USERS, JSON.stringify(updatedUsers));
+      }
+      if (!cfg.namaOperator && canonicalName) {
+        saveSchoolConfig({ ...cfg, namaOperator: canonicalName });
+      }
+    }
+  } catch {}
   migrateDapodikSeed();
 }
 
@@ -471,7 +520,21 @@ function migrateDapodikSeed(): void {
 export function getCurrentUser(): User | null {
   try {
     const val = sessionStorage.getItem(KEYS.CURRENT_USER);
-    return val ? JSON.parse(val) : null;
+    if (!val) return null;
+    const u: User = JSON.parse(val);
+    if (u.role === 'operator') {
+      const cfg = getSchoolConfig();
+      const users = getFromStorage<User[]>(KEYS.USERS, initialUsers);
+      const op = users.find((x) => x.role === 'operator');
+      const canonicalName = cfg.namaOperator || op?.name;
+      if (canonicalName && u.name !== canonicalName) {
+        u.name = canonicalName;
+      }
+      if (cfg.emailOperator && !u.email) u.email = cfg.emailOperator;
+      if (cfg.emailOperator2 && !u.email2) u.email2 = cfg.emailOperator2;
+      if (cfg.nipOperator && !u.nip) u.nip = cfg.nipOperator;
+    }
+    return u;
   } catch {
     return null;
   }
@@ -492,6 +555,202 @@ export function setCurrentUser(user: User | null): void {
     }
   } catch {}
   notifyListeners();
+}
+
+/**
+ * Menyelaraskan nama dan identitas operator ke seluruh akun operator di database pengguna
+ * serta menyimpannya ke konfigurasi sekolah agar tersinkronisasi ke Supabase Cloud (semua email/browser/perangkat).
+ */
+export function syncAllOperatorAccounts(
+  name: string,
+  email1?: string,
+  email2?: string,
+  nip?: string,
+  phone?: string
+): void {
+  const cleanName = name.trim();
+  if (!cleanName) return;
+
+  const users = getFromStorage<User[]>(KEYS.USERS, initialUsers);
+  let changed = false;
+  const now = Date.now();
+
+  const e1 = email1 !== undefined ? email1.trim() : undefined;
+  const e2 = email2 !== undefined ? email2.trim() : undefined;
+  const cleanNip = nip !== undefined ? nip.trim() : undefined;
+  const cleanPhone = phone !== undefined ? phone.trim() : undefined;
+
+  const updatedUsers = users.map((u) => {
+    if (u.role === 'operator') {
+      changed = true;
+      return {
+        ...u,
+        name: cleanName,
+        email: e1 !== undefined ? (e1 || undefined) : u.email,
+        email2: e2 !== undefined ? (e2 || undefined) : u.email2,
+        nip: cleanNip !== undefined ? (cleanNip || undefined) : u.nip,
+        phone: cleanPhone !== undefined ? (cleanPhone || undefined) : u.phone,
+        updatedAt: now,
+      };
+    }
+    const uEmail = u.email?.toLowerCase();
+    const uEmail2 = u.email2?.toLowerCase();
+    const matchE1 = e1 && (uEmail === e1.toLowerCase() || uEmail2 === e1.toLowerCase());
+    const matchE2 = e2 && (uEmail === e2.toLowerCase() || uEmail2 === e2.toLowerCase());
+    if (matchE1 || matchE2) {
+      changed = true;
+      return {
+        ...u,
+        name: cleanName,
+        updatedAt: now,
+      };
+    }
+    return u;
+  });
+
+  if (changed) {
+    setToStorage(KEYS.USERS, updatedUsers);
+  }
+
+  const cur = getCurrentUser();
+  if (cur && cur.role === 'operator') {
+    const updatedCur: User = {
+      ...cur,
+      name: cleanName,
+      email: e1 !== undefined ? (e1 || undefined) : cur.email,
+      email2: e2 !== undefined ? (e2 || undefined) : cur.email2,
+      nip: cleanNip !== undefined ? (cleanNip || undefined) : cur.nip,
+      phone: cleanPhone !== undefined ? (cleanPhone || undefined) : cur.phone,
+    };
+    sessionStorage.setItem(KEYS.CURRENT_USER, JSON.stringify(toPublicUser(updatedCur)));
+  }
+
+  const cfg = getSchoolConfig();
+  if (
+    cfg.namaOperator !== cleanName ||
+    (e1 !== undefined && cfg.emailOperator !== e1) ||
+    (e2 !== undefined && cfg.emailOperator2 !== e2) ||
+    (cleanNip !== undefined && cfg.nipOperator !== cleanNip)
+  ) {
+    saveSchoolConfig({
+      ...cfg,
+      namaOperator: cleanName,
+      emailOperator: e1 !== undefined ? e1 : cfg.emailOperator,
+      emailOperator2: e2 !== undefined ? e2 : cfg.emailOperator2,
+      nipOperator: cleanNip !== undefined ? cleanNip : cfg.nipOperator,
+    });
+  }
+  notifyListeners();
+}
+
+/**
+ * Menyelaraskan operator lokal dari SchoolConfig yang baru ditarik dari cloud.
+ */
+export function syncLocalOperatorsFromConfig(cfg: SchoolConfig): void {
+  const name = cfg.namaOperator?.trim();
+  if (!name) return;
+
+  const users = getFromStorage<User[]>(KEYS.USERS, initialUsers);
+  let userUpdated = false;
+  const now = Date.now();
+
+  const updatedUsers = users.map((u) => {
+    if (u.role === 'operator') {
+      if (
+        u.name !== name ||
+        (cfg.emailOperator && u.email !== cfg.emailOperator) ||
+        (cfg.emailOperator2 && u.email2 !== cfg.emailOperator2)
+      ) {
+        userUpdated = true;
+        return {
+          ...u,
+          name,
+          email: cfg.emailOperator || u.email,
+          email2: cfg.emailOperator2 || u.email2,
+          nip: cfg.nipOperator || u.nip,
+          updatedAt: now,
+        };
+      }
+    }
+    return u;
+  });
+
+  if (userUpdated) {
+    localStorage.setItem(KEYS.USERS, JSON.stringify(updatedUsers));
+  }
+
+  const cur = getCurrentUser();
+  if (cur && cur.role === 'operator' && cur.name !== name) {
+    sessionStorage.setItem(
+      KEYS.CURRENT_USER,
+      JSON.stringify(
+        toPublicUser({
+          ...cur,
+          name,
+          email: cfg.emailOperator || cur.email,
+          email2: cfg.emailOperator2 || cur.email2,
+          nip: cfg.nipOperator || cur.nip,
+        })
+      )
+    );
+  }
+  notifyListeners();
+}
+
+/**
+ * Menggabungkan profil pengguna dari cloud ke penyimpanan lokal tanpa menghapus hash kata sandi lokal.
+ */
+export function mergeRemoteUsers(remoteUsers: User[]): void {
+  if (!Array.isArray(remoteUsers) || remoteUsers.length === 0) return;
+  const localUsers = getFromStorage<User[]>(KEYS.USERS, initialUsers);
+  let changed = false;
+
+  const remoteOp = remoteUsers.find((u) => u.role === 'operator');
+  const canonicalOpName = remoteOp?.name?.trim();
+
+  const merged = localUsers.map((local) => {
+    const remote =
+      remoteUsers.find((r) => r.id === local.id) ||
+      remoteUsers.find((r) => r.username.toLowerCase() === local.username.toLowerCase()) ||
+      (local.role === 'operator' ? remoteOp : undefined);
+
+    if (!remote) return local;
+
+    const nextName = local.role === 'operator' && canonicalOpName ? canonicalOpName : (remote.name || local.name);
+    const updated = {
+      ...local,
+      name: nextName,
+      email: remote.email || local.email,
+      email2: remote.email2 || local.email2,
+      phone: remote.phone || local.phone,
+      nip: remote.nip || local.nip,
+      jabatan: remote.jabatan || local.jabatan,
+      updatedAt: Math.max(local.updatedAt || 0, remote.updatedAt || 0),
+    };
+    if (JSON.stringify(updated) !== JSON.stringify(local)) {
+      changed = true;
+    }
+    return updated;
+  });
+
+  for (const r of remoteUsers) {
+    if (!merged.some((m) => m.id === r.id || m.username.toLowerCase() === r.username.toLowerCase())) {
+      merged.push({
+        ...r,
+        name: r.role === 'operator' && canonicalOpName ? canonicalOpName : r.name,
+      });
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    localStorage.setItem(KEYS.USERS, JSON.stringify(merged));
+    const cur = getCurrentUser();
+    if (cur && cur.role === 'operator' && canonicalOpName && cur.name !== canonicalOpName) {
+      sessionStorage.setItem(KEYS.CURRENT_USER, JSON.stringify(toPublicUser({ ...cur, name: canonicalOpName })));
+    }
+    notifyListeners();
+  }
 }
 
 /**
@@ -542,8 +801,22 @@ export async function loginOperator(password: string): Promise<{ success: boolea
   }
   const fresh = getFromStorage<User[]>(KEYS.USERS, initialUsers);
   const stored = fresh.find((u) => u.id === operatorUser.id) || operatorUser;
-  const loggedIn: User = { ...stored, lastLogin: Date.now() };
-  setToStorage(KEYS.USERS, fresh.map((u) => (u.id === operatorUser.id ? loggedIn : u)));
+  const cfg = getSchoolConfig();
+  const canonicalName = cfg.namaOperator || stored.name;
+  const loggedIn: User = {
+    ...stored,
+    name: canonicalName,
+    email: stored.email || cfg.emailOperator,
+    email2: stored.email2 || cfg.emailOperator2,
+    nip: stored.nip || cfg.nipOperator,
+    lastLogin: Date.now(),
+  };
+  setToStorage(
+    KEYS.USERS,
+    fresh.map((u) =>
+      u.id === operatorUser.id ? loggedIn : u.role === 'operator' ? { ...u, name: canonicalName } : u
+    )
+  );
   const publicUser = toPublicUser(loggedIn);
   setCurrentUser(publicUser);
   return { success: true, user: publicUser };
@@ -582,8 +855,40 @@ export function getSchoolConfig(): SchoolConfig {
   return cfg;
 }
 
+export function getActivities(): WorkActivity[] {
+  return getFromStorage<WorkActivity[]>(KEYS.ACTIVITIES, []);
+}
+
+export function recordActivity(
+  module: string,
+  label: string,
+  baru: boolean,
+  action: 'create' | 'update' | 'delete' = baru ? 'create' : 'update'
+): void {
+  try {
+    const list = getActivities();
+    const item: WorkActivity = {
+      id: `act_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      module,
+      label,
+      ts: Date.now(),
+      baru,
+      action,
+    };
+    const updated = [item, ...list].slice(0, 200);
+    setToStorage(KEYS.ACTIVITIES, updated);
+  } catch (e) {
+    console.error('Gagal mencatat aktivitas:', e);
+  }
+}
+
+export function clearActivities(): void {
+  setToStorage(KEYS.ACTIVITIES, []);
+}
+
 export function saveSchoolConfig(config: SchoolConfig): void {
   setToStorage(KEYS.CFG, { ...config, updatedAt: Date.now() });
+  recordActivity('Pengaturan', `Perbarui identitas & profil sekolah (${config.namaSekolah || 'Sekolah'})`, false, 'update');
 }
 
 // Siswa
@@ -595,17 +900,26 @@ export function saveSiswa(siswa: Siswa): void {
   const list = getSiswas();
   const idx = list.findIndex((s) => s.id === siswa.id);
   const now = Date.now();
+  const isNew = idx < 0;
   if (idx >= 0) {
     list[idx] = { ...siswa, updatedAt: now };
   } else {
     list.push({ ...siswa, createdAt: siswa.createdAt || now, updatedAt: now });
   }
   setToStorage(KEYS.SISWA, list);
+  recordActivity(
+    'Siswa',
+    isNew ? `Tambah siswa: ${siswa.nama} (Kelas ${siswa.kelas})` : `Perbarui data siswa: ${siswa.nama}`,
+    isNew,
+    isNew ? 'create' : 'update'
+  );
 }
 
 export function deleteSiswa(id: string): void {
+  const target = getSiswas().find((s) => s.id === id);
   const filtered = getSiswas().filter((s) => s.id !== id);
   setToStorage(KEYS.SISWA, filtered);
+  recordActivity('Siswa', `Hapus data siswa: ${target?.nama || 'Siswa'}`, false, 'delete');
 }
 
 // Guru
@@ -617,17 +931,26 @@ export function saveGuru(guru: Guru): void {
   const list = getGurus();
   const idx = list.findIndex((g) => g.id === guru.id);
   const now = Date.now();
+  const isNew = idx < 0;
   if (idx >= 0) {
     list[idx] = { ...guru, updatedAt: now };
   } else {
     list.push({ ...guru, createdAt: guru.createdAt || now, updatedAt: now });
   }
   setToStorage(KEYS.GURU, list);
+  recordActivity(
+    'Guru & Tendik',
+    isNew ? `Tambah GTK baru: ${guru.nama}` : `Perbarui data GTK: ${guru.nama}`,
+    isNew,
+    isNew ? 'create' : 'update'
+  );
 }
 
 export function deleteGuru(id: string): void {
+  const target = getGurus().find((g) => g.id === id);
   const filtered = getGurus().filter((g) => g.id !== id);
   setToStorage(KEYS.GURU, filtered);
+  recordActivity('Guru & Tendik', `Hapus data GTK: ${target?.nama || 'GTK'}`, false, 'delete');
 }
 
 // Dokumen GTK
@@ -639,20 +962,33 @@ export function saveDokumenGtk(dok: DokumenGtk): boolean {
   const list = getDokumenGtks();
   const idx = list.findIndex((d) => d.id === dok.id);
   const now = Date.now();
+  const isNew = idx < 0;
   if (idx >= 0) {
     list[idx] = { ...dok, updatedAt: now };
   } else {
     list.push({ ...dok, createdAt: dok.createdAt || now, updatedAt: now });
   }
-  return setToStorage(KEYS.DOKGTK, list);
+  const ok = setToStorage(KEYS.DOKGTK, list);
+  if (ok) {
+    recordActivity(
+      'Dokumen GTK',
+      isNew ? `Unggah berkas GTK: ${dok.judul}` : `Perbarui berkas GTK: ${dok.judul}`,
+      isNew,
+      isNew ? 'create' : 'update'
+    );
+  }
+  return ok;
 }
 
 export function deleteDokumenGtk(id: string): void {
   const all = getDokumenGtks();
   const target = all.find((d) => d.id === id);
   const filtered = all.filter((d) => d.id !== id);
-  if (setToStorage(KEYS.DOKGTK, filtered) && target?.file?.id) {
-    deleteFile(target.file).catch(() => {});
+  if (setToStorage(KEYS.DOKGTK, filtered)) {
+    if (target?.file?.id) {
+      deleteFile(target.file).catch(() => {});
+    }
+    recordActivity('Dokumen GTK', `Hapus berkas GTK: ${target?.judul || 'Dokumen'}`, false, 'delete');
   }
 }
 
@@ -665,17 +1001,26 @@ export function saveAset(aset: Aset): void {
   const list = getAsets();
   const idx = list.findIndex((a) => a.id === aset.id);
   const now = Date.now();
+  const isNew = idx < 0;
   if (idx >= 0) {
     list[idx] = { ...aset, updatedAt: now };
   } else {
     list.push({ ...aset, createdAt: aset.createdAt || now, updatedAt: now });
   }
   setToStorage(KEYS.ASET, list);
+  recordActivity(
+    'Aset',
+    isNew ? `Tambah sarpras baru: ${aset.nama}` : `Perbarui data sarpras: ${aset.nama}`,
+    isNew,
+    isNew ? 'create' : 'update'
+  );
 }
 
 export function deleteAset(id: string): void {
+  const target = getAsets().find((a) => a.id === id);
   const filtered = getAsets().filter((a) => a.id !== id);
   setToStorage(KEYS.ASET, filtered);
+  recordActivity('Aset', `Hapus sarpras: ${target?.nama || 'Aset'}`, false, 'delete');
 }
 
 // Surat Masuk
@@ -687,17 +1032,26 @@ export function saveSuratMasuk(sm: SuratMasuk): void {
   const list = getSuratMasuk();
   const idx = list.findIndex((s) => s.id === sm.id);
   const now = Date.now();
+  const isNew = idx < 0;
   if (idx >= 0) {
     list[idx] = { ...sm, updatedAt: now };
   } else {
     list.push({ ...sm, createdAt: sm.createdAt || now, updatedAt: now });
   }
   setToStorage(KEYS.SURATMASUK, list);
+  recordActivity(
+    'Surat Masuk',
+    isNew ? `Catat surat masuk: ${sm.perihal || sm.noSurat || 'Surat'}` : `Perbarui surat masuk: ${sm.perihal || sm.noSurat || 'Surat'}`,
+    isNew,
+    isNew ? 'create' : 'update'
+  );
 }
 
 export function deleteSuratMasuk(id: string): void {
+  const target = getSuratMasuk().find((s) => s.id === id);
   const filtered = getSuratMasuk().filter((s) => s.id !== id);
   setToStorage(KEYS.SURATMASUK, filtered);
+  recordActivity('Surat Masuk', `Hapus surat masuk: ${target?.perihal || target?.noSurat || 'Surat'}`, false, 'delete');
 }
 
 // Surat Keluar
@@ -709,17 +1063,26 @@ export function saveSuratKeluar(sk: SuratKeluar): void {
   const list = getSuratKeluar();
   const idx = list.findIndex((s) => s.id === sk.id);
   const now = Date.now();
+  const isNew = idx < 0;
   if (idx >= 0) {
     list[idx] = { ...sk, updatedAt: now };
   } else {
     list.push({ ...sk, createdAt: sk.createdAt || now, updatedAt: now });
   }
   setToStorage(KEYS.SURATKELUAR, list);
+  recordActivity(
+    'Surat Keluar',
+    isNew ? `Buat surat keluar: ${sk.perihal || sk.noSurat || 'Surat'}` : `Perbarui surat keluar: ${sk.perihal || sk.noSurat || 'Surat'}`,
+    isNew,
+    isNew ? 'create' : 'update'
+  );
 }
 
 export function deleteSuratKeluar(id: string): void {
+  const target = getSuratKeluar().find((s) => s.id === id);
   const filtered = getSuratKeluar().filter((s) => s.id !== id);
   setToStorage(KEYS.SURATKELUAR, filtered);
+  recordActivity('Surat Keluar', `Hapus surat keluar: ${target?.perihal || target?.noSurat || 'Surat'}`, false, 'delete');
 }
 
 // Mutasi
@@ -731,17 +1094,26 @@ export function saveMutasi(mutasi: Mutasi): void {
   const list = getMutasi();
   const idx = list.findIndex((m) => m.id === mutasi.id);
   const now = Date.now();
+  const isNew = idx < 0;
   if (idx >= 0) {
     list[idx] = { ...mutasi, updatedAt: now };
   } else {
     list.push({ ...mutasi, createdAt: mutasi.createdAt || now, updatedAt: now });
   }
   setToStorage(KEYS.MUTASI, list);
+  recordActivity(
+    'Mutasi',
+    isNew ? `Catat mutasi siswa (${mutasi.jenis}): ${mutasi.nama}` : `Perbarui data mutasi: ${mutasi.nama}`,
+    isNew,
+    isNew ? 'create' : 'update'
+  );
 }
 
 export function deleteMutasi(id: string): void {
+  const target = getMutasi().find((m) => m.id === id);
   const filtered = getMutasi().filter((m) => m.id !== id);
   setToStorage(KEYS.MUTASI, filtered);
+  recordActivity('Mutasi', `Hapus catatan mutasi: ${target?.nama || 'Siswa'}`, false, 'delete');
 }
 
 // Nilai
@@ -752,12 +1124,19 @@ export function getNilaiRecords(): NilaiRecord[] {
 export function saveNilaiRecord(record: NilaiRecord): void {
   const list = getNilaiRecords();
   const idx = list.findIndex((n) => n.id === record.id);
+  const isNew = idx < 0;
   if (idx >= 0) {
     list[idx] = { ...record, updatedAt: Date.now() };
   } else {
     list.push({ ...record, updatedAt: Date.now() });
   }
   setToStorage(KEYS.NILAI, list);
+  recordActivity(
+    'Penilaian',
+    `Simpan penilaian kelas ${record.kelas} (${record.ta} Smt ${record.smt})`,
+    isNew,
+    isNew ? 'create' : 'update'
+  );
 }
 
 // Letter Templates
@@ -768,17 +1147,26 @@ export function getTemplates(): LetterTemplate[] {
 export function saveTemplate(template: LetterTemplate): void {
   const list = getTemplates();
   const idx = list.findIndex((t) => t.id === template.id);
+  const isNew = idx < 0;
   if (idx >= 0) {
     list[idx] = { ...template, updatedAt: Date.now() };
   } else {
     list.push({ ...template, createdAt: Date.now(), updatedAt: Date.now() });
   }
   setToStorage(KEYS.TEMPLATES, list);
+  recordActivity(
+    'Format Surat',
+    isNew ? `Tambah format surat: ${template.judul}` : `Perbarui format surat: ${template.judul}`,
+    isNew,
+    isNew ? 'create' : 'update'
+  );
 }
 
 export function deleteTemplate(id: string): void {
+  const target = getTemplates().find((t) => t.id === id);
   const filtered = getTemplates().filter((t) => t.id !== id);
   setToStorage(KEYS.TEMPLATES, filtered);
+  recordActivity('Format Surat', `Hapus format surat: ${target?.judul || 'Template'}`, false, 'delete');
 }
 
 // Arsip Absen
@@ -787,7 +1175,11 @@ export function getArsipAbsen(): ArsipAbsen[] {
 }
 
 export function saveArsipAbsenList(list: ArsipAbsen[]): boolean {
-  return setToStorage(KEYS.ARSIPABSEN, list);
+  const ok = setToStorage(KEYS.ARSIPABSEN, list);
+  if (ok) {
+    recordActivity('Arsip Absen', `Perbarui arsip absensi siswa (${list.length} arsip)`, false, 'update');
+  }
+  return ok;
 }
 
 // Keuangan
@@ -816,6 +1208,7 @@ export function getKeuangan(): KeuanganState {
 
 export function saveKeuangan(keuangan: KeuanganState): void {
   setToStorage(KEYS.KEUANGAN, keuangan);
+  recordActivity('Keuangan', `Simpan pemutakhiran BKU & Kwitansi (${keuangan.bku?.length || 0} transaksi)`, false, 'update');
 }
 
 // Backup & Export / Import
@@ -919,6 +1312,12 @@ export function loadDapodikData(): { siswa: number; gtk: number } {
   try {
     localStorage.setItem('mo_dapodik_seed_v1', '1');
   } catch {}
+  recordActivity(
+    'Dapodik',
+    `Muat data Dapodik (${initialSiswas.length} siswa, ${initialGurus.length} GTK)`,
+    true,
+    'create'
+  );
   return { siswa: initialSiswas.length, gtk: initialGurus.length };
 }
 

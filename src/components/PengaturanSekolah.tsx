@@ -4,7 +4,6 @@
  */
 
 import React, { useState, useRef } from 'react';
-import { SchoolConfig, LetterTemplate } from '../types';
 import {
   saveSchoolConfig,
   getTemplates,
@@ -18,7 +17,13 @@ import {
   addRombel,
   removeRombel,
   getSiswas,
+  syncAllOperatorAccounts,
+  syncLocalOperatorsFromConfig,
+  mergeRemoteUsers,
+  KEYS,
+  getSchoolConfig,
 } from '../lib/storage';
+import { SchoolConfig, LetterTemplate, User } from '../types';
 import {
   getSupabaseConfig,
   saveSupabaseConfig,
@@ -47,6 +52,7 @@ import {
   Database,
   Cloud,
   Zap,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface PengaturanSekolahProps {
@@ -169,6 +175,14 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     saveSchoolConfig(formData);
+    if (formData.namaOperator?.trim()) {
+      syncAllOperatorAccounts(
+        formData.namaOperator.trim(),
+        formData.emailOperator?.trim(),
+        formData.emailOperator2?.trim(),
+        formData.nipOperator?.trim()
+      );
+    }
     onToast('Pengaturan sekolah & kop surat berhasil disimpan!');
   };
 
@@ -225,9 +239,18 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
       if (res.success && res.data) {
         let count = 0;
         Object.entries(res.data).forEach(([key, val]) => {
-          localStorage.setItem(key, JSON.stringify(val));
+          if (key === KEYS.USERS && Array.isArray(val)) {
+            mergeRemoteUsers(val as User[]);
+          } else {
+            localStorage.setItem(key, JSON.stringify(val));
+          }
           count++;
         });
+        const freshCfg = getSchoolConfig();
+        if (freshCfg.namaOperator) {
+          syncLocalOperatorsFromConfig(freshCfg);
+        }
+        setFormData(freshCfg);
         window.dispatchEvent(new Event('storage'));
         onToast(`Berhasil menarik ${count} modul data dari Supabase.`);
       } else {
@@ -729,6 +752,62 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                       onChange={(e) => handleFieldChange('nipKepsek', e.target.value)}
                       className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-mono font-semibold"
                     />
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-[#D3DDD9] space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-[#0B6B58] flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-[#0B6B58]" /> Operator Sekolah & Admin Dapodik
+                    </h4>
+                    <span className="text-[10px] text-[#0B6B58] bg-[#DAEEE7] border border-[#0B6B58]/20 px-2.5 py-0.5 rounded-full font-semibold">
+                      Nama Disinkronkan Otomatis (Email 1 & Email 2 Sama)
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[#566A6E] leading-relaxed">
+                    Nama operator sekolah selalu dijaga sama persis di seluruh sistem. Perubahan nama di akun email 1 otomatis tersinkron ke email 2 dan Supabase Cloud sehingga nama tidak berbeda-beda.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block font-semibold text-[#566A6E] mb-1">Nama Operator Sekolah *</label>
+                      <input
+                        type="text"
+                        value={formData.namaOperator || ''}
+                        onChange={(e) => handleFieldChange('namaOperator', e.target.value)}
+                        placeholder="Contoh: Risna Hidayat, S.Kom"
+                        className="w-full px-3 py-2 border border-[#0B6B58] rounded-lg font-bold text-[#0B6B58] bg-[#DAEEE7]/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-[#566A6E] mb-1">NIP / NUPTK Operator</label>
+                      <input
+                        type="text"
+                        value={formData.nipOperator || ''}
+                        onChange={(e) => handleFieldChange('nipOperator', e.target.value)}
+                        placeholder="Contoh: 19890412 201902 1 003"
+                        className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-[#566A6E] mb-1">Email 1 Operator (Email Utama)</label>
+                      <input
+                        type="email"
+                        value={formData.emailOperator || ''}
+                        onChange={(e) => handleFieldChange('emailOperator', e.target.value)}
+                        placeholder="Contoh: operator@sdn2cempaka.sch.id / risnahidayat09@gmail.com"
+                        className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-mono text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-[#566A6E] mb-1">Email 2 Operator (Email Belajar.id / Alternatif)</label>
+                      <input
+                        type="email"
+                        value={formData.emailOperator2 || ''}
+                        onChange={(e) => handleFieldChange('emailOperator2', e.target.value)}
+                        placeholder="Contoh: risnahidayat17@admin.sd.belajar.id"
+                        className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-mono text-xs"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

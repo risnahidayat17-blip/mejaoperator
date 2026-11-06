@@ -10,10 +10,12 @@ import {
   setToStorage,
   setCurrentUser,
   KEYS,
+  toPublicUser,
+  syncAllOperatorAccounts,
+  getSchoolConfig,
 } from '../lib/storage';
 import { initialUsers } from '../data/initialData';
 import { hashPassword, verifyPassword, MIN_PASSWORD_LENGTH } from '../lib/auth';
-import { toPublicUser } from '../lib/storage';
 import {
   UserCheck,
   ShieldCheck,
@@ -32,13 +34,23 @@ interface ProfilPenggunaProps {
 
 export const ProfilPengguna: React.FC<ProfilPenggunaProps> = ({ currentUser, onToast }) => {
   const isOperator = currentUser.role === 'operator';
+  const schoolConfig = getSchoolConfig();
   const [activeTab, setActiveTab] = useState<'profile' | 'users'>('profile');
 
   // Profile Form State
-  const [name, setName] = useState(currentUser.name);
-  const [email, setEmail] = useState(currentUser.email || '');
+  const [name, setName] = useState(
+    isOperator ? (schoolConfig.namaOperator || currentUser.name) : currentUser.name
+  );
+  const [email, setEmail] = useState(
+    currentUser.email || (isOperator ? schoolConfig.emailOperator || '' : '')
+  );
+  const [email2, setEmail2] = useState(
+    currentUser.email2 || (isOperator ? schoolConfig.emailOperator2 || '' : '')
+  );
   const [phone, setPhone] = useState(currentUser.phone || '');
-  const [nip, setNip] = useState(currentUser.nip || '');
+  const [nip, setNip] = useState(
+    currentUser.nip || (isOperator ? schoolConfig.nipOperator || '' : '')
+  );
   const [jabatan, setJabatan] = useState(currentUser.jabatan || '');
   // Ganti kata sandi (kata sandi lama tidak pernah ditampilkan)
   const [oldPass, setOldPass] = useState('');
@@ -63,10 +75,35 @@ export const ProfilPengguna: React.FC<ProfilPenggunaProps> = ({ currentUser, onT
       onToast('Nama tidak boleh kosong.', true);
       return;
     }
+    const cleanName = name.trim();
+    const cleanEmail = email.trim();
+    const cleanEmail2 = email2.trim();
+    const cleanNip = nip.trim();
+    const cleanPhone = phone.trim();
+    const cleanJabatan = jabatan.trim();
+
+    if (isOperator) {
+      // Selaraskan seluruh akun operator di database dan konfigurasi sekolah
+      syncAllOperatorAccounts(cleanName, cleanEmail, cleanEmail2, cleanNip, cleanPhone);
+      const allUsers = getFromStorage<User[]>(KEYS.USERS, initialUsers);
+      setUserList(allUsers);
+      onToast('Profil operator berhasil diperbarui! Nama diselaraskan di seluruh akun (Email 1 & Email 2 sama).');
+      return;
+    }
+
     const allUsers = getFromStorage<User[]>(KEYS.USERS, initialUsers);
     const stored = allUsers.find((u) => u.id === currentUser.id) || currentUser;
     // Hash kata sandi di data tersimpan dipertahankan; hanya data profil yang berubah.
-    const updatedUser: User = { ...stored, name, email, phone, nip, jabatan };
+    const updatedUser: User = {
+      ...stored,
+      name: cleanName,
+      email: cleanEmail,
+      email2: cleanEmail2,
+      phone: cleanPhone,
+      nip: cleanNip,
+      jabatan: cleanJabatan,
+      updatedAt: Date.now(),
+    };
     const updatedList = allUsers.some((u) => u.id === currentUser.id)
       ? allUsers.map((u) => (u.id === currentUser.id ? updatedUser : u))
       : [...allUsers, updatedUser];
@@ -299,19 +336,48 @@ export const ProfilPengguna: React.FC<ProfilPenggunaProps> = ({ currentUser, onT
                     type="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
+                    placeholder="mis. 0812-3456-7890"
                     className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-[#566A6E] mb-1">Alamat Email</label>
+                  <label className="block font-semibold text-[#566A6E] mb-1">
+                    {isOperator ? 'Email 1 Operator (Email Utama)' : 'Alamat Email'}
+                  </label>
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg"
+                    placeholder={isOperator ? 'mis. operator@sdn2cempaka.sch.id / risnahidayat09@gmail.com' : 'email@contoh.com'}
+                    className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-mono text-xs"
                   />
                 </div>
               </div>
+
+              {isOperator && (
+                <div className="space-y-3 text-xs pt-1">
+                  <div>
+                    <label className="block font-semibold text-[#566A6E] mb-1">
+                      Email 2 Operator (Email Belajar.id / Kedinasan / Alternatif)
+                    </label>
+                    <input
+                      type="email"
+                      value={email2}
+                      onChange={(e) => setEmail2(e.target.value)}
+                      placeholder="mis. risnahidayat17@admin.sd.belajar.id"
+                      className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-mono text-xs"
+                    />
+                  </div>
+
+                  <div className="p-3 bg-[#DAEEE7]/70 border border-[#0B6B58]/30 rounded-xl flex items-start gap-2.5">
+                    <ShieldCheck className="w-4 h-4 text-[#0B6B58] shrink-0 mt-0.5" />
+                    <div className="text-[11px] text-[#13262A] leading-relaxed">
+                      <span className="font-bold text-[#0B6B58]">Penyelarasan Otomatis Nama Operator: </span>
+                      Ketika nama operator diubah (baik di Email 1 maupun Email 2), nama operator akan selalu otomatis sama di kedua email/akun serta disinkronkan ke Supabase Cloud sehingga nama tidak berbeda-beda.
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="pt-3 flex justify-end">
                 <button

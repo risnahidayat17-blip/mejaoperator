@@ -18,8 +18,10 @@ export interface User {
   guruId?: string;
   nip?: string;
   email?: string;
+  email2?: string;
   phone?: string;
   lastLogin?: number;
+  updatedAt?: number;
 }
 
 export interface SchoolConfig {
@@ -58,6 +60,10 @@ export interface SchoolConfig {
   logoSekolah?: string;
   tataLetakLogo?: 'kiri_kedua' | 'kiri_kanan' | 'kiri_pemda_saja' | 'kiri_sekolah_saja';
   logoHeight?: number;
+  namaOperator?: string;
+  nipOperator?: string;
+  emailOperator?: string;
+  emailOperator2?: string;
   updatedAt?: number;
 }
 
@@ -346,3 +352,13 @@ export interface SupabaseSyncStatus {
   lastSyncedAt?: number;
   tablesStatus?: Record<string, boolean>;
 }
+
+export interface WorkActivity {
+  id: string;
+  module: string;
+  label: string;
+  ts: number;
+  baru: boolean;
+  action?: 'create' | 'update' | 'delete';
+}
+

@@ -116,7 +116,7 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="flex items-center gap-2.5">
               <div className="text-right hidden sm:block">
                 <div className="text-xs font-bold text-[#13262A] truncate max-w-[180px]">
-                  {currentUser.name}
+                  {isOperator ? (config.namaOperator || currentUser.name) : currentUser.name}
                 </div>
                 <div className="text-[11px] text-[#566A6E]">
                   {isOperator ? (

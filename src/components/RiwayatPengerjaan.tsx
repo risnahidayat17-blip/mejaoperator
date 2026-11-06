@@ -3,68 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useMemo, useState } from 'react';
-import { History } from 'lucide-react';
-import {
-  getSiswas,
-  getGurus,
-  getDokumenGtks,
-  getSuratMasuk,
-  getSuratKeluar,
-  getMutasi,
-  getArsipAbsen,
-  getAsets,
-  getNilaiRecords,
-} from '../lib/storage';
-
-/**
- * Ringkasan riwayat pengerjaan. Dibuat dari waktu tambah/ubah yang sudah tercatat pada setiap data
- * (tidak ada data tambahan yang disimpan). Muat data massal (mis. impor Dapodik) dihitung sebagai satu kegiatan.
- */
-
-interface Activity {
-  module: string;
-  label: string;
-  ts: number;
-  baru: boolean;
-}
-
-const BULK_THRESHOLD = 20; // lebih dari ini dalam satu menit = impor massal
-
-function collect(): Activity[] {
-  const raw: Array<{ module: string; items: any[]; label: (x: any) => string }> = [
-    { module: 'Siswa', items: getSiswas(), label: (x) => x.nama },
-    { module: 'Guru & Tendik', items: getGurus(), label: (x) => x.nama },
-    { module: 'Dokumen GTK', items: getDokumenGtks(), label: (x) => x.judul },
-    { module: 'Surat masuk', items: getSuratMasuk(), label: (x) => x.perihal },
-    { module: 'Surat keluar', items: getSuratKeluar(), label: (x) => x.perihal },
-    { module: 'Mutasi', items: getMutasi(), label: (x) => x.nama },
-    { module: 'Arsip absen', items: getArsipAbsen(), label: (x) => `Absen Kelas ${x.kelas} - ${x.periode}` },
-    { module: 'Aset', items: getAsets(), label: (x) => x.nama },
-    { module: 'Penilaian', items: getNilaiRecords(), label: (x) => `Nilai kelas ${x.kelas} ${x.ta}` },
-  ];
-
-  const out: Activity[] = [];
-  for (const g of raw) {
-    const groups = new Map<number, Activity[]>();
-    for (const it of g.items) {
-      const ts = Number(it.updatedAt || it.createdAt || 0);
-      if (!ts) continue;
-      const baru = !!it.createdAt && Math.abs(Number(it.updatedAt || it.createdAt) - Number(it.createdAt)) < 2000;
-      const a: Activity = { module: g.module, label: String(g.label(it) || '-'), ts, baru };
-      const k = Math.floor(ts / 60000);
-      const arr = groups.get(k) || [];
-      arr.push(a);
-      groups.set(k, arr);
-    }
-    groups.forEach((arr) => {
-      if (arr.length > BULK_THRESHOLD) {
-        out.push({ module: g.module, label: `Impor / muat data (${arr.length} catatan)`, ts: arr[0].ts, baru: true });
-      } else out.push(...arr);
-    });
-  }
-  return out.sort((a, b) => b.ts - a.ts);
-}
+import React, { useMemo, useState, useEffect } from 'react';
+import { History, Trash2, CheckCircle2 } from 'lucide-react';
+import { getActivities, clearActivities, subscribeToStorage } from '../lib/storage';
+import { WorkActivity } from '../types';
 
 const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 const HARI = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
@@ -85,8 +27,17 @@ export const RiwayatPengerjaan: React.FC = () => {
   const [range, setRange] = useState<7 | 14 | 30>(14);
   const [showTable, setShowTable] = useState(false);
   const [hover, setHover] = useState<number | null>(null);
+  const [activities, setActivities] = useState<WorkActivity[]>(() => getActivities());
+  const [showConfirmClear, setShowConfirmClear] = useState(false);
 
-  const all = useMemo(collect, [Date.now() - (Date.now() % 5000)]); // segarkan tiap render berselang 5 dtk
+  useEffect(() => {
+    const unsub = subscribeToStorage(() => {
+      setActivities(getActivities());
+    });
+    return unsub;
+  }, []);
+
+  const all = activities;
 
   const days = useMemo(() => {
     const list: Array<{ date: Date; key: string; count: number }> = [];
@@ -117,6 +68,12 @@ export const RiwayatPengerjaan: React.FC = () => {
   const maxMod = Math.max(...perModule.map(([, c]) => c), 1);
   const recent = all.slice(0, 8);
 
+  const handleClear = () => {
+    clearActivities();
+    setActivities([]);
+    setShowConfirmClear(false);
+  };
+
   return (
     <div className="bg-white border border-[#D3DDD9] rounded-2xl p-5 shadow-xs space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -125,27 +82,77 @@ export const RiwayatPengerjaan: React.FC = () => {
             <History className="w-4 h-4 text-[#0B6B58]" /> Riwayat Pengerjaan
           </h3>
           <p className="text-[11px] text-[#566A6E]">
-            <b className="text-[#13262A]">{total}</b> kegiatan input/ubah data dalam {range} hari terakhir
+            {all.length === 0 ? (
+              'Belum ada kegiatan pengerjaan yang tercatat di aplikasi'
+            ) : (
+              <>
+                <b className="text-[#13262A]">{total}</b> kegiatan riil dalam {range} hari terakhir (total {all.length} catatan)
+              </>
+            )}
           </p>
         </div>
-        <div className="flex items-center gap-1 bg-[#E8EFEC] p-0.5 rounded-lg text-[11px]" role="group" aria-label="Rentang waktu">
-          {([7, 14, 30] as const).map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => setRange(r)}
-              className={`px-2.5 py-1 rounded-md font-semibold cursor-pointer transition ${
-                range === r ? 'bg-white text-[#0B6B58] shadow-xs' : 'text-[#566A6E] hover:text-[#13262A]'
-              }`}
-            >
-              {r} hari
-            </button>
-          ))}
-        </div>
+        {all.length > 0 && (
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 bg-[#E8EFEC] p-0.5 rounded-lg text-[11px]" role="group" aria-label="Rentang waktu">
+              {([7, 14, 30] as const).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setRange(r)}
+                  className={`px-2.5 py-1 rounded-md font-semibold cursor-pointer transition ${
+                    range === r ? 'bg-white text-[#0B6B58] shadow-xs' : 'text-[#566A6E] hover:text-[#13262A]'
+                  }`}
+                >
+                  {r} hari
+                </button>
+              ))}
+            </div>
+            {!showConfirmClear ? (
+              <button
+                type="button"
+                onClick={() => setShowConfirmClear(true)}
+                title="Bersihkan riwayat pengerjaan"
+                className="p-1.5 text-[#566A6E] hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer text-xs flex items-center gap-1"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 px-2 py-1 rounded-lg text-[11px]">
+                <span className="text-rose-800 font-medium">Hapus riwayat?</span>
+                <button
+                  type="button"
+                  onClick={handleClear}
+                  className="px-1.5 py-0.5 bg-rose-600 text-white rounded font-bold hover:bg-rose-700 cursor-pointer"
+                >
+                  Ya
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmClear(false)}
+                  className="px-1.5 py-0.5 text-[#566A6E] hover:text-[#13262A] cursor-pointer"
+                >
+                  Batal
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {total === 0 ? (
-        <div className="py-8 text-center text-xs text-[#566A6E]">Belum ada kegiatan pada rentang ini.</div>
+      {all.length === 0 ? (
+        <div className="py-8 px-4 text-center bg-[#F9FBFA] rounded-xl border border-dashed border-[#D3DDD9] space-y-2">
+          <div className="w-10 h-10 rounded-full bg-[#E8EFEC] text-[#0B6B58] flex items-center justify-center mx-auto">
+            <CheckCircle2 className="w-5 h-5" />
+          </div>
+          <div className="text-xs font-bold text-[#13262A]">Belum Ada Riwayat Pengerjaan</div>
+          <p className="text-[11px] text-[#566A6E] max-w-md mx-auto leading-relaxed">
+            Bagian ini hanya memunculkan kegiatan yang benar-benar Anda kerjakan di aplikasi (misalnya menambah, mengubah, atau menghapus data siswa, GTK, surat, sarpras, mutasi, nilai, atau keuangan). Data awal bawaan tidak akan dimunculkan otomatis.
+          </p>
+        </div>
+      ) : total === 0 ? (
+        <div className="py-8 text-center text-xs text-[#566A6E]">
+          Belum ada kegiatan pengerjaan pada rentang {range} hari ini.
+        </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
           {/* Diagram batang per hari */}
@@ -223,56 +230,69 @@ export const RiwayatPengerjaan: React.FC = () => {
         </div>
       )}
 
-      {/* Aktivitas terbaru */}
+      {/* Aktivitas terbaru yang benar-benar dikerjakan */}
       {recent.length > 0 && (
         <div>
           <div className="text-[10px] font-bold uppercase tracking-wider text-[#566A6E] mb-1.5">Terakhir dikerjakan</div>
           <ul className="divide-y divide-[#E8EFEC] border border-[#E8EFEC] rounded-xl overflow-hidden">
-            {recent.map((a, i) => (
-              <li key={i} className="px-3 py-2 flex items-center gap-2.5 text-xs bg-white">
-                <span
-                  className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 ${
-                    a.baru ? 'bg-[#DAEEE7] text-[#0B6B58]' : 'bg-amber-100 text-amber-800'
-                  }`}
-                >
-                  {a.baru ? 'Baru' : 'Diubah'}
-                </span>
-                <span className="text-[#566A6E] shrink-0 w-24 truncate">{a.module}</span>
-                <span className="font-medium text-[#13262A] truncate flex-1">{a.label}</span>
-                <span className="text-[10px] text-[#566A6E] shrink-0">{relTime(a.ts)}</span>
-              </li>
-            ))}
+            {recent.map((a) => {
+              const badgeStyle =
+                a.action === 'delete'
+                  ? 'bg-rose-100 text-rose-800'
+                  : a.baru || a.action === 'create'
+                  ? 'bg-[#DAEEE7] text-[#0B6B58]'
+                  : 'bg-amber-100 text-amber-800';
+              const badgeText =
+                a.action === 'delete'
+                  ? 'Dihapus'
+                  : a.baru || a.action === 'create'
+                  ? 'Baru'
+                  : 'Diubah';
+
+              return (
+                <li key={a.id} className="px-3 py-2 flex items-center gap-2.5 text-xs bg-white">
+                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 ${badgeStyle}`}>
+                    {badgeText}
+                  </span>
+                  <span className="text-[#566A6E] shrink-0 w-24 truncate">{a.module}</span>
+                  <span className="font-medium text-[#13262A] truncate flex-1">{a.label}</span>
+                  <span className="text-[10px] text-[#566A6E] shrink-0 font-mono">{relTime(a.ts)}</span>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
 
-      <div>
-        <button
-          type="button"
-          onClick={() => setShowTable((v) => !v)}
-          className="text-[11px] text-[#0B6B58] font-semibold underline cursor-pointer"
-        >
-          {showTable ? 'Sembunyikan tabel data' : 'Lihat sebagai tabel'}
-        </button>
-        {showTable && (
-          <table className="mt-2 w-full text-[11px] border border-[#E8EFEC]">
-            <thead className="bg-[#F1F4F2] text-[#566A6E]">
-              <tr>
-                <th className="text-left px-2 py-1">Tanggal</th>
-                <th className="text-right px-2 py-1">Kegiatan</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...days].reverse().map((d) => (
-                <tr key={d.key} className="border-t border-[#E8EFEC]">
-                  <td className="px-2 py-1">{d.date.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })}</td>
-                  <td className="px-2 py-1 text-right font-mono font-bold">{d.count}</td>
+      {all.length > 0 && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setShowTable((v) => !v)}
+            className="text-[11px] text-[#0B6B58] font-semibold underline cursor-pointer"
+          >
+            {showTable ? 'Sembunyikan tabel data' : 'Lihat sebagai tabel'}
+          </button>
+          {showTable && (
+            <table className="mt-2 w-full text-[11px] border border-[#E8EFEC]">
+              <thead className="bg-[#F1F4F2] text-[#566A6E]">
+                <tr>
+                  <th className="text-left px-2 py-1">Tanggal</th>
+                  <th className="text-right px-2 py-1">Kegiatan</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+              </thead>
+              <tbody>
+                {[...days].reverse().map((d) => (
+                  <tr key={d.key} className="border-t border-[#E8EFEC]">
+                    <td className="px-2 py-1">{d.date.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })}</td>
+                    <td className="px-2 py-1 text-right font-mono font-bold">{d.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
     </div>
   );
 };

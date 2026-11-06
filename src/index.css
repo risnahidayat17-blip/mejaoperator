@@ -284,4 +284,38 @@ h1, h2, h3, h4 {
     break-after: auto;
     page-break-after: auto;
   }
+  body.printing-kwitansi .kw-classic-sheet {
+    break-after: page;
+    page-break-after: always;
+  }
+  body.printing-kwitansi .kw-classic-sheet:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
 }
+
+/* Kwitansi Klasik (Blanko Biru Sesuai Gambar) */
+.kw-classic-sheet {
+  width: 210mm;
+  height: 147mm;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8mm 5mm;
+  background: #fff;
+  page-break-after: always;
+  break-after: page;
+}
+.kw-classic-slip {
+  width: 200mm;
+  height: 75.75mm;
+  position: relative;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+  box-sizing: border-box;
+  font-family: 'Times New Roman', Times, serif;
+}
+

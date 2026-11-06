@@ -23,6 +23,13 @@ import {
   isImageKitReady,
 } from '../lib/imagekit';
 import { buildSetupLink } from '../lib/setupLink';
+import {
+  mergeRemoteUsers,
+  syncLocalOperatorsFromConfig,
+  KEYS,
+  getSchoolConfig,
+} from '../lib/storage';
+import { User } from '../types';
 import { getAllExportableData, resetCloudSyncState, migrateFilesToImageKit } from '../lib/storage';
 import {
   Cloud,
@@ -111,9 +118,17 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
       if (res.success && res.data) {
         let count = 0;
         Object.entries(res.data).forEach(([key, val]) => {
-          localStorage.setItem(key, JSON.stringify(val));
+          if (key === KEYS.USERS && Array.isArray(val)) {
+            mergeRemoteUsers(val as User[]);
+          } else {
+            localStorage.setItem(key, JSON.stringify(val));
+          }
           count++;
         });
+        const freshCfg = getSchoolConfig();
+        if (freshCfg.namaOperator) {
+          syncLocalOperatorsFromConfig(freshCfg);
+        }
         window.dispatchEvent(new Event('storage'));
         onToast(`Berhasil menarik ${count} modul data dari Supabase.`);
         setConfig(getSupabaseConfig());

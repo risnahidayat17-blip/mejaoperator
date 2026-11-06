@@ -62,6 +62,10 @@ export const initialSchoolConfig: SchoolConfig = {
   korwilJabatan: "Korwil Bidang Pendidikan",
   korwilNama: "KASMAR, S.Pd. MM.H.",
   korwilNip: "19710812 199903 1 006",
+  namaOperator: "Ahmad Fauzi, S.Kom",
+  nipOperator: "19890412 201902 1 003",
+  emailOperator: "operator@sdn2cempaka.sch.id",
+  emailOperator2: "risnahidayat17@admin.sd.belajar.id",
   tahunAjaran: "2026/2027",
   semester: "1",
   kkm: 70,
@@ -101,9 +105,7 @@ export const initialAsets: Aset[] = [
     tahunPerolehan: 1975,
     sumber: "APBD",
     harga: 85000000,
-    keterangan: "Luas tanah 3.920 m2, sertifikat hak pakai Pemda",
-    createdAt: Date.now() - 2500000,
-    updatedAt: Date.now() - 2500000
+    keterangan: "Luas tanah 3.920 m2, sertifikat hak pakai Pemda"
   },
   {
     id: "ast_2",
@@ -116,9 +118,7 @@ export const initialAsets: Aset[] = [
     tahunPerolehan: 1982,
     sumber: "APBN",
     harga: 280000000,
-    keterangan: "Bangunan permanen terdiri atas 6 ruang kelas dan 1 ruang guru",
-    createdAt: Date.now() - 2400000,
-    updatedAt: Date.now() - 2400000
+    keterangan: "Bangunan permanen terdiri atas 6 ruang kelas dan 1 ruang guru"
   },
   {
     id: "ast_3",
@@ -133,9 +133,7 @@ export const initialAsets: Aset[] = [
     tahunPerolehan: 2023,
     sumber: "BOS",
     harga: 350000,
-    keterangan: "Meja kayu jati kokoh",
-    createdAt: Date.now() - 2300000,
-    updatedAt: Date.now() - 2300000
+    keterangan: "Meja kayu jati kokoh"
   },
   {
     id: "ast_4",
@@ -150,9 +148,7 @@ export const initialAsets: Aset[] = [
     tahunPerolehan: 2023,
     sumber: "BOS",
     harga: 180000,
-    keterangan: "Sebagian perlu perbaikan baut dan amplas ulang",
-    createdAt: Date.now() - 2200000,
-    updatedAt: Date.now() - 2200000
+    keterangan: "Sebagian perlu perbaikan baut dan amplas ulang"
   },
   {
     id: "ast_5",
@@ -167,9 +163,7 @@ export const initialAsets: Aset[] = [
     tahunPerolehan: 2022,
     sumber: "BOS",
     harga: 6500000,
-    keterangan: "Bantuan TIK Kemendikbudristek",
-    createdAt: Date.now() - 2100000,
-    updatedAt: Date.now() - 2100000
+    keterangan: "Bantuan TIK Kemendikbudristek"
   }
 ];
 
@@ -186,9 +180,7 @@ export const initialSuratMasuk: SuratMasuk[] = [
     tujuan: "Kepala Sekolah",
     status: "Diproses",
     disposisi: "Teruskan ke Operator Sekolah untuk persiapan sarana Chromebook dan ruang lab TIK",
-    keterangan: "Simulasi gladi bersih dijadwalkan tanggal 5-7 November 2026",
-    createdAt: Date.now() - 1200000,
-    updatedAt: Date.now() - 1200000
+    keterangan: "Simulasi gladi bersih dijadwalkan tanggal 5-7 November 2026"
   },
   {
     id: "sm_2",
@@ -201,9 +193,7 @@ export const initialSuratMasuk: SuratMasuk[] = [
     perihal: "Undangan Rapat Koordinasi Kepala Sekolah & Penyerahan Daftar 1 Bulan Oktober",
     tujuan: "Kepala Sekolah",
     status: "Selesai",
-    disposisi: "Hadiri rapat pada hari Kamis, 29 Oktober 2026",
-    createdAt: Date.now() - 1100000,
-    updatedAt: Date.now() - 1100000
+    disposisi: "Hadiri rapat pada hari Kamis, 29 Oktober 2026"
   }
 ];
 
@@ -216,9 +206,7 @@ export const initialLetterTemplates: LetterTemplate[] = [
     pembuka: "Yang bertanda tangan di bawah ini:",
     isi: "dengan ini menerangkan bahwa nama siswa tersebut di bawah ini, adalah benar Peserta Didik SD NEGERI 2 CEMPAKA KEC. TALUN yang saat ini aktif mengikuti kegiatan belajar mengajar pada Tahun Ajaran 2026/2027.",
     penutup: "Demikian surat keterangan ini dibuat untuk digunakan sebagaimana mestinya.",
-    sifat: "Biasa",
-    createdAt: Date.now() - 5000000,
-    updatedAt: Date.now() - 5000000
+    sifat: "Biasa"
   },
   {
     id: "tmpl_2",
@@ -228,9 +216,7 @@ export const initialLetterTemplates: LetterTemplate[] = [
     pembuka: "Yang bertanda tangan di bawah ini, Kepala Sekolah Dasar Negeri 2 Cempaka Kecamatan Talun Kabupaten Cirebon, menerangkan bahwa:",
     isi: "Berdasarkan surat permohonan pindah sekolah dari orang tua/wali siswa, dengan ini menerangkan bahwa siswa tersebut di atas telah disetujui untuk pindah sekolah ke satuan pendidikan yang dituju.",
     penutup: "Demikian surat keterangan pindah sekolah ini dibuat untuk dapat dipergunakan sebagaimana mestinya.",
-    sifat: "Biasa",
-    createdAt: Date.now() - 4800000,
-    updatedAt: Date.now() - 4800000
+    sifat: "Biasa"
   },
   {
     id: "tmpl_3",
@@ -240,9 +226,7 @@ export const initialLetterTemplates: LetterTemplate[] = [
     pembuka: "Yang bertanda tangan di bawah ini, Kepala Sekolah Dasar Negeri 2 Cempaka Kecamatan Talun Kabupaten Cirebon, menerangkan bahwa:",
     isi: "Selama menjadi peserta didik di sekolah kami, yang bersangkutan senantiasa mentaati tata tertib sekolah, berkelakuan baik, serta tidak pernah terlibat tindakan kriminal, asusila, maupun pelanggaran hukum.",
     penutup: "Surat keterangan ini diberikan atas permintaan yang bersangkutan untuk keperluan persyaratan pendaftaran / administrasi.",
-    sifat: "Biasa",
-    createdAt: Date.now() - 4600000,
-    updatedAt: Date.now() - 4600000
+    sifat: "Biasa"
   },
   {
     id: "tmpl_4",
@@ -252,9 +236,7 @@ export const initialLetterTemplates: LetterTemplate[] = [
     pembuka: "Kepala Sekolah Dasar Negeri 2 Cempaka memberikan tugas kedinasan kepada:",
     isi: "Untuk menghadiri dan mengikuti kegiatan pembinaan / bimbingan teknis yang diselenggarakan oleh Dinas Pendidikan, dan segera melaporkan hasil pelaksanaan tugas kepada Kepala Sekolah.",
     penutup: "Demikian surat tugas ini dibuat agar dapat dilaksanakan dengan penuh tanggung jawab.",
-    sifat: "Penting",
-    createdAt: Date.now() - 4400000,
-    updatedAt: Date.now() - 4400000
+    sifat: "Penting"
   },
   {
     id: "tmpl_5",
@@ -264,8 +246,6 @@ export const initialLetterTemplates: LetterTemplate[] = [
     pembuka: "Sehubungan dengan agenda peningkatan mutu pembelajaran dan sarana prasarana satuan pendidikan, bersama ini kami sampaikan:",
     isi: "Kami mengajukan permohonan bantuan dan fasilitasi sarana penunjang kegiatan asesmen berbasis komputer serta pengadaan bahan ajar kurikulum.",
     penutup: "Atas perhatian, dukungan, dan kerja sama yang baik, kami ucapkan terima kasih.",
-    sifat: "Penting",
-    createdAt: Date.now() - 4200000,
-    updatedAt: Date.now() - 4200000
+    sifat: "Penting"
   }
 ];

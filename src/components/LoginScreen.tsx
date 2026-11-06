@@ -24,7 +24,7 @@ interface LoginScreenProps {
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ config, onLoggedIn }) => {
   const activeGurus = getGurus().filter((g) => g.status !== 'Nonaktif');
-  const [selectedGuruId, setSelectedGuruId] = useState('');
+  const [selectedGuruId, setSelectedGuruId] = useState(activeGurus[0]?.id || '');
   const [operatorPassword, setOperatorPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -32,7 +32,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ config, onLoggedIn }) 
   const logo = ikResize(config.logoSekolah || config.logoPemda || config.logo || '', 240);
 
   const handleLoginGuru = () => {
-    loginGuru(selectedGuruId || undefined);
+    loginGuru(selectedGuruId || activeGurus[0]?.id || undefined);
     onLoggedIn('guru');
   };
 
@@ -98,14 +98,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ config, onLoggedIn }) 
 
             <div className="mt-4">
               <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">
-                Pilih Nama Anda (opsional)
+                Pilih Nama Guru / Tendik
               </label>
               <select
                 value={selectedGuruId}
                 onChange={(e) => setSelectedGuruId(e.target.value)}
                 className="w-full px-3 py-2 text-xs border border-[#D3DDD9] rounded-lg bg-white"
               >
-                <option value="">Tidak memilih nama spesifik</option>
                 {activeGurus.map((g) => (
                   <option key={g.id} value={g.id}>
                     {g.nama} &mdash; {g.jabatan}
