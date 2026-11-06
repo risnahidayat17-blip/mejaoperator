@@ -1,0 +1,493 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #F1F4F2;
+  --surface: #FFFFFF;
+  --surface-2: #E8EFEC;
+  --ink: #13262A;
+  --muted: #566A6E;
+  --line: #D3DDD9;
+  --accent: #0B6B58;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #DAEEE7;
+  --ok: #1D7A3A;
+  --ok-soft: #DDF1E3;
+  --warn: #8F5B00;
+  --warn-soft: #FBEFD0;
+  --bad: #B3261E;
+  --bad-soft: #FBE2DF;
+  --shadow: 0 1px 2px rgba(19, 38, 42, 0.06), 0 8px 24px rgba(19, 38, 42, 0.08);
+  --f-display: 'Schibsted Grotesk', system-ui, -apple-system, sans-serif;
+  --f-body: 'Public Sans', system-ui, -apple-system, sans-serif;
+  --f-mono: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+  padding: 0;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--f-display);
+  letter-spacing: -0.01em;
+}
+
+.font-mono-code {
+  font-family: var(--f-mono);
+}
+
+.font-display {
+  font-family: var(--f-display);
+}
+
+.num-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Crisp rendering for uploaded school and regency logos */
+.logo-hd {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+@media print {
+  @page {
+    margin: 15mm 20mm 15mm 20mm;
+  }
+
+  body[data-paper-size="legal"] {
+    @page {
+      size: legal portrait;
+      margin: 15mm 20mm 15mm 20mm;
+    }
+  }
+
+  body[data-paper-size="a4"],
+  body:not([data-paper-size]) {
+    @page {
+      size: A4 portrait;
+      margin: 15mm 20mm 15mm 20mm;
+    }
+  }
+
+  header,
+  aside,
+  nav,
+  .no-print,
+  button,
+  .btn-action-bar,
+  .role-switcher,
+  .no-print-area {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+
+  .print-sheet {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    page-break-inside: avoid !important;
+  }
+
+  .print-sheet.surat-kustom-sheet {
+    page-break-inside: auto !important;
+  }
+}
+
+/* Surat kustom (diketik bebas / impor Word) */
+.surat-kustom,
+.surat-kustom-editor {
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 12pt;
+  line-height: 1.3;
+  color: #000;
+  word-wrap: break-word;
+}
+.surat-kustom table,
+.surat-kustom-editor table {
+  border-collapse: collapse;
+}
+.surat-kustom-editor {
+  min-height: 260px;
+  outline: none;
+}
+.surat-kustom-editor:empty::before {
+  content: attr(data-placeholder);
+  color: #94a3a0;
+}
+
+/* Kwitansi BKU (180 x 76 mm, ukuran sedang, blue pre-printed receipt style) */
+.kw-sheet {
+  width: 180mm;
+  height: 76mm;
+  box-sizing: border-box;
+  padding: 3mm;
+  background: #fff;
+  color: #0b2a4a;
+  font-family: Arial, Helvetica, sans-serif;
+  overflow: hidden;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+.kw-paper {
+  height: 100%;
+  display: flex;
+  gap: 2.5mm;
+}
+.kw-stub {
+  position: relative;
+  width: 32mm;
+  flex: none;
+}
+.kw-body {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.kw-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.kw-stub-sign {
+  position: absolute;
+  left: 4mm;
+  right: 4mm;
+  top: 47%;
+  transform: translateY(-50%);
+  text-align: center;
+  font-size: 6.5pt;
+  line-height: 1.2;
+}
+.kw-stub-sign .kw-gap {
+  height: 9mm;
+}
+.kw-stub-sign .kw-name {
+  font-size: 6.5pt;
+  overflow-wrap: anywhere;
+}
+.kw-stub-sign .kw-nip {
+  font-size: 5pt;
+  white-space: nowrap;
+}
+.kw-content {
+  position: relative;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 3.8mm 6mm 2.8mm;
+  display: flex;
+  flex-direction: column;
+}
+.kw-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 3mm;
+  margin-bottom: 1.2mm;
+}
+.kw-noline {
+  display: flex;
+  align-items: flex-end;
+  gap: 1mm;
+  width: 46mm;
+}
+.kw-noline .kw-fill {
+  flex: 1;
+  min-width: 0;
+  border-bottom: .5pt solid #0b2a4a;
+  font-size: 8.5pt;
+  font-weight: 700;
+  padding-left: 1mm;
+}
+.kw-koderek {
+  font-size: 7pt;
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+}
+.kw-label {
+  font-size: 8.5pt;
+  white-space: nowrap;
+}
+.kw-row {
+  display: flex;
+  align-items: flex-end;
+  margin-bottom: 1.3mm;
+}
+.kw-row-top {
+  align-items: flex-start;
+}
+.kw-l {
+  width: 27mm;
+  flex: none;
+}
+.kw-v {
+  flex: 1;
+  min-width: 0;
+  border-bottom: .5pt solid #0b2a4a;
+  font-size: 8pt;
+  line-height: 1.3;
+  padding-left: 1mm;
+  overflow-wrap: anywhere;
+}
+.kw-terbilang {
+  font-weight: 700;
+  font-style: italic;
+  background: linear-gradient(100deg, transparent 0, rgba(255, 255, 255, .55) 4%, rgba(255, 255, 255, .55) 96%, transparent 100%);
+}
+.kw-ruled {
+  flex: 1;
+  min-width: 0;
+  font-size: 8pt;
+  line-height: 4.4mm;
+  height: 13.5mm;
+  overflow: hidden;
+  padding-left: 1mm;
+  overflow-wrap: anywhere;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(4.4mm - .5pt),
+    #0b2a4a calc(4.4mm - .5pt),
+    #0b2a4a 4.4mm
+  );
+}
+.kw-mid {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 1mm;
+}
+.kw-rp {
+  display: flex;
+  align-items: flex-end;
+  gap: 1.5mm;
+}
+.kw-amtbox {
+  display: inline-block;
+  transform: skewX(-20deg);
+  background: rgba(255, 255, 255, .6);
+  border: .7pt solid #0b2a4a;
+  padding: .5mm 4mm;
+  font-weight: 700;
+  font-size: 10.5pt;
+  min-width: 34mm;
+}
+.kw-amtbox > span {
+  display: inline-block;
+  transform: skewX(20deg);
+}
+.kw-sign {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4mm;
+  text-align: center;
+  font-size: 7pt;
+  line-height: 1.2;
+  margin-top: 1mm;
+}
+.kw-gap {
+  height: 8mm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.kw-materai {
+  border: .5pt dashed #0b2a4a;
+  font-size: 5pt;
+  padding: 1.5mm 2mm;
+  line-height: 1.1;
+  background: rgba(255, 255, 255, .5);
+}
+.kw-name {
+  font-weight: 700;
+  text-decoration: underline;
+  font-size: 7pt;
+  min-height: 1.2em;
+}
+.kw-nip {
+  font-size: 6pt;
+}
+.kw-layout {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 1100px) {
+  .kw-layout {
+    grid-template-columns: 330px minmax(0, 1fr);
+  }
+}
+.kw-list {
+  max-height: 520px;
+  overflow: auto;
+}
+#kw-print-root {
+  display: none;
+}
+@media print {
+  body.printing-kwitansi #root {
+    display: none !important;
+  }
+  body.printing-kwitansi #kw-print-root {
+    display: block !important;
+  }
+  body.printing-kwitansi .kw-sheet {
+    break-after: page;
+    page-break-after: always;
+  }
+  body.printing-kwitansi .kw-sheet:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}
+
+/* ===== Daftar 1 (Laporan Bulan) — F4 landscape 330 x 216 mm ===== */
+.lb-page {
+  width: 330mm;
+  min-height: 214mm;
+  box-sizing: border-box;
+  padding: 6mm 7mm;
+  background: #fff;
+  color: #000;
+  font-family: 'Arial Narrow', 'Liberation Sans Narrow', Arial, Helvetica, sans-serif;
+  font-size: 8pt;
+  line-height: 1.15;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+.lb-page * { box-sizing: border-box; }
+.lb-tbl {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.lb-tbl th,
+.lb-tbl td {
+  border: .6pt solid #000;
+  padding: 0 .8mm;
+  text-align: center;
+  vertical-align: middle;
+  font-weight: 400;
+}
+.lb-tbl th { font-weight: 700; }
+.lb-tbl .lb-l { text-align: left; }
+.lb-tbl .lb-nb { border-top-color: transparent; border-bottom-color: transparent; }
+.lb-p1 {
+  display: flex;
+  min-height: 200mm;
+  border: .8pt solid #000;
+}
+.lb-left {
+  width: 66%;
+  display: flex;
+  flex-direction: column;
+  border-right: .8pt solid #000;
+}
+.lb-right {
+  width: 34%;
+  display: flex;
+  flex-direction: column;
+}
+.lb-right .lb-tbl { margin-bottom: 0; }
+.lb-right .lb-tbl + .lb-tbl { border-top: 0; margin-top: -.6pt; }
+.lb-right .lb-rt td { height: 4.4mm; font-size: 8pt; }
+.lb-txt { text-align: left !important; height: auto !important; padding: .6mm 1mm !important; }
+.lb-air { height: 5mm !important; }
+.lb-sp2 { letter-spacing: .08em; }
+.lb-ind { padding-left: 4mm !important; }
+.lb-xs { font-size: 7.5pt !important; }
+
+/* info block */
+.lb-info td { text-align: left; vertical-align: top; }
+.lb-title {
+  text-align: center !important;
+  font-size: 17pt !important;
+  font-weight: 700 !important;
+  height: 9mm;
+  vertical-align: middle !important;
+  letter-spacing: .02em;
+}
+.lb-nob { border: 0 !important; border-bottom: .6pt solid #000 !important; }
+.lb-c1 { text-align: center !important; padding: 0 !important; }
+.lb-c1 .lb-sp { font-weight: 700; letter-spacing: .18em; font-size: 8.5pt; border-bottom: .6pt solid #000; padding: .3mm 0; }
+.lb-c1 .lb-bln { font-weight: 700; font-size: 9.5pt; padding: 3mm 0; border-bottom: .6pt solid #000; }
+.lb-c1 .lb-bhs { font-weight: 700; font-size: 8.5pt; border-bottom: .6pt solid #000; padding: .3mm 0; }
+.lb-c1 .lb-bhs:not(.on) { font-weight: 400; }
+.lb-c2 { padding: 0 1mm !important; }
+.lb-status-h { height: 4.5mm; line-height: 4.5mm; font-size: 8.5pt; }
+.lb-opt { height: 4.5mm; line-height: 4.5mm; font-size: 8.5pt; }
+.lb-circ {
+  display: inline-block; width: 3.4mm; height: 3.4mm; line-height: 3.2mm;
+  border: .6pt solid #000; border-radius: 50%; text-align: center;
+}
+.lb-circ0 { display: inline-block; width: 3.4mm; text-align: center; }
+.lb-c3 { padding: 0 1mm !important; }
+.lb-kv { display: grid; grid-template-columns: 46% 54%; height: 4.5mm; line-height: 4.5mm; font-size: 8.5pt; }
+.lb-kv > span { white-space: nowrap; overflow: hidden; text-overflow: clip; }
+
+/* banyak murid */
+.lb-murid { flex: 1; border-top: .6pt solid #000; }
+.lb-murid th, .lb-murid td { font-size: 8pt; }
+.lb-keterangan { font-size: 11pt !important; letter-spacing: .02em; }
+.lb-bm { font-size: 9pt !important; height: 7mm; letter-spacing: .1em; }
+.lb-sm { font-size: 8pt !important; }
+.lb-xs { font-size: 7.5pt; }
+.lb-sub td { font-size: 8pt; height: 4mm; }
+.lb-grp { font-size: 8pt !important; }
+.lb-lbl { font-size: 8pt !important; text-align: right !important; vertical-align: bottom !important; padding-right: 1mm !important; }
+.lb-r-ind td { height: 11mm; }
+.lb-r-asg td { height: 9mm; vertical-align: bottom; }
+.lb-r-asg td.lb-lbl { vertical-align: bottom; }
+.lb-r-ind td.lb-big, .lb-big { font-size: 12.5pt !important; }
+.lb-r-tot td { height: 22mm; }
+.lb-big2 { font-size: 13pt !important; font-weight: 700 !important; }
+.lb-r-asg td:not(.lb-lbl) { font-size: 11pt; }
+.lb-r-ind td:not(.lb-lbl):not(.lb-grp) { font-size: 9pt; }
+
+/* halaman 2 */
+.lb-page2 { page-break-before: always; break-before: page; }
+.lb-g-title { text-align: center; font-weight: 700; font-size: 9pt; margin-bottom: 1mm; }
+.lb-guru { font-family: Arial, Helvetica, sans-serif; }
+.lb-guru th { font-size: 7.5pt; font-weight: 400; padding: .3mm .4mm; line-height: 1.1; }
+.lb-guru td { font-size: 7.5pt; padding: .2mm .6mm; height: 6.7mm; line-height: 1.1; overflow: hidden; }
+.lb-guru th .lb-nrm { font-size: 7.5pt; }
+.lb-guru .lb-nm { font-size: 7.8pt; display: block; text-transform: uppercase; }
+.lb-vert { display: inline-block; writing-mode: vertical-rl; transform: rotate(180deg); white-space: normal; height: 19mm; text-align: center; line-height: 1.1; }
+.lb-guru thead tr:first-child th { height: 11mm; }
+.lb-vh { height: 12mm; }
+.lb-vh .lb-vert { height: 8.5mm; }
+.lb-pre { white-space: pre-line; }
+.lb-ttd { display: flex; justify-content: space-between; font-size: 9pt; font-family: 'Times New Roman', Times, serif; margin: 2mm 14mm 0; }
+.lb-ttd-l, .lb-ttd-r { line-height: 1.35; }
+.lb-ttd-gap { height: 12mm; }
+.lb-ttd-nm { font-weight: 700; text-decoration: underline; }
+
+#lb-print-root { display: none; }
+.lb-preview .lb-page { box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+.lb-preview .lb-page + .lb-page { margin-top: 14px; }
+@media print {
+  body.printing-laporan #root { display: none !important; }
+  body.printing-laporan #lb-print-root { display: block !important; }
+  body.printing-laporan .lb-page { break-after: auto; }
+}
