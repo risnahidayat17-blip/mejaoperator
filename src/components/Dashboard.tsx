@@ -18,6 +18,7 @@ import {
   ArrowRight,
   Database,
   Cloud,
+  ClipboardCheck,
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -155,6 +156,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
             className="px-4 py-2 bg-white text-[#0B6B58] text-xs font-bold rounded-xl shadow-xs hover:bg-[#DAEEE7] transition cursor-pointer"
           >
             + Buat Surat Keluar
+          </button>
+          <button
+            type="button"
+            onClick={() => onNavigate('posujian')}
+            className="px-3.5 py-2 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl transition cursor-pointer flex items-center gap-1.5"
+          >
+            <ClipboardCheck className="w-4 h-4 text-emerald-200" />
+            POS Ujian
           </button>
           <button
             type="button"

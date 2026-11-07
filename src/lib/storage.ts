@@ -23,6 +23,11 @@ import {
   KeuanganState,
   WorkActivity,
   Rombel,
+  PosUjianConfig,
+  JadwalUjianItem,
+  PesertaUjian,
+  PanitiaUjianItem,
+  PengawasSilangItem,
 } from '../types';
 import {
   initialUsers,
@@ -37,6 +42,10 @@ import {
   initialSuratKeluar,
   initialMutasi,
   initialLetterTemplates,
+  initialPosUjianConfig,
+  initialJadwalUjian,
+  initialPanitiaUjian,
+  initialPengawasSilang,
 } from '../data/initialData';
 import {
   getSupabaseConfig,
@@ -69,6 +78,11 @@ export const KEYS = {
   ARSIPABSEN: 'mo_arsip_absen',
   KEUANGAN: 'mo_keuangan',
   ACTIVITIES: 'mo_activities',
+  POS_UJIAN_CFG: 'mo_pos_ujian_cfg',
+  POS_UJIAN_JADWAL: 'mo_pos_ujian_jadwal',
+  POS_UJIAN_PESERTA: 'mo_pos_ujian_peserta',
+  POS_UJIAN_PANITIA: 'mo_pos_ujian_panitia',
+  POS_UJIAN_PENGAWAS: 'mo_pos_ujian_pengawas',
 };
 
 const listeners = new Set<() => void>();
@@ -465,6 +479,49 @@ export function initStorageDefaults(): void {
   }
   if (!localStorage.getItem(KEYS.TEMPLATES)) {
     localStorage.setItem(KEYS.TEMPLATES, JSON.stringify(initialLetterTemplates));
+  }
+  if (!localStorage.getItem(KEYS.POS_UJIAN_CFG)) {
+    localStorage.setItem(KEYS.POS_UJIAN_CFG, JSON.stringify(initialPosUjianConfig));
+  }
+  if (!localStorage.getItem(KEYS.POS_UJIAN_JADWAL)) {
+    localStorage.setItem(KEYS.POS_UJIAN_JADWAL, JSON.stringify(initialJadwalUjian));
+  }
+  if (!localStorage.getItem(KEYS.POS_UJIAN_PANITIA)) {
+    localStorage.setItem(KEYS.POS_UJIAN_PANITIA, JSON.stringify(initialPanitiaUjian));
+  }
+  if (!localStorage.getItem(KEYS.POS_UJIAN_PENGAWAS)) {
+    localStorage.setItem(KEYS.POS_UJIAN_PENGAWAS, JSON.stringify(initialPengawasSilang));
+  }
+  if (!localStorage.getItem(KEYS.POS_UJIAN_PESERTA)) {
+    try {
+      const siswaList = getFromStorage<Siswa[]>(KEYS.SISWA, initialSiswas);
+      const kelas6 = siswaList.filter(
+        (s) => s.status === 'Aktif' && (s.kelas === '6' || /6/i.test(s.rombel || '') || /6/i.test(s.catatan || ''))
+      );
+      const sortedSiswa = [...kelas6].sort((a, b) => a.nama.localeCompare(b.nama, 'id'));
+      const pesertaList: PesertaUjian[] = sortedSiswa.map((s, idx) => {
+        const ruangNum = Math.floor(idx / 20) + 1;
+        const ruangStr = `Ruang ${String(ruangNum).padStart(2, '0')}`;
+        const noMeja = (idx % 20) + 1;
+        const noPeserta = `02-12-01-6-${String(idx + 1).padStart(4, '0')}-${((idx + 1) * 3) % 9 || 1}`;
+        return {
+          id: `pst_${s.id || idx + 1}`,
+          siswaId: s.id,
+          nomorPeserta: noPeserta,
+          nisn: s.nisn || '-',
+          nis: s.nis || '-',
+          nama: s.nama,
+          jk: s.jk,
+          tempatLahir: s.tempatLahir,
+          tglLahir: s.tglLahir,
+          kelas: s.kelas || '6',
+          rombel: s.rombel,
+          ruang: ruangStr,
+          nomorMeja: noMeja,
+        };
+      });
+      localStorage.setItem(KEYS.POS_UJIAN_PESERTA, JSON.stringify(pesertaList));
+    } catch {}
   }
   // Riwayat pengerjaan hanya mencatat kegiatan yang benar-benar dikerjakan di aplikasi
   if (!localStorage.getItem('mo_activities_cleaned_v2')) {
@@ -1952,3 +2009,183 @@ export function syncRombelsFromSiswa(): { added: number; total: number } {
 
   return { added, total: list.length };
 }
+
+// ---------------------------------------------------------------------------
+// POS UJIAN SEKOLAH (JADWAL, PESERTA, PANITIA, PENGAWAS SILANG, DENAH)
+// ---------------------------------------------------------------------------
+
+export function getPosUjianConfig(): PosUjianConfig {
+  return getFromStorage<PosUjianConfig>(KEYS.POS_UJIAN_CFG, initialPosUjianConfig);
+}
+
+export function savePosUjianConfig(cfg: PosUjianConfig): void {
+  const updated = { ...cfg, updatedAt: Date.now() };
+  setToStorage(KEYS.POS_UJIAN_CFG, updated);
+  recordActivity('POS Ujian', `Memperbarui konfigurasi POS Ujian: ${cfg.namaUjian}`, true, 'update');
+}
+
+export function getPosUjianJadwal(): JadwalUjianItem[] {
+  return getFromStorage<JadwalUjianItem[]>(KEYS.POS_UJIAN_JADWAL, initialJadwalUjian);
+}
+
+export function savePosUjianJadwal(item: JadwalUjianItem): void {
+  const list = getPosUjianJadwal();
+  const idx = list.findIndex((x) => x.id === item.id);
+  const exists = idx >= 0;
+  if (exists) {
+    list[idx] = item;
+  } else {
+    list.push(item);
+  }
+  setToStorage(KEYS.POS_UJIAN_JADWAL, list);
+  recordActivity('POS Ujian', `${exists ? 'Memperbarui' : 'Menambah'} jadwal ujian: ${item.mataPelajaran}`, true, exists ? 'update' : 'create');
+}
+
+export function deletePosUjianJadwal(id: string): void {
+  const list = getPosUjianJadwal();
+  const target = list.find((x) => x.id === id);
+  const filtered = list.filter((x) => x.id !== id);
+  setToStorage(KEYS.POS_UJIAN_JADWAL, filtered);
+  if (target) {
+    recordActivity('POS Ujian', `Menghapus jadwal ujian: ${target.mataPelajaran}`, true, 'delete');
+  }
+}
+
+export function getPosUjianPeserta(): PesertaUjian[] {
+  return getFromStorage<PesertaUjian[]>(KEYS.POS_UJIAN_PESERTA, []);
+}
+
+export function savePosUjianPeserta(item: PesertaUjian): void {
+  const list = getPosUjianPeserta();
+  const idx = list.findIndex((x) => x.id === item.id);
+  const exists = idx >= 0;
+  if (exists) {
+    list[idx] = item;
+  } else {
+    list.push(item);
+  }
+  setToStorage(KEYS.POS_UJIAN_PESERTA, list);
+  recordActivity('POS Ujian', `${exists ? 'Memperbarui' : 'Menambah'} peserta ujian: ${item.nama}`, true, exists ? 'update' : 'create');
+}
+
+export function deletePosUjianPeserta(id: string): void {
+  const list = getPosUjianPeserta();
+  const target = list.find((x) => x.id === id);
+  const filtered = list.filter((x) => x.id !== id);
+  setToStorage(KEYS.POS_UJIAN_PESERTA, filtered);
+  if (target) {
+    recordActivity('POS Ujian', `Menghapus peserta ujian: ${target.nama}`, true, 'delete');
+  }
+}
+
+export function generatePesertaFromSiswa(
+  tingkatKelas: string = '6',
+  kapasitasPerRuang: number = 20,
+  kodeSekolah: string = '02-12-01'
+): { total: number; ruangCount: number } {
+  const allSiswa = getFromStorage<Siswa[]>(KEYS.SISWA, initialSiswas);
+  const targetSiswa = allSiswa.filter((s) => {
+    if (s.status !== 'Aktif') return false;
+    if (tingkatKelas === 'Semua') return true;
+    if (s.kelas === tingkatKelas) return true;
+    const re = new RegExp(`^${tingkatKelas}`, 'i');
+    if (s.rombel && re.test(s.rombel)) return true;
+    if (s.catatan && new RegExp(`(rombel|kelas)\\s+${tingkatKelas}`, 'i').test(s.catatan)) return true;
+    return false;
+  });
+
+  // Urutkan berdasarkan rombel lalu nama siswa
+  targetSiswa.sort((a, b) => {
+    const rombelA = a.rombel || a.kelas || '';
+    const rombelB = b.rombel || b.kelas || '';
+    if (rombelA !== rombelB) return rombelA.localeCompare(rombelB, 'id', { numeric: true });
+    return a.nama.localeCompare(b.nama, 'id');
+  });
+
+  const cap = Math.max(1, kapasitasPerRuang || 20);
+  const pesertaList: PesertaUjian[] = targetSiswa.map((s, idx) => {
+    const ruangNum = Math.floor(idx / cap) + 1;
+    const ruangStr = `Ruang ${String(ruangNum).padStart(2, '0')}`;
+    const noMeja = (idx % cap) + 1;
+    const nomorUrut = String(idx + 1).padStart(4, '0');
+    // Digit verifikasi sederhana
+    const checkDigit = ((idx + 1) * 3) % 9 || 1;
+    const noPeserta = `${kodeSekolah}-${tingkatKelas}-${nomorUrut}-${checkDigit}`;
+
+    return {
+      id: `pst_${s.id || idx + 1}`,
+      siswaId: s.id,
+      nomorPeserta: noPeserta,
+      nisn: s.nisn || '-',
+      nis: s.nis || '-',
+      nama: s.nama,
+      jk: s.jk,
+      tempatLahir: s.tempatLahir,
+      tglLahir: s.tglLahir,
+      kelas: s.kelas || tingkatKelas,
+      rombel: s.rombel,
+      ruang: ruangStr,
+      nomorMeja: noMeja,
+    };
+  });
+
+  setToStorage(KEYS.POS_UJIAN_PESERTA, pesertaList);
+  const ruangCount = pesertaList.length > 0 ? Math.ceil(pesertaList.length / cap) : 0;
+  recordActivity('POS Ujian', `Generate otomatis ${pesertaList.length} peserta ujian ke ${ruangCount} ruang`, true, 'create');
+  return { total: pesertaList.length, ruangCount };
+}
+
+export function getPosUjianPanitia(): PanitiaUjianItem[] {
+  return getFromStorage<PanitiaUjianItem[]>(KEYS.POS_UJIAN_PANITIA, initialPanitiaUjian);
+}
+
+export function savePosUjianPanitia(item: PanitiaUjianItem): void {
+  const list = getPosUjianPanitia();
+  const idx = list.findIndex((x) => x.id === item.id);
+  const exists = idx >= 0;
+  if (exists) {
+    list[idx] = item;
+  } else {
+    list.push(item);
+  }
+  setToStorage(KEYS.POS_UJIAN_PANITIA, list);
+  recordActivity('POS Ujian', `${exists ? 'Memperbarui' : 'Menambah'} panitia ujian: ${item.nama} (${item.jabatanPanitia})`, true, exists ? 'update' : 'create');
+}
+
+export function deletePosUjianPanitia(id: string): void {
+  const list = getPosUjianPanitia();
+  const target = list.find((x) => x.id === id);
+  const filtered = list.filter((x) => x.id !== id);
+  setToStorage(KEYS.POS_UJIAN_PANITIA, filtered);
+  if (target) {
+    recordActivity('POS Ujian', `Menghapus panitia ujian: ${target.nama}`, true, 'delete');
+  }
+}
+
+export function getPosUjianPengawas(): PengawasSilangItem[] {
+  return getFromStorage<PengawasSilangItem[]>(KEYS.POS_UJIAN_PENGAWAS, initialPengawasSilang);
+}
+
+export function savePosUjianPengawas(item: PengawasSilangItem): void {
+  const list = getPosUjianPengawas();
+  const idx = list.findIndex((x) => x.id === item.id);
+  const exists = idx >= 0;
+  if (exists) {
+    list[idx] = item;
+  } else {
+    list.push(item);
+  }
+  setToStorage(KEYS.POS_UJIAN_PENGAWAS, list);
+  recordActivity('POS Ujian', `${exists ? 'Memperbarui' : 'Menambah'} pengawas silang: ${item.nama} (${item.asalSekolah})`, true, exists ? 'update' : 'create');
+}
+
+export function deletePosUjianPengawas(id: string): void {
+  const list = getPosUjianPengawas();
+  const target = list.find((x) => x.id === id);
+  const filtered = list.filter((x) => x.id !== id);
+  setToStorage(KEYS.POS_UJIAN_PENGAWAS, filtered);
+  if (target) {
+    recordActivity('POS Ujian', `Menghapus pengawas silang: ${target.nama}`, true, 'delete');
+  }
+}
+

@@ -57,6 +57,7 @@ import { RekapLaporan } from './components/RekapLaporan';
 import { LaporanKeuangan } from './components/LaporanKeuangan';
 import { ProfilPengguna } from './components/ProfilPengguna';
 import { PengaturanSekolah } from './components/PengaturanSekolah';
+import { PosUjian } from './components/PosUjian';
 import { SupabaseSyncModal } from './components/SupabaseSyncModal';
 import { Lock, ShieldCheck } from 'lucide-react';
 
@@ -126,7 +127,7 @@ export default function App() {
   // Ensure Guru doesn't remain on an operator-only tab
   useEffect(() => {
     if (currentUser?.role === 'guru') {
-      const allowed = ['dasbor', 'guru', 'suratkeluar', 'arsipabsen', 'penilaian', 'profil'];
+      const allowed = ['dasbor', 'guru', 'suratkeluar', 'arsipabsen', 'penilaian', 'posujian', 'profil'];
       if (!allowed.includes(currentTab)) {
         setCurrentTab('guru');
       }
@@ -150,7 +151,7 @@ export default function App() {
 
   const role = currentUser?.role || 'guru';
   const isOperator = role === 'operator';
-  const isRestrictedForGuru = !isOperator && !['dasbor', 'guru', 'suratkeluar', 'arsipabsen', 'penilaian', 'profil'].includes(currentTab);
+  const isRestrictedForGuru = !isOperator && !['dasbor', 'guru', 'suratkeluar', 'arsipabsen', 'penilaian', 'posujian', 'profil'].includes(currentTab);
 
   const counts = {
     siswa: siswaList.filter((s) => s.status === 'Aktif').length,
@@ -251,7 +252,7 @@ export default function App() {
                     suratkeluar={suratKeluarList}
                     onNavigate={(tab) => {
                       // Guru hanya boleh membuka bagian yang diizinkan; sisanya khusus operator.
-                      if (!isOperator && !['guru', 'suratkeluar', 'arsipabsen', 'penilaian', 'profil'].includes(tab)) {
+                      if (!isOperator && !['guru', 'suratkeluar', 'arsipabsen', 'penilaian', 'posujian', 'profil'].includes(tab)) {
                         showToast('Bagian ini khusus Operator Sekolah.', true);
                         return;
                       }
@@ -291,6 +292,15 @@ export default function App() {
                 )}
                 {currentTab === 'penilaian' && (
                   <Penilaian role={role} config={config} onToast={showToast} />
+                )}
+                {currentTab === 'posujian' && (
+                  <PosUjian
+                    config={config}
+                    role={role}
+                    onToast={showToast}
+                    guruList={guruList}
+                    siswaList={siswaList}
+                  />
                 )}
                 {currentTab === 'arsipabsen' && (
                   <ArsipAbsen role={role} config={config} onToast={showToast} />

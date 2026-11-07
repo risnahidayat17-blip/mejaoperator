@@ -22,6 +22,7 @@ import {
   Lock,
   ShieldCheck,
   Cloud,
+  ClipboardCheck,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -65,6 +66,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: 'suratkeluar', label: 'Surat Keluar (Kop HD)', icon: <Send className="w-4 h-4" />, count: counts.suratkeluar },
         { id: 'suratmasuk', label: 'Surat Masuk', icon: <Inbox className="w-4 h-4" />, count: counts.suratmasuk },
         { id: 'penilaian', label: 'Penilaian & Rapor', icon: <Award className="w-4 h-4" />, count: counts.berkas },
+        { id: 'posujian', label: 'POS Ujian Sekolah', icon: <ClipboardCheck className="w-4 h-4" /> },
         { id: 'arsipabsen', label: 'Arsip Absen', icon: <CalendarCheck className="w-4 h-4" />, count: counts.arsipabsen },
       ],
     },
@@ -86,7 +88,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
   ];
 
-  const allowedForGuru = ['dasbor', 'guru', 'suratkeluar', 'arsipabsen', 'penilaian', 'profil'];
+  const allowedForGuru = ['dasbor', 'guru', 'suratkeluar', 'arsipabsen', 'penilaian', 'posujian', 'profil'];
 
   return (
     <aside className="w-64 bg-white border-r border-[#D3DDD9] flex flex-col shrink-0 min-h-[calc(100vh-65px)] select-none">

@@ -127,6 +127,17 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
     return matchTerm && matchKelas && matchRombel && matchJk;
   });
 
+  const filteredRombels = rombelList.filter((r) => {
+    const term = searchRombel.toLowerCase().trim();
+    const matchTerm =
+      !term ||
+      r.nama.toLowerCase().includes(term) ||
+      (r.waliKelasNama && r.waliKelasNama.toLowerCase().includes(term)) ||
+      (r.ruangan && r.ruangan.toLowerCase().includes(term));
+    const matchTingkat = !filterTingkatRombel || r.tingkat === filterTingkatRombel;
+    return matchTerm && matchTingkat;
+  });
+
   const handleSaveRombel = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
@@ -550,10 +561,23 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
               onChange={(e) => setFilterKelas(e.target.value)}
               className="text-xs px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
             >
-              <option value="">Semua Kelas</option>
+              <option value="">Semua Tingkat</option>
               {kelasOptions.map((k) => (
                 <option key={k} value={k}>
                   Kelas {k}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={filterRombel}
+              onChange={(e) => setFilterRombel(e.target.value)}
+              className="text-xs px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white font-medium"
+            >
+              <option value="">Semua Rombel</option>
+              {rombelList.map((r) => (
+                <option key={r.id} value={r.nama}>
+                  Rombel {r.nama} (K{r.tingkat})
                 </option>
               ))}
             </select>
@@ -576,7 +600,7 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
                   <tr className="bg-[#F1F4F2] text-[#566A6E] uppercase tracking-wider text-[11px] font-semibold">
                     <th className="py-2.5 px-4 border-b border-[#D3DDD9]">Nama Lengkap Siswa</th>
                     <th className="py-2.5 px-4 border-b border-[#D3DDD9] text-center">L/P</th>
-                    <th className="py-2.5 px-4 border-b border-[#D3DDD9] text-center">Kelas</th>
+                    <th className="py-2.5 px-4 border-b border-[#D3DDD9] text-center">Rombel / Kelas</th>
                     <th className="py-2.5 px-4 border-b border-[#D3DDD9]">Orang Tua / Wali</th>
                     <th className="py-2.5 px-4 border-b border-[#D3DDD9]">Alamat</th>
                     <th className="py-2.5 px-4 border-b border-[#D3DDD9] text-right">Aksi</th>
@@ -600,8 +624,13 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
                           {s.jk}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-center font-bold text-[#0B6B58]">
-                        Kelas {s.kelas}
+                      <td className="py-3 px-4 text-center">
+                        <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#E6F2EE] text-[#0B6B58] border border-[#B8D7CD]">
+                          Rombel {getStudentRombel(s)}
+                        </span>
+                        <div className="text-[10px] text-[#566A6E] mt-0.5 font-medium">
+                          Tingkat {s.kelas}
+                        </div>
                       </td>
                       <td className="py-3 px-4 text-[#566A6E]">
                         <div>{s.namaAyah || s.namaIbu || '-'}</div>
@@ -685,7 +714,245 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
         </div>
       )}
 
-      {/* TAB 2: CATATAN MUTASI */}
+      {/* TAB 2: ROMBONGAN BELAJAR (ROMBEL) */}
+      {activeTab === 'rombel' && (
+        <div className="space-y-4">
+          {/* Quick Rombel Stats Banner */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white border border-[#D3DDD9] rounded-xl p-3.5 shadow-2xs">
+              <div className="text-[11px] text-[#566A6E] font-medium flex items-center gap-1.5">
+                <School className="w-3.5 h-3.5 text-[#0B6B58]" /> Total Rombel Belajar
+              </div>
+              <div className="text-2xl font-bold text-[#13262A] font-display mt-0.5">
+                {rombelList.length} <span className="text-xs font-normal text-gray-500">Rombel</span>
+              </div>
+              <div className="text-[10px] text-[#0B6B58] mt-0.5">Tingkat Kelas 1 s/d 6</div>
+            </div>
+
+            <div className="bg-white border border-[#D3DDD9] rounded-xl p-3.5 shadow-2xs">
+              <div className="text-[11px] text-[#566A6E] font-medium flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-[#0B6B58]" /> Siswa Terdaftar
+              </div>
+              <div className="text-2xl font-bold text-[#13262A] font-display mt-0.5">
+                {activeSiswa.length} <span className="text-xs font-normal text-gray-500">Siswa Aktif</span>
+              </div>
+              <div className="text-[10px] text-[#566A6E] mt-0.5">
+                Rata-rata {Math.round(activeSiswa.length / Math.max(1, rombelList.length))} siswa/rombel
+              </div>
+            </div>
+
+            <div className="bg-white border border-[#D3DDD9] rounded-xl p-3.5 shadow-2xs">
+              <div className="text-[11px] text-[#566A6E] font-medium flex items-center gap-1.5">
+                <GraduationCap className="w-3.5 h-3.5 text-[#0B6B58]" /> Wali Kelas Ditugaskan
+              </div>
+              <div className="text-2xl font-bold text-[#13262A] font-display mt-0.5">
+                {rombelList.filter((r) => r.waliKelasNama).length} / {rombelList.length}
+              </div>
+              <div className="text-[10px] text-[#566A6E] mt-0.5">Guru penanggung jawab</div>
+            </div>
+
+            <div className="bg-white border border-[#D3DDD9] rounded-xl p-3.5 shadow-2xs">
+              <div className="text-[11px] text-[#566A6E] font-medium flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-[#0B6B58]" /> Kurikulum Berjalan
+              </div>
+              <div className="text-sm font-bold text-[#13262A] mt-1.5 truncate">
+                Kurikulum Merdeka
+              </div>
+              <div className="text-[10px] text-[#0B6B58] mt-0.5">Standar Nasional</div>
+            </div>
+          </div>
+
+          {/* Filter & Action Toolbar */}
+          <div className="bg-white p-3.5 rounded-xl border border-[#D3DDD9] flex flex-wrap items-center justify-between gap-3 shadow-xs">
+            <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[260px]">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="w-4 h-4 text-[#566A6E] absolute left-3 top-2.5" />
+                <input
+                  type="search"
+                  value={searchRombel}
+                  onChange={(e) => setSearchRombel(e.target.value)}
+                  placeholder="Cari nama rombel (1A, 4B) atau nama wali kelas..."
+                  className="w-full pl-9 pr-3 py-1.5 text-xs border border-[#D3DDD9] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0B6B58]"
+                />
+              </div>
+
+              <select
+                value={filterTingkatRombel}
+                onChange={(e) => setFilterTingkatRombel(e.target.value)}
+                className="text-xs px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+              >
+                <option value="">Semua Tingkat (1-6)</option>
+                {['1', '2', '3', '4', '5', '6'].map((t) => (
+                  <option key={t} value={t}>
+                    Tingkat Kelas {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSyncRombels}
+                className="px-3 py-1.5 text-xs font-semibold bg-[#E8EFEC] hover:bg-[#D3DDD9] text-[#13262A] rounded-lg transition flex items-center gap-1.5 cursor-pointer"
+                title="Deteksi rombel otomatis dari biodata siswa / Dapodik"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-[#0B6B58]" /> Sinkronkan Rombel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingRombel(null);
+                  setIsModalRombelOpen(true);
+                }}
+                className="px-3.5 py-1.5 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" /> Tambah Rombel Baru
+              </button>
+            </div>
+          </div>
+
+          {/* Grid Cards of Rombels */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredRombels.map((r) => {
+              const studentsInThisRombel = activeSiswa.filter(
+                (s) => getStudentRombel(s).replace(/\s+/g, '').toLowerCase() === r.nama.replace(/\s+/g, '').toLowerCase()
+              );
+              const countL = studentsInThisRombel.filter((s) => s.jk === 'L').length;
+              const countP = studentsInThisRombel.filter((s) => s.jk === 'P').length;
+
+              return (
+                <div
+                  key={r.id}
+                  className="bg-white border border-[#D3DDD9] hover:border-[#0B6B58]/60 rounded-xl p-4.5 shadow-2xs transition flex flex-col justify-between space-y-3"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-1 rounded-lg text-sm font-bold bg-[#E6F2EE] text-[#0B6B58] border border-[#B8D7CD]">
+                            Rombel {r.nama}
+                          </span>
+                          <span className="text-xs font-semibold text-[#13262A]">
+                            Tingkat {r.tingkat}
+                          </span>
+                        </div>
+                        {r.ruangan && (
+                          <div className="text-[11px] text-[#566A6E] mt-1 font-medium">
+                            {r.ruangan}
+                          </div>
+                        )}
+                      </div>
+
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-[#566A6E]">
+                        {r.kurikulum || 'Kurikulum Merdeka'}
+                      </span>
+                    </div>
+
+                    {/* Wali Kelas */}
+                    <div className="p-2.5 rounded-lg bg-[#F8FBFA] border border-[#E6EDEA] flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-full bg-[#E6F2EE] text-[#0B6B58] flex items-center justify-center flex-none">
+                        <GraduationCap className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[10px] text-[#566A6E] font-medium">Wali Kelas:</div>
+                        <div className="text-xs font-bold text-[#13262A] truncate" title={r.waliKelasNama || 'Belum diatur'}>
+                          {r.waliKelasNama || <span className="font-normal italic text-gray-400">Belum ditentukan</span>}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Student count */}
+                    <div className="flex items-center justify-between text-xs pt-1">
+                      <span className="text-[#566A6E] font-medium">Jumlah Peserta Didik:</span>
+                      <span className="font-bold text-[#13262A]">
+                        {studentsInThisRombel.length} Siswa{' '}
+                        <span className="text-[10px] font-normal text-gray-500">
+                          ({countL} L &middot; {countP} P)
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="border-t border-[#E6EDEA] pt-3 flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFilterRombel(r.nama);
+                        setActiveTab('daftar');
+                      }}
+                      className="px-2.5 py-1 text-xs font-semibold text-[#0B6B58] hover:bg-[#E6F2EE] rounded-lg transition cursor-pointer flex items-center gap-1"
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                      Lihat {studentsInThisRombel.length} Siswa
+                    </button>
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingRombel(r);
+                          setIsModalRombelOpen(true);
+                        }}
+                        className="p-1.5 text-[#566A6E] hover:text-[#0B6B58] hover:bg-[#E8EFEC] rounded transition cursor-pointer"
+                        title="Ubah data rombel"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      {isOperator && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteRombel(r.id, r.nama)}
+                          className="p-1.5 text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
+                          title="Hapus rombel"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {filteredRombels.length === 0 && (
+            <div className="bg-white border border-[#D3DDD9] rounded-xl p-12 text-center text-[#566A6E] space-y-3">
+              <div className="w-12 h-12 rounded-full bg-[#E6F2EE] flex items-center justify-center text-[#0B6B58] mx-auto">
+                <School className="w-6 h-6" />
+              </div>
+              <div className="font-bold text-[#13262A] text-sm">
+                Tidak ada rombel belajar yang sesuai
+              </div>
+              <p className="text-xs max-w-sm mx-auto">
+                Tambahkan rombel kelas baru atau klik sinkronkan untuk mendeteksi rombel otomatis dari data siswa Dapodik.
+              </p>
+              <div className="flex items-center justify-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={handleSyncRombels}
+                  className="px-3.5 py-2 text-xs font-semibold bg-[#E8EFEC] hover:bg-[#D3DDD9] text-[#13262A] rounded-lg transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-[#0B6B58]" /> Sinkronkan dari Siswa
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingRombel(null);
+                    setIsModalRombelOpen(true);
+                  }}
+                  className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> Tambah Rombel Baru
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 3: CATATAN MUTASI */}
       {activeTab === 'mutasi' && (
         <div className="space-y-4">
           <div className="bg-white p-3.5 rounded-xl border border-[#D3DDD9] flex flex-wrap items-center gap-3 shadow-xs">
@@ -861,13 +1128,38 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                 <div>
-                  <label className="block font-semibold text-[#566A6E] mb-1">Kelas *</label>
+                  <label className="block font-semibold text-[#566A6E] mb-1">Rombel Belajar</label>
+                  <select
+                    name="rombel"
+                    defaultValue={
+                      editingSiswa
+                        ? editingSiswa.rombel ||
+                          rombelList.find(
+                            (r) =>
+                              r.nama.replace(/\s+/g, '').toLowerCase() ===
+                              getStudentRombel(editingSiswa).replace(/\s+/g, '').toLowerCase()
+                          )?.nama ||
+                          ''
+                        : ''
+                    }
+                    className="w-full px-3 py-2 border border-[#0B6B58] bg-[#F4FAF8] rounded-lg font-bold text-[#0B6B58]"
+                  >
+                    <option value="">-- Pilih Rombel --</option>
+                    {rombelList.map((r) => (
+                      <option key={r.id} value={r.nama}>
+                        Rombel {r.nama} (Tk {r.tingkat})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-[#566A6E] mb-1">Tingkat Kelas *</label>
                   <select
                     name="kelas"
                     defaultValue={editingSiswa?.kelas || kelasOptions[0]}
-                    className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-bold text-[#0B6B58]"
+                    className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-bold text-[#13262A]"
                   >
                     {kelasOptions.map((k) => (
                       <option key={k} value={k}>
@@ -1222,6 +1514,130 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: TAMBAH / UBAH ROMBEL BELAJAR */}
+      {isModalRombelOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-xl border border-[#D3DDD9] max-w-lg w-full p-6 space-y-4 my-6">
+            <div className="flex items-center justify-between pb-3 border-b border-[#D3DDD9]">
+              <h3 className="text-base font-bold text-[#13262A] font-display flex items-center gap-2">
+                <School className="w-5 h-5 text-[#0B6B58]" />
+                {editingRombel ? `Ubah Data Rombel: ${editingRombel.nama}` : 'Tambah Rombel Belajar Baru'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsModalRombelOpen(false);
+                  setEditingRombel(null);
+                }}
+                className="p-1 text-gray-400 hover:text-gray-700 rounded cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveRombel} className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-[#566A6E] mb-1">Nama Rombel *</label>
+                  <input
+                    name="nama"
+                    defaultValue={editingRombel?.nama || ''}
+                    required
+                    placeholder="Contoh: 1A atau 6B"
+                    className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-bold text-[#0B6B58] uppercase"
+                  />
+                  <p className="text-[10px] text-gray-500 mt-0.5">Contoh: 1A, 1B, 2A, 3C, dll.</p>
+                </div>
+                <div>
+                  <label className="block font-semibold text-[#566A6E] mb-1">Tingkat Kelas *</label>
+                  <select
+                    name="tingkat"
+                    defaultValue={editingRombel?.tingkat || '1'}
+                    className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-semibold"
+                  >
+                    {['1', '2', '3', '4', '5', '6'].map((t) => (
+                      <option key={t} value={t}>
+                        Tingkat {t} (Kelas {t})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-[#566A6E] mb-1">Guru / Wali Kelas</label>
+                <select
+                  name="waliKelasId"
+                  defaultValue={editingRombel?.waliKelasId || ''}
+                  className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg"
+                >
+                  <option value="">-- Belum Ditentukan --</option>
+                  {guruList.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.nama} {g.nip ? `(NIP: ${g.nip})` : ''} - {g.jabatan || 'Guru'}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-gray-500 mt-0.5">Guru yang ditugaskan sebagai wali kelas rombel ini.</p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-[#566A6E] mb-1">Kurikulum</label>
+                  <select
+                    name="kurikulum"
+                    defaultValue={editingRombel?.kurikulum || 'Kurikulum Merdeka'}
+                    className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg"
+                  >
+                    <option value="Kurikulum Merdeka">Kurikulum Merdeka</option>
+                    <option value="Kurikulum 2013">Kurikulum 2013</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-[#566A6E] mb-1">Ruang Kelas / Gedung</label>
+                  <input
+                    name="ruangan"
+                    defaultValue={editingRombel?.ruangan || ''}
+                    placeholder="Contoh: Ruang 1A Gedung Utara"
+                    className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-[#566A6E] mb-1">Catatan Tambahan</label>
+                <textarea
+                  name="catatan"
+                  defaultValue={editingRombel?.catatan || ''}
+                  rows={2}
+                  placeholder="Keterangan jadwal shift, pembagian kelompok, dll."
+                  className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-[#D3DDD9]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsModalRombelOpen(false);
+                    setEditingRombel(null);
+                  }}
+                  className="px-4 py-2 border border-[#D3DDD9] text-[#566A6E] rounded-lg cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white font-semibold rounded-lg cursor-pointer shadow-xs flex items-center gap-1.5"
+                >
+                  <CheckCircle className="w-4 h-4" /> Simpan Rombel
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

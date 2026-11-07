@@ -467,3 +467,76 @@ export interface WorkActivity {
   action?: 'create' | 'update' | 'delete';
 }
 
+export interface PosUjianConfig {
+  id: string;
+  namaUjian: string;
+  tahunPelajaran: string;
+  semester: string;
+  tingkatKelas: string;
+  tglMulai: string;
+  tglSelesai: string;
+  tempatUjian: string;
+  ketuaPanitia: string;
+  sekretaris: string;
+  bendahara: string;
+  penanggungJawab: string;
+  jumlahRuang: number;
+  kapasitasPerRuang: number;
+  kodeSekolah: string;
+  noSkPanitia?: string;
+  tglSkPanitia?: string;
+  catatan?: string;
+  updatedAt?: number;
+}
+
+export interface JadwalUjianItem {
+  id: string;
+  hariTanggal: string;
+  tanggal: string;
+  jamKe: number;
+  waktu: string;
+  mataPelajaran: string;
+  ruangList: string[];
+  keterangan?: string;
+}
+
+export interface PesertaUjian {
+  id: string;
+  siswaId?: string;
+  nomorPeserta: string;
+  nisn: string;
+  nis: string;
+  nama: string;
+  jk: 'L' | 'P';
+  tempatLahir?: string;
+  tglLahir?: string;
+  kelas: string;
+  rombel?: string;
+  ruang: string;
+  nomorMeja: number;
+  fotoUrl?: string;
+}
+
+export interface PanitiaUjianItem {
+  id: string;
+  guruId?: string;
+  nama: string;
+  nip?: string;
+  jabatanSekolah: string;
+  jabatanPanitia: string;
+  tugas?: string;
+  noHp?: string;
+}
+
+export interface PengawasSilangItem {
+  id: string;
+  nama: string;
+  nip?: string;
+  asalSekolah: string;
+  ruangTugas: string;
+  hariTanggal?: string;
+  mataPelajaran?: string;
+  sesi?: string;
+  noHp?: string;
+}
+
