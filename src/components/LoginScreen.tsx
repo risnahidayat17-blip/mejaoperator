@@ -4,9 +4,10 @@
  */
 
 import { ikResize } from '../lib/imagekit';
-import React, { useState } from 'react';
-import { SchoolConfig } from '../types';
-import { getGurus, loginOperator, loginGuru, guruHasPassword } from '../lib/storage';
+import React, { useState, useEffect } from 'react';
+import { SchoolConfig, Guru } from '../types';
+import { getGurus, loginOperator, loginGuru, guruHasPassword, subscribeToStorage } from '../lib/storage';
+import { testSupabaseConnection } from '../lib/supabase';
 import {
   GraduationCap,
   ShieldCheck,
@@ -15,15 +16,18 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
+  Cloud,
 } from 'lucide-react';
 
 interface LoginScreenProps {
   config: SchoolConfig;
   onLoggedIn: (role: 'operator' | 'guru') => void;
+  onOpenSupabaseModal?: () => void;
 }
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({ config, onLoggedIn }) => {
-  const activeGurus = getGurus().filter((g) => g.status !== 'Nonaktif');
+export const LoginScreen: React.FC<LoginScreenProps> = ({ config, onLoggedIn, onOpenSupabaseModal }) => {
+  const [gurus, setGurus] = useState<Guru[]>(getGurus());
+  const activeGurus = gurus.filter((g) => g.status !== 'Nonaktif');
   const [selectedGuruId, setSelectedGuruId] = useState(activeGurus[0]?.id || '');
   const [operatorPassword, setOperatorPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -32,9 +36,36 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ config, onLoggedIn }) 
   const [showGuruPassword, setShowGuruPassword] = useState(false);
   const [guruError, setGuruError] = useState('');
   const [guruBusy, setGuruBusy] = useState(false);
+  const [supabaseConnected, setSupabaseConnected] = useState<boolean | null>(null);
   const selectedGuru = activeGurus.find((g) => g.id === selectedGuruId);
 
   const logo = ikResize(config.logoSekolah || config.logoPemda || config.logo || '', 240);
+
+  useEffect(() => {
+    let isMounted = true;
+    const check = () => {
+      testSupabaseConnection().then((r) => {
+        if (isMounted) setSupabaseConnected(r.connected);
+      });
+      setGurus(getGurus());
+    };
+    check();
+    window.addEventListener('focus', check);
+    const unsub = subscribeToStorage(() => {
+      if (isMounted) check();
+    });
+    return () => {
+      isMounted = false;
+      window.removeEventListener('focus', check);
+      unsub();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedGuruId && activeGurus.length > 0) {
+      setSelectedGuruId(activeGurus[0].id);
+    }
+  }, [activeGurus, selectedGuruId]);
 
   const handleLoginGuru = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,6 +100,37 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ config, onLoggedIn }) 
   return (
     <div className="min-h-screen bg-[#F1F4F2] flex flex-col items-center justify-center px-4 py-10 font-sans text-[#13262A]">
       <div className="w-full max-w-3xl">
+        {/* Top Connection Indicator Button */}
+        {onOpenSupabaseModal && (
+          <div className="flex justify-end mb-3">
+            <button
+              type="button"
+              onClick={onOpenSupabaseModal}
+              className={`px-3 py-1.5 rounded-xl border flex items-center gap-1.5 text-xs font-semibold transition cursor-pointer shadow-2xs ${
+                supabaseConnected === true
+                  ? 'bg-[#DDF1E3] text-[#1D7A3A] border-[#1D7A3A]/30 hover:bg-[#c6e6db]'
+                  : supabaseConnected === false
+                  ? 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
+                  : 'bg-[#E8EFEC] text-[#566A6E] border-[#D3DDD9]'
+              }`}
+              title="Klik untuk membuka status koneksi & sinkronisasi Supabase Cloud"
+            >
+              <Cloud className="w-3.5 h-3.5" />
+              <span>Supabase:</span>
+              {supabaseConnected === true ? (
+                <span className="flex items-center gap-1 text-emerald-800 font-bold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  Terhubung Cloud
+                </span>
+              ) : supabaseConnected === false ? (
+                <span className="text-rose-700">Offline (Atur Kredensial)</span>
+              ) : (
+                <span>Mengecek...</span>
+              )}
+            </button>
+          </div>
+        )}
+
         {/* Brand Header */}
         <div className="flex flex-col items-center text-center mb-8">
           <div className="w-20 h-20 rounded-2xl bg-white border border-[#D3DDD9] shadow-sm flex items-center justify-center overflow-hidden mb-3 p-2">

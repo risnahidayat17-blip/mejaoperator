@@ -65,14 +65,26 @@ export function applySetupFromUrl(): boolean {
       }
     })();
     if (!host) return false;
-    const ok = window.confirm(
-      `Terapkan pengaturan koneksi database dari tautan ini?\n\nSupabase: ${host}\nImageKit: ${d.ik?.pk ? 'diatur' : 'tidak diatur'}\n\nHanya lanjutkan jika tautan berasal dari operator sekolah Anda.`
-    );
-    if (!ok) return false;
 
-    saveSupabaseConfig({ projectName: d.sb.n, projectUrl: d.sb.u, apiKey: d.sb.k, tablePrefix: d.sb.p ?? 'mo_' });
-    if (d.ik) saveImageKitConfig({ publicKey: d.ik.pk || '', urlEndpoint: d.ik.ue || '', authEndpoint: d.ik.ae || '', folder: d.ik.f || '' });
+    saveSupabaseConfig({
+      projectName: d.sb.n || 'Meja Operator',
+      projectUrl: d.sb.u,
+      apiKey: d.sb.k,
+      tablePrefix: d.sb.p ?? 'mo_',
+      autoSync: true,
+    });
+    if (d.ik) {
+      saveImageKitConfig({
+        publicKey: d.ik.pk || '',
+        urlEndpoint: d.ik.ue || '',
+        authEndpoint: d.ik.ae || '',
+        folder: d.ik.f || '',
+      });
+    }
     resetCloudSyncState();
+    try {
+      localStorage.setItem('mo_setup_applied_toast', 'Koneksi database Supabase berhasil diterapkan dari tautan.');
+    } catch {}
     return true;
   } catch {
     return false;

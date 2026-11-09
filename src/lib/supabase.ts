@@ -53,7 +53,21 @@ function normalizeConfig(raw: Partial<SupabaseConfig>): SupabaseConfig {
 export function getSupabaseConfig(): SupabaseConfig {
   try {
     const saved = localStorage.getItem(STORAGE_KEY_CONFIG);
-    if (saved) return normalizeConfig(JSON.parse(saved));
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Auto-purge old dead demo url atau konfigurasi kosong agar perangkat lain otomatis ikut konfigurasi sekolah saat ini
+      if (
+        !parsed ||
+        typeof parsed !== 'object' ||
+        !parsed.projectUrl ||
+        parsed.projectUrl.includes('qpjgokdxoevjjcrrazqh.supabase.co') ||
+        !parsed.apiKey
+      ) {
+        localStorage.removeItem(STORAGE_KEY_CONFIG);
+        return normalizeConfig({});
+      }
+      return normalizeConfig(parsed);
+    }
   } catch (e) {
     console.warn('Failed to read Supabase config from storage:', e);
   }
@@ -105,9 +119,7 @@ export function reinitializeSupabaseClient(): SupabaseClient {
 
 /**
  * Test connectivity to Supabase.
- * Catatan: key baru "sb_publishable_..." TIDAK boleh membaca root /rest/v1/ (OpenAPI schema),
- * jadi tes dilakukan langsung ke tabel penyimpanan aplikasi. Key juga hanya dikirim lewat
- * header "apikey" (bukan Bearer), karena bukan JWT.
+ * Menguji koneksi langsung ke tabel penyimpanan aplikasi mo_app_store.
  */
 export async function testSupabaseConnection(overrideConfig?: Partial<SupabaseConfig>): Promise<{
   connected: boolean;
@@ -132,7 +144,11 @@ export async function testSupabaseConnection(overrideConfig?: Partial<SupabaseCo
   try {
     const response = await fetch(`${url}/rest/v1/${getStoreTable()}?select=id&limit=1`, {
       method: 'GET',
-      headers: { apikey: key, Accept: 'application/json' },
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        Accept: 'application/json',
+      },
     });
     const latencyMs = Math.round(performance.now() - startTime);
 
@@ -193,10 +209,13 @@ export async function testSupabaseConnection(overrideConfig?: Partial<SupabaseCo
   } catch (err: unknown) {
     const latencyMs = Math.round(performance.now() - startTime);
     const msg = err instanceof Error ? err.message : String(err);
+    const isDefaultDemoUrl = url.includes('qpjgokdxoevjjcrrazqh.supabase.co');
     return {
       connected: false,
       latencyMs,
-      message: `Tidak dapat menghubungi ${url}. Periksa koneksi internet, Project URL, dan pastikan proyek Supabase tidak sedang dijeda (paused). (${msg})`,
+      message: isDefaultDemoUrl
+        ? `Laptop/perangkat ini belum tersambung ke database sekolah Anda (masih menggunakan URL bawaan). Di laptop utama, buka menu Koneksi Supabase > Salin tautan pengaturan, lalu buka tautan tersebut di laptop ini. Atau buka tab Kredensial dan masukkan Project URL & Key Supabase sekolah Anda.`
+        : `Tidak dapat menghubungi ${url}. Periksa koneksi internet, Project URL, dan pastikan proyek Supabase tidak sedang dijeda (paused). (${msg})`,
     };
   }
 }

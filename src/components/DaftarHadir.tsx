@@ -76,34 +76,14 @@ interface SheetProps {
   guruNama: string;
   guruNip: string;
   tempatTanggal: string;
+  pakaiKop: boolean;
 }
-
-/** Kop ringkas (±18 mm) khusus lembar semester agar daftar muat satu halaman. */
-const KopRingkas: React.FC<{ config: SchoolConfig }> = ({ config }) => {
-  const logos = [config.logoPemda || config.logo, config.logoSekolah].filter(Boolean) as string[];
-  return (
-    <div className="dh-kopr">
-      <div className="dh-kopr-logo">
-        {logos.map((l, i) => (
-          <img key={i} src={l} alt="" />
-        ))}
-      </div>
-      <div className="dh-kopr-txt">
-        <div className="a">{config.kopInduk1 || 'PEMERINTAH KABUPATEN CIREBON'}</div>
-        {config.kopInduk2 && config.kopInduk2.toUpperCase() !== (config.namaSekolah || '').toUpperCase() && <div className="a">{config.kopInduk2}</div>}
-        <div className="b">{(config.namaSekolah || '').toUpperCase()}</div>
-        <div className="c">{config.kopAlamat || config.alamat || ''}</div>
-      </div>
-      <div className="dh-kopr-logo" aria-hidden="true" />
-    </div>
-  );
-};
 
 const SEM_MONTHS: Record<1 | 2, number[]> = { 1: [6, 7, 8, 9, 10, 11], 2: [0, 1, 2, 3, 4, 5] };
 const PX_MM = 25.4 / 96;
 const ROW = 6; // tinggi baris Guru Kelas (mm)
 
-const DaftarHadirPages: React.FC<SheetProps> = ({ config, jenis, rows, year, month, hariLibur, semester, pertemuan, scopeLabel, guruNama, guruNip, tempatTanggal }) => {
+const DaftarHadirPages: React.FC<SheetProps> = ({ config, jenis, rows, year, month, hariLibur, semester, pertemuan, scopeLabel, guruNama, guruNip, tempatTanggal, pakaiKop }) => {
   const meta = JENIS[jenis];
   const sem = jenis !== 'kelas'; // PJOK & PAI: satu semester dalam satu halaman
   const days = new Date(year, month + 1, 0).getDate();
@@ -115,7 +95,8 @@ const DaftarHadirPages: React.FC<SheetProps> = ({ config, jenis, rows, year, mon
   const per = Math.min(6, Math.max(3, pertemuan));
   const cols = sem ? months.length * per : days;
 
-  const kopMM = sem ? 19 : (((config.logoHeight || 85) + 22) * PX_MM);
+  const effectiveLogoH = sem ? 68 : (config.logoHeight || 85);
+  const kopMM = pakaiKop ? ((effectiveLogoH + 24) * PX_MM) : 0;
 
   // ---- kapasitas halaman (mm)
   const pageMM = sem ? 198 : 192; // tinggi area isi
@@ -235,7 +216,9 @@ const DaftarHadirPages: React.FC<SheetProps> = ({ config, jenis, rows, year, mon
           >
             {pi === 0 ? (
               <>
-                {sem ? <KopRingkas config={config} /> : <KopSuratHD config={config} className="dh-kop" />}
+                {pakaiKop && (
+                  <KopSuratHD config={config} className="dh-kop" logoHeight={effectiveLogoH} />
+                )}
                 <div className="dh-title">{meta.judul}</div>
                 <div className="dh-info">
                   <div>
@@ -320,6 +303,7 @@ export const DaftarHadir: React.FC<Props> = ({ config, siswa, guru, onToast }) =
   const [ym, setYm] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
   const [hariLibur, setHariLibur] = useState<'minggu' | 'sabtuminggu'>('sabtuminggu');
   const [pertemuan, setPertemuan] = useState(5);
+  const [pakaiKop, setPakaiKop] = useState(true);
   const [agamaFilter, setAgamaFilter] = useState<'islam' | 'semua'>('semua');
   const [scope, setScope] = useState('');
   const [guruId, setGuruId] = useState('');
@@ -401,6 +385,7 @@ export const DaftarHadir: React.FC<Props> = ({ config, siswa, guru, onToast }) =
     guruNama,
     guruNip,
     tempatTanggal,
+    pakaiKop,
   };
 
   // pratinjau berskala agar muat di layar
@@ -563,6 +548,13 @@ export const DaftarHadir: React.FC<Props> = ({ config, siswa, guru, onToast }) =
               </select>
             </div>
           )}
+          <div>
+            <label className={lbl}>Kop Surat &amp; Logo</label>
+            <select className={sel} value={pakaiKop ? 'ya' : 'tidak'} onChange={(e) => setPakaiKop(e.target.value === 'ya')}>
+              <option value="ya">Dengan Kop Resmi &amp; Logo</option>
+              <option value="tidak">Tanpa Kop (Kertas Berkop)</option>
+            </select>
+          </div>
           <div className="sm:col-span-2">
             <label className={lbl}>Tempat, tanggal (di tanda tangan)</label>
             <input className={sel} value={tempatTanggal} onChange={(e) => setTempatTanggal(e.target.value)} />

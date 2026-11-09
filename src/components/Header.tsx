@@ -37,17 +37,21 @@ export const Header: React.FC<HeaderProps> = ({
   const [supabaseConnected, setSupabaseConnected] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (!isOperator) return;
     let isMounted = true;
-    testSupabaseConnection().then((res) => {
-      if (isMounted) {
-        setSupabaseConnected(res.connected);
-      }
-    });
+    const checkConnection = () => {
+      testSupabaseConnection().then((res) => {
+        if (isMounted) {
+          setSupabaseConnected(res.connected);
+        }
+      });
+    };
+    checkConnection();
+    window.addEventListener('focus', checkConnection);
     return () => {
       isMounted = false;
+      window.removeEventListener('focus', checkConnection);
     };
-  }, [isOperator]);
+  }, []);
 
   return (
     <header className="bg-white border-b border-[#D3DDD9] sticky top-0 z-40 shadow-xs">
@@ -83,8 +87,8 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right: Supabase Cloud Badge & User Controls */}
         <div className="flex items-center gap-2.5">
-          {/* Supabase Status Pill (khusus operator) */}
-          {isOperator && (
+          {/* Supabase Status Pill */}
+          {onOpenSupabaseModal && (
           <button
             type="button"
             onClick={onOpenSupabaseModal}

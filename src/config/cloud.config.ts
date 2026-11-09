@@ -23,14 +23,14 @@ const rawPrefix: string | undefined = import.meta.env.VITE_SUPABASE_TABLE_PREFIX
 export const CLOUD_DEFAULTS = {
   supabase: {
     projectName: pick(import.meta.env.VITE_SUPABASE_PROJECT_NAME, 'Meja Operator'),
-    projectUrl: pick(import.meta.env.VITE_SUPABASE_URL, 'https://qpjgokdxoevjjcrrazqh.supabase.co'),
-    apiKey: pick(import.meta.env.VITE_SUPABASE_ANON_KEY, 'sb_publishable_LdhXxUBlwAM-QrrVaKTQTw_HNPrHSlc'),
+    projectUrl: pick(import.meta.env.VITE_SUPABASE_URL, 'https://qzxngoadywzvjofqhwdw.supabase.co'),
+    apiKey: pick(import.meta.env.VITE_SUPABASE_ANON_KEY, 'sb_publishable_qOF81vaSuV8nveIzMSG_xA_goU6WTIa'),
     /** Awalan tabel. Ubah bila satu proyek Supabase dipakai untuk beberapa aplikasi. */
     tablePrefix: rawPrefix !== undefined && rawPrefix !== '' ? rawPrefix : 'mo_',
   },
   imagekit: {
     publicKey: pick(import.meta.env.VITE_IMAGEKIT_PUBLIC_KEY, ''),
-    urlEndpoint: pick(import.meta.env.VITE_IMAGEKIT_URL_ENDPOINT, ''),
+    urlEndpoint: pick(import.meta.env.VITE_IMAGEKIT_URL_ENDPOINT, 'https://ik.imagekit.io/xvfbvpj3a'),
     authEndpoint: pick(import.meta.env.VITE_IMAGEKIT_AUTH_ENDPOINT, ''),
     folder: pick(import.meta.env.VITE_IMAGEKIT_FOLDER, '/meja-operator'),
   },

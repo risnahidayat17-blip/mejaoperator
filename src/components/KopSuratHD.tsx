@@ -5,16 +5,18 @@
 
 import React from 'react';
 import { SchoolConfig } from '../types';
+import { LOGO_PEMDA_STIKER } from '../data/stikerLogo';
 
 interface KopSuratProps {
   config: SchoolConfig;
   className?: string;
+  logoHeight?: number;
 }
 
-export const KopSuratHD: React.FC<KopSuratProps> = ({ config, className = '' }) => {
-  const logoPemda = config.logoPemda || config.logo || '';
+export const KopSuratHD: React.FC<KopSuratProps> = ({ config, className = '', logoHeight }) => {
+  const logoPemda = config.logoPemda || config.logo || LOGO_PEMDA_STIKER;
   const logoSekolah = config.logoSekolah || '';
-  const height = config.logoHeight || 85;
+  const height = logoHeight || config.logoHeight || 85;
   const layout = config.tataLetakLogo || 'kiri_kedua';
   const hasBoth = Boolean(logoPemda && logoSekolah);
 

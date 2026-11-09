@@ -39,6 +39,7 @@ import {
   getFromStorage,
   KEYS,
   getArsipAbsen,
+  syncFromCloud,
 } from './lib/storage';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -109,10 +110,30 @@ export default function App() {
       refreshAllData();
     });
     // Data dari perangkat lain: muat ulang tampilan agar perubahan langsung terlihat
-    const unsubCloud = subscribeToCloudChanges(() => setCloudVersion((v) => v + 1));
+    const unsubCloud = subscribeToCloudChanges(() => {
+      refreshAllData();
+      setCloudVersion((v) => v + 1);
+    });
     startCloudPolling();
     startFileSync();
     migrateLegacyFiles().catch(() => {});
+
+    // Cek pesan dari setup link jika baru diterapkan
+    try {
+      const msg = localStorage.getItem('mo_setup_applied_toast');
+      if (msg) {
+        showToast(msg);
+        localStorage.removeItem('mo_setup_applied_toast');
+      }
+    } catch {}
+
+    // Segera tarik perubahan terbaru dari Supabase Cloud saat aplikasi dibuka
+    syncFromCloud()
+      .then((count) => {
+        if (count > 0) refreshAllData();
+      })
+      .catch(() => {});
+
     const onStorageError = (ev: Event) => {
       const msg = (ev as CustomEvent<string>).detail || 'Data gagal disimpan.';
       showToast(msg, true);
@@ -168,7 +189,18 @@ export default function App() {
   if (!currentUser) {
     return (
       <>
-        <LoginScreen config={config} onLoggedIn={handleLoggedIn} />
+        <LoginScreen
+          config={config}
+          onLoggedIn={handleLoggedIn}
+          onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
+        />
+        {isSupabaseModalOpen && (
+          <SupabaseSyncModal
+            isOpen={isSupabaseModalOpen}
+            onClose={() => setIsSupabaseModalOpen(false)}
+            onToast={showToast}
+          />
+        )}
         {toast && (
           <div
             className={`fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl shadow-lg text-xs font-semibold ${
