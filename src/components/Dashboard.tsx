@@ -17,7 +17,6 @@ import {
   CheckCircle2,
   ArrowRight,
   Database,
-  Cloud,
   ClipboardCheck,
 } from 'lucide-react';
 
@@ -128,16 +127,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {onOpenSupabaseModal && (
-          <button
-            type="button"
-            onClick={onOpenSupabaseModal}
-            className="px-3.5 py-2 bg-white/15 hover:bg-white/25 border border-white/20 text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5 cursor-pointer"
-          >
-            <Cloud className="w-4 h-4 text-emerald-300" />
-            Supabase Cloud
-          </button>
-          )}
           <button
             type="button"
             onClick={() => onNavigate('suratkeluar')}

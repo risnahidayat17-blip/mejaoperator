@@ -4,17 +4,14 @@
  */
 
 import { ikResize } from '../lib/imagekit';
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { User, SchoolConfig } from '../types';
-import { testSupabaseConnection, getSupabaseConfig } from '../lib/supabase';
 import {
   GraduationCap,
   ShieldCheck,
   UserCheck,
   RefreshCw,
   LogOut,
-  Database,
-  Cloud,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -22,7 +19,7 @@ interface HeaderProps {
   config: SchoolConfig;
   onLogout: () => void;
   onOpenSettingsKop?: () => void;
-  onOpenSupabaseModal: () => void;
+  onOpenSupabaseModal?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -30,28 +27,9 @@ export const Header: React.FC<HeaderProps> = ({
   config,
   onLogout,
   onOpenSettingsKop,
-  onOpenSupabaseModal,
 }) => {
   const isOperator = currentUser?.role === 'operator';
   const logo = ikResize(config.logoSekolah || config.logoPemda || config.logo || '', 240);
-  const [supabaseConnected, setSupabaseConnected] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    let isMounted = true;
-    const checkConnection = () => {
-      testSupabaseConnection().then((res) => {
-        if (isMounted) {
-          setSupabaseConnected(res.connected);
-        }
-      });
-    };
-    checkConnection();
-    window.addEventListener('focus', checkConnection);
-    return () => {
-      isMounted = false;
-      window.removeEventListener('focus', checkConnection);
-    };
-  }, []);
 
   return (
     <header className="bg-white border-b border-[#D3DDD9] sticky top-0 z-40 shadow-xs">
@@ -85,37 +63,8 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Right: Supabase Cloud Badge & User Controls */}
+        {/* Right: User Controls */}
         <div className="flex items-center gap-2.5">
-          {/* Supabase Status Pill */}
-          {onOpenSupabaseModal && (
-          <button
-            type="button"
-            onClick={onOpenSupabaseModal}
-            className={`px-3 py-1.5 rounded-xl border flex items-center gap-1.5 text-xs font-semibold transition cursor-pointer shadow-2xs ${
-              supabaseConnected === true
-                ? 'bg-[#DDF1E3] text-[#1D7A3A] border-[#1D7A3A]/30 hover:bg-[#c6e6db]'
-                : supabaseConnected === false
-                ? 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
-                : 'bg-[#E8EFEC] text-[#566A6E] border-[#D3DDD9]'
-            }`}
-            title="Klik untuk melihat status koneksi & sinkronisasi Supabase Cloud"
-          >
-            <Cloud className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Supabase:</span>
-            {supabaseConnected === true ? (
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                Terhubung
-              </span>
-            ) : supabaseConnected === false ? (
-              <span className="text-rose-700">Offline / Error</span>
-            ) : (
-              <span>Mengecek...</span>
-            )}
-          </button>
-          )}
-
           {currentUser && (
             <div className="flex items-center gap-2.5">
               <div className="text-right hidden sm:block">
