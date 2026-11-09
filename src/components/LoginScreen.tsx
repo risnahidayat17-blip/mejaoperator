@@ -7,7 +7,6 @@ import { ikResize } from '../lib/imagekit';
 import React, { useState, useEffect } from 'react';
 import { SchoolConfig, Guru } from '../types';
 import { getGurus, loginOperator, loginGuru, guruHasPassword, subscribeToStorage } from '../lib/storage';
-import { testSupabaseConnection } from '../lib/supabase';
 import {
   GraduationCap,
   ShieldCheck,
@@ -16,16 +15,14 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
-  Cloud,
 } from 'lucide-react';
 
 interface LoginScreenProps {
   config: SchoolConfig;
   onLoggedIn: (role: 'operator' | 'guru') => void;
-  onOpenSupabaseModal?: () => void;
 }
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({ config, onLoggedIn, onOpenSupabaseModal }) => {
+export const LoginScreen: React.FC<LoginScreenProps> = ({ config, onLoggedIn }) => {
   const [gurus, setGurus] = useState<Guru[]>(getGurus());
   const activeGurus = gurus.filter((g) => g.status !== 'Nonaktif');
   const [selectedGuruId, setSelectedGuruId] = useState(activeGurus[0]?.id || '');
@@ -36,7 +33,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ config, onLoggedIn, on
   const [showGuruPassword, setShowGuruPassword] = useState(false);
   const [guruError, setGuruError] = useState('');
   const [guruBusy, setGuruBusy] = useState(false);
-  const [supabaseConnected, setSupabaseConnected] = useState<boolean | null>(null);
   const selectedGuru = activeGurus.find((g) => g.id === selectedGuruId);
 
   const logo = ikResize(config.logoSekolah || config.logoPemda || config.logo || '', 240);
@@ -44,9 +40,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ config, onLoggedIn, on
   useEffect(() => {
     let isMounted = true;
     const check = () => {
-      testSupabaseConnection().then((r) => {
-        if (isMounted) setSupabaseConnected(r.connected);
-      });
       setGurus(getGurus());
     };
     check();
@@ -100,37 +93,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ config, onLoggedIn, on
   return (
     <div className="min-h-screen bg-[#F1F4F2] flex flex-col items-center justify-center px-4 py-10 font-sans text-[#13262A]">
       <div className="w-full max-w-3xl">
-        {/* Top Connection Indicator Button */}
-        {onOpenSupabaseModal && (
-          <div className="flex justify-end mb-3">
-            <button
-              type="button"
-              onClick={onOpenSupabaseModal}
-              className={`px-3 py-1.5 rounded-xl border flex items-center gap-1.5 text-xs font-semibold transition cursor-pointer shadow-2xs ${
-                supabaseConnected === true
-                  ? 'bg-[#DDF1E3] text-[#1D7A3A] border-[#1D7A3A]/30 hover:bg-[#c6e6db]'
-                  : supabaseConnected === false
-                  ? 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
-                  : 'bg-[#E8EFEC] text-[#566A6E] border-[#D3DDD9]'
-              }`}
-              title="Klik untuk membuka status koneksi & sinkronisasi Supabase Cloud"
-            >
-              <Cloud className="w-3.5 h-3.5" />
-              <span>Supabase:</span>
-              {supabaseConnected === true ? (
-                <span className="flex items-center gap-1 text-emerald-800 font-bold">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  Terhubung Cloud
-                </span>
-              ) : supabaseConnected === false ? (
-                <span className="text-rose-700">Offline (Atur Kredensial)</span>
-              ) : (
-                <span>Mengecek...</span>
-              )}
-            </button>
-          </div>
-        )}
-
         {/* Brand Header */}
         <div className="flex flex-col items-center text-center mb-8">
           <div className="w-20 h-20 rounded-2xl bg-white border border-[#D3DDD9] shadow-sm flex items-center justify-center overflow-hidden mb-3 p-2">
@@ -141,7 +103,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ config, onLoggedIn, on
             )}
           </div>
           <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#0B6B58]">
-            Sistem Administrasi Sekolah & Supabase Cloud
+            Sistem Administrasi Sekolah Terpadu
           </div>
           <h1 className="text-2xl md:text-3xl font-bold font-display mt-1">
             {config.namaSekolah || 'SD Negeri 2 Cempaka'}

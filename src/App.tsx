@@ -189,18 +189,7 @@ export default function App() {
   if (!currentUser) {
     return (
       <>
-        <LoginScreen
-          config={config}
-          onLoggedIn={handleLoggedIn}
-          onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
-        />
-        {isSupabaseModalOpen && (
-          <SupabaseSyncModal
-            isOpen={isSupabaseModalOpen}
-            onClose={() => setIsSupabaseModalOpen(false)}
-            onToast={showToast}
-          />
-        )}
+        <LoginScreen config={config} onLoggedIn={handleLoggedIn} />
         {toast && (
           <div
             className={`fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl shadow-lg text-xs font-semibold ${
