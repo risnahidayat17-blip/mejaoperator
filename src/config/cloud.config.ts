@@ -29,9 +29,12 @@ export const CLOUD_DEFAULTS = {
     tablePrefix: rawPrefix !== undefined && rawPrefix !== '' ? rawPrefix : 'mo_',
   },
   imagekit: {
-    publicKey: pick(import.meta.env.VITE_IMAGEKIT_PUBLIC_KEY, ''),
-    urlEndpoint: pick(import.meta.env.VITE_IMAGEKIT_URL_ENDPOINT, 'https://ik.imagekit.io/xvfbvpj3a'),
-    authEndpoint: pick(import.meta.env.VITE_IMAGEKIT_AUTH_ENDPOINT, ''),
-    folder: pick(import.meta.env.VITE_IMAGEKIT_FOLDER, '/meja-operator'),
+    publicKey: pick(import.meta.env.VITE_IMAGEKIT_PUBLIC_KEY, 'public_u5zc0kB09vR+XEHvMb8qfPbTpkA='),
+    urlEndpoint: pick(import.meta.env.VITE_IMAGEKIT_URL_ENDPOINT, 'https://ik.imagekit.io/xvfbvpj3a/OPS'),
+    authEndpoint: pick(
+      import.meta.env.VITE_IMAGEKIT_AUTH_ENDPOINT,
+      'https://script.google.com/macros/s/AKfycbwzpt8MpJzL0jlygGzPb1kTyIxvOjSeazMbslnea3Yi2GmXa9b0EA5xxVAW3N90kQEaLw/exec'
+    ),
+    folder: pick(import.meta.env.VITE_IMAGEKIT_FOLDER, '/OPS'),
   },
 } as const;

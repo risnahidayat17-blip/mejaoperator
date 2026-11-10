@@ -384,8 +384,6 @@ export async function syncFromCloud(): Promise<number> {
           localStorage.setItem(key, JSON.stringify(merged));
           changed++;
         }
-        // Jika lokal punya data yang belum ada / lebih baru dari cloud, kirim balik.
-        if (stableStringify(merged) !== stableStringify(row.data)) scheduleCloudPush(key);
       } else {
         if (pendingPushKeys.has(key)) continue; // perubahan lokal belum terkirim
         if (localVal !== undefined && stableStringify(localVal) === stableStringify(row.data)) {
@@ -1856,6 +1854,7 @@ function patchFileRef(fileId: string, patch: RefPatch): void {
   };
   apply(KEYS.DOKGTK, getDokumenGtks() as any[]);
   apply(KEYS.ARSIPABSEN, getArsipAbsen() as any[]);
+  apply(KEYS.BERKAS, getFromStorage<any[]>(KEYS.BERKAS, []));
 }
 setFileUploadedHandler(patchFileRef);
 

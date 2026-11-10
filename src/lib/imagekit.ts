@@ -46,7 +46,15 @@ function normalize(raw: Partial<ImageKitConfig>): ImageKitConfig {
 export function getImageKitConfig(): ImageKitConfig {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) return normalize(JSON.parse(saved));
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Jika config tersimpan masih kosong atau belum ada authEndpoint, bersihkan agar memakai CLOUD_DEFAULTS yang sudah terkonfigurasi
+      if (!parsed || !parsed.publicKey || !parsed.authEndpoint) {
+        localStorage.removeItem(STORAGE_KEY);
+        return normalize({});
+      }
+      return normalize(parsed);
+    }
   } catch {}
   return normalize({});
 }

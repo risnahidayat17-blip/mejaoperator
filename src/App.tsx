@@ -78,7 +78,6 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState<string>('dasbor');
   const [toast, setToast] = useState<{ message: string; isError?: boolean } | null>(null);
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
-  const [cloudVersion, setCloudVersion] = useState(0);
   const toastTimeoutRef = useRef<any>(null);
 
   const showToast = (message: string, isError = false) => {
@@ -109,10 +108,9 @@ export default function App() {
     const unsub = subscribeToStorage(() => {
       refreshAllData();
     });
-    // Data dari perangkat lain: muat ulang tampilan agar perubahan langsung terlihat
+    // Data dari perangkat lain: perbarui data tanpa mereset/me-remount tampilan
     const unsubCloud = subscribeToCloudChanges(() => {
       refreshAllData();
-      setCloudVersion((v) => v + 1);
     });
     startCloudPolling();
     startFileSync();
@@ -227,7 +225,7 @@ export default function App() {
 
         {/* Content Area */}
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
-          <div className="max-w-7xl mx-auto" key={cloudVersion}>
+          <div className="max-w-7xl mx-auto">
             {isRestrictedForGuru ? (
               /* Access Denied Card */
               <div className="p-8 max-w-xl mx-auto my-12 bg-white rounded-2xl border border-[#D3DDD9] shadow-sm text-center space-y-4">
