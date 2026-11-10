@@ -12,8 +12,7 @@ import {
   saveFile,
   deleteFile,
   downloadFile,
-  getFileDataUrl,
-  hasLocalCopy,
+  openFile,
   newRecordId,
   type PreparedFile,
 } from '../lib/files';
@@ -122,15 +121,7 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
   const [fileError, setFileError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // File Preview Modal
-  const [previewFile, setPreviewFile] = useState<{
-    name: string;
-    dataUrl: string;
-    size?: number;
-    /** Gambar jarak jauh (sudah diperkecil ImageKit), dimuat langsung tanpa mengunduh berkas asli. */
-    remoteImage?: boolean;
-    downloadRef?: FileRef;
-  } | null>(null);
+
 
   const reloadData = () => {
     setGurus(getGurus());
@@ -292,23 +283,14 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
     }
   };
 
-  const openPreview = async (f: FileRef) => {
-    // Gambar: tampilkan versi kecil dari ImageKit (hemat kuota). Berkas asli hanya lewat tombol Unduh (khusus operator).
-    if (f.url && (f.type || '').startsWith('image/') && !(await hasLocalCopy(f))) {
-      setPreviewFile({ name: f.name, dataUrl: ikResize(f.url, 1200), size: f.size, remoteImage: true, downloadRef: f });
-      return;
+  const handleViewFile = async (f: FileRef) => {
+    const ok = await openFile(f);
+    if (!ok) {
+      onToast(
+        'Berkas tidak ditemukan. Pastikan berkas sudah terunggah ke ImageKit atau buka dari perangkat yang mengunggahnya.',
+        true
+      );
     }
-    // PDF / lainnya: hanya diunduh sekali lalu disimpan di perangkat; pembukaan berikutnya tanpa kuota.
-    if (f.url && !(await hasLocalCopy(f)) && (f.size || 0) > 3 * 1048576) {
-      const mb = ((f.size || 0) / 1048576).toFixed(1);
-      if (!window.confirm(`Berkas ${mb} MB akan diunduh sekali dan disimpan di perangkat ini. Lanjutkan?`)) return;
-    }
-    const dataUrl = await getFileDataUrl(f);
-    if (!dataUrl) {
-      onToast('Berkas tidak ditemukan. Pastikan ImageKit sudah diatur (menu Koneksi Supabase > ImageKit) atau buka dari perangkat yang mengunggahnya.', true);
-      return;
-    }
-    setPreviewFile({ name: f.name, dataUrl, size: f.size, downloadRef: f });
   };
 
   return (
@@ -508,12 +490,12 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
                             <div className="flex items-center gap-1.5">
                               <button
                                 type="button"
-                                onClick={() => doc.file && openPreview(doc.file)}
+                                onClick={() => doc.file && handleViewFile(doc.file)}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-semibold transition cursor-pointer"
-                                title="Klik untuk melihat pratinjau berkas"
+                                title="Klik untuk membuka berkas (ringan & cepat)"
                               >
                                 <Paperclip className="w-3 h-3 text-emerald-700" />
-                                <span className="truncate max-w-[110px]">{doc.file.name}</span>
+                                <span className="truncate max-w-[120px]">{doc.file.name}</span>
                                 <span className="text-[10px] text-emerald-600 font-mono">
                                   ({((doc.file.size || 0) / 1024).toFixed(0)} KB)
                                 </span>
@@ -540,6 +522,16 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
                         </td>
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
+                            {doc.file && (
+                              <button
+                                type="button"
+                                onClick={() => handleViewFile(doc.file!)}
+                                className="px-2.5 py-1 text-xs font-semibold bg-[#E8EFEC] hover:bg-[#D3DDD9] text-[#13262A] rounded-lg transition flex items-center gap-1 cursor-pointer"
+                                title="Lihat Berkas"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-[#0B6B58]" /> Lihat
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => {
@@ -1180,55 +1172,6 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* FILE PREVIEW MODAL */}
-      {previewFile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl border border-[#D3DDD9] max-w-2xl w-full overflow-hidden my-6">
-            <div className="px-5 py-3.5 bg-[#13262A] text-white flex items-center justify-between">
-              <span className="font-bold text-sm truncate">{previewFile.name}</span>
-              <button
-                type="button"
-                onClick={() => setPreviewFile(null)}
-                className="p-1 text-gray-300 hover:text-white rounded cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-6 bg-[#F8FAF9] flex items-center justify-center min-h-[300px] max-h-[70vh] overflow-y-auto">
-              {previewFile.remoteImage || previewFile.dataUrl?.startsWith('data:image/') ? (
-                <img
-                  src={previewFile.dataUrl}
-                  alt={previewFile.name}
-                  className="max-h-[60vh] max-w-full object-contain rounded"
-                />
-              ) : previewFile.dataUrl?.startsWith('data:application/pdf') ? (
-                <iframe
-                  src={previewFile.dataUrl}
-                  title={previewFile.name}
-                  className="w-full h-[55vh] rounded border"
-                />
-              ) : (
-                <div className="text-center space-y-3">
-                  <FileText className="w-12 h-12 mx-auto text-[#0B6B58]" />
-                  <div className="font-bold text-sm">{previewFile.name}</div>
-                  {isOperator && previewFile.downloadRef ? (
-                    <button
-                      type="button"
-                      onClick={() => previewFile.downloadRef && downloadFile(previewFile.downloadRef)}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0B6B58] text-white text-xs font-semibold rounded-lg shadow-xs cursor-pointer"
-                    >
-                      <Download className="w-4 h-4" /> Unduh Berkas
-                    </button>
-                  ) : (
-                    <p className="text-xs text-[#566A6E]">Pratinjau tidak tersedia untuk jenis berkas ini.</p>
-                  )}
-                </div>
-              )}
-            </div>
           </div>
         </div>
       )}
