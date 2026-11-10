@@ -13,6 +13,7 @@ import {
   getTemplates,
   saveTemplate,
   deleteTemplate,
+  recordActivity,
 } from '../lib/storage';
 import { docxToHtml, sanitizeLetterHtml, htmlToPlainText, MAX_DOCX_BYTES } from '../lib/docx';
 import { KopSuratHD } from './KopSuratHD';
@@ -337,6 +338,10 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
   const handlePrint = (pSize?: 'A4' | 'Legal') => {
     const size = pSize || paperSize;
     document.body.setAttribute('data-paper-size', size.toLowerCase());
+    const current = previewSurat || editingSurat;
+    if (current) {
+      recordActivity('Surat Keluar', `Cetak surat keluar: ${current.perihal || current.noSurat || 'Surat'}`, false, 'update');
+    }
     window.print();
     setTimeout(() => {
       document.body.removeAttribute('data-paper-size');

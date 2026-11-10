@@ -41,6 +41,7 @@ import {
   getSiswas,
   EXAM_DAYS,
   generateJadwalPengawasOtomatis,
+  recordActivity,
 } from '../lib/storage';
 import { KopSuratHD } from './KopSuratHD';
 import {
@@ -3263,7 +3264,10 @@ export const PosUjian: React.FC<PosUjianProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => window.print()}
+                  onClick={() => {
+                    recordActivity('POS Ujian', `Cetak dokumen POS Ujian: ${printDoc}`, false, 'update');
+                    window.print();
+                  }}
                   className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <Printer className="w-4 h-4" /> Cetak Lembar Ini

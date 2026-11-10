@@ -4,8 +4,8 @@
  */
 
 import React, { useMemo, useState, useEffect } from 'react';
-import { History, Trash2, CheckCircle2, User, FileText, ChevronDown, ChevronUp } from 'lucide-react';
-import { getActivities, clearActivities, subscribeToStorage } from '../lib/storage';
+import { History, Trash2, CheckCircle2, User, FileText, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
+import { getActivities, clearActivities, subscribeToStorage, subscribeToCloudChanges, syncFromCloud } from '../lib/storage';
 import { WorkActivity } from '../types';
 
 const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
@@ -41,15 +41,32 @@ export const RiwayatPengerjaan: React.FC = () => {
   const [hover, setHover] = useState<number | null>(null);
   const [activities, setActivities] = useState<WorkActivity[]>(() => getActivities());
   const [showConfirmClear, setShowConfirmClear] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    const unsub = subscribeToStorage(() => {
-      setActivities(getActivities());
-    });
-    return unsub;
+    const refresh = () => setActivities(getActivities());
+    refresh();
+    const unsub = subscribeToStorage(refresh);
+    const unsubCloud = subscribeToCloudChanges(refresh);
+    return () => {
+      unsub();
+      unsubCloud();
+    };
   }, []);
 
-  const all = activities;
+  const handleManualRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await syncFromCloud();
+      setActivities(getActivities());
+    } finally {
+      setTimeout(() => setRefreshing(false), 500);
+    }
+  };
+
+  const all = useMemo(() => {
+    return [...activities].sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  }, [activities]);
 
   const days = useMemo(() => {
     const list: Array<{ date: Date; key: string; count: number }> = [];
@@ -119,6 +136,14 @@ export const RiwayatPengerjaan: React.FC = () => {
                 </button>
               ))}
             </div>
+            <button
+              type="button"
+              onClick={handleManualRefresh}
+              title="Segarkan riwayat aktivitas dari cloud"
+              className="p-1.5 text-[#566A6E] hover:text-[#0B6B58] hover:bg-[#E8EFEC] rounded-lg transition cursor-pointer text-xs flex items-center gap-1"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-[#0B6B58]' : ''}`} />
+            </button>
             {!showConfirmClear ? (
               <button
                 type="button"
@@ -268,7 +293,7 @@ export const RiwayatPengerjaan: React.FC = () => {
                   ? 'Baru'
                   : 'Diubah';
               const pelaku = a.userNama || 'RISNA HIDAYAT, S.PD.';
-              const peran = a.userRole || 'Tendik';
+              const peran = a.userRole || 'Guru/Tendik';
 
               return (
                 <li
@@ -373,7 +398,7 @@ export const RiwayatPengerjaan: React.FC = () => {
                         ? 'Baru'
                         : 'Diubah';
                     const pelaku = a.userNama || 'RISNA HIDAYAT, S.PD.';
-                    const peran = a.userRole || 'Tendik';
+                    const peran = a.userRole || 'Guru/Tendik';
 
                     return (
                       <tr key={a.id} className="hover:bg-[#F9FBFA] transition-colors">

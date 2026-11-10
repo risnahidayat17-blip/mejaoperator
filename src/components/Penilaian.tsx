@@ -9,6 +9,7 @@ import {
   getSiswas,
   getNilaiRecords,
   saveNilaiRecord,
+  saveNilaiRecordsBatch,
   getFromStorage,
   setToStorage,
   KEYS,
@@ -84,6 +85,7 @@ export const Penilaian: React.FC<PenilaianProps> = ({ role, config, onToast }) =
   };
 
   const handleSaveScores = () => {
+    const recordsToSave: NilaiRecord[] = [];
     activeStudentsInClass.forEach((s) => {
       if (tempScores[s.id] !== undefined) {
         const raw = tempScores[s.id].trim();
@@ -105,13 +107,20 @@ export const Penilaian: React.FC<PenilaianProps> = ({ role, config, onToast }) =
             updatedNilai[selectedMapel] = num;
           }
         }
-        saveNilaiRecord({ ...existing, nilai: updatedNilai });
+        recordsToSave.push({ ...existing, nilai: updatedNilai });
       }
     });
 
+    if (recordsToSave.length > 0) {
+      saveNilaiRecordsBatch(
+        recordsToSave,
+        `Input nilai ${selectedMapel} Kelas ${selectedKelas} (${recordsToSave.length} siswa, ${selectedTA} Smt ${selectedSemester})`
+      );
+    }
+
     setTempScores({});
     reloadData();
-    onToast(`Nilai ${selectedMapel} Kelas ${selectedKelas} berhasil disimpan.`);
+    onToast(`Nilai ${selectedMapel} Kelas ${selectedKelas} (${recordsToSave.length} siswa) berhasil disimpan.`);
   };
 
   // Matrix calculation for Rekap

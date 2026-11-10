@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { SchoolConfig } from '../types';
-import { getSiswas, getNilaiRecords } from '../lib/storage';
+import { getSiswas, getNilaiRecords, recordActivity } from '../lib/storage';
 import { KopSuratHD } from './KopSuratHD';
 import { BookOpen, Search, Printer, FileSpreadsheet } from 'lucide-react';
 import { ImportDapodikSiswaModal } from './ImportDapodikSiswaModal';
@@ -77,7 +77,10 @@ export const BukuInduk: React.FC<BukuIndukProps> = ({ config, role = 'operator',
           {currentSiswa && (
             <button
               type="button"
-              onClick={() => window.print()}
+              onClick={() => {
+                recordActivity('Buku Induk', `Cetak lembar buku induk: ${currentSiswa.nama} (Kelas ${currentSiswa.kelas})`, false, 'update');
+                window.print();
+              }}
               className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 cursor-pointer"
             >
               <Printer className="w-4 h-4" /> Cetak Lembar Buku Induk

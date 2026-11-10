@@ -188,6 +188,7 @@ function mergeTombs(a: Tombs, b: Tombs): Tombs {
   return out;
 }
 function recordDeletions(key: string, oldRaw: string | null, next: unknown): void {
+  if (key === KEYS.ACTIVITIES) return; // ACTIVITIES adalah event stream, jangan buat penanda hapus
   if (!oldRaw || !isItemArray(next)) return;
   try {
     const old = JSON.parse(oldRaw);
@@ -229,6 +230,32 @@ function mergeLists(remote: AnyItem[], local: AnyItem[], tombs: Tombs): AnyItem[
     });
 }
 
+/**
+ * Gabungkan riwayat aktivitas dari cloud dan lokal:
+ * - Deduplikasi berdasarkan ID aktivitas
+ * - Selalu terurut berdasarkan timestamp (ts) terbaru di urutan teratas
+ * - Batasi maksimal 500 riwayat terbaru
+ */
+export function mergeActivities(remote: WorkActivity[], local: WorkActivity[]): WorkActivity[] {
+  const map = new Map<string, WorkActivity>();
+  for (const item of [...(remote || []), ...(local || [])]) {
+    if (!item || !item.id) continue;
+    const ts = typeof item.ts === 'number' && !isNaN(item.ts) ? item.ts : Date.now();
+    const existing = map.get(item.id);
+    if (!existing || ts >= (existing.ts || 0)) {
+      map.set(item.id, {
+        ...item,
+        ts,
+        userNama: (item.userNama || 'OPERATOR').toUpperCase().trim(),
+        userRole: item.userRole || 'Guru/Tendik',
+      });
+    }
+  }
+  return Array.from(map.values())
+    .sort((a, b) => (b.ts || 0) - (a.ts || 0))
+    .slice(0, 500);
+}
+
 function readLocal(key: string): unknown {
   try {
     const raw = localStorage.getItem(key);
@@ -266,6 +293,22 @@ async function pushOneKey(key: string): Promise<boolean> {
       return rest;
     });
     return upsertRemoteRows([{ id: key, data: sanitized }]);
+  }
+
+  if (key === KEYS.ACTIVITIES) {
+    const remote = await fetchRemoteRows([key]);
+    if (remote === null) return false;
+    const remoteArr = Array.isArray(remote[key]?.data) ? (remote[key].data as WorkActivity[]) : [];
+    const localArr = Array.isArray(local) ? (local as WorkActivity[]) : [];
+    const merged = mergeActivities(remoteArr, localArr);
+    const ok = await upsertRemoteRows([{ id: key, data: merged }]);
+    if (ok && stableStringify(merged) !== stableStringify(local)) {
+      try {
+        localStorage.setItem(key, JSON.stringify(merged));
+        notifyCloud();
+      } catch {}
+    }
+    return ok;
   }
 
   if (!isItemArray(local)) {
@@ -370,6 +413,17 @@ export async function syncFromCloud(): Promise<number> {
       if (key === KEYS.USERS && Array.isArray(row.data)) {
         mergeRemoteUsers(row.data as User[]);
         changed++;
+        lastSeen[key] = meta[key];
+        continue;
+      }
+      if (key === KEYS.ACTIVITIES) {
+        const remoteArr = Array.isArray(row.data) ? (row.data as WorkActivity[]) : [];
+        const localArr = Array.isArray(localVal) ? (localVal as WorkActivity[]) : [];
+        const merged = mergeActivities(remoteArr, localArr);
+        if (localVal === undefined || stableStringify(merged) !== stableStringify(localVal)) {
+          localStorage.setItem(key, JSON.stringify(merged));
+          changed++;
+        }
         lastSeen[key] = meta[key];
         continue;
       }
@@ -1000,6 +1054,14 @@ export async function loginOperator(password: string): Promise<{ success: boolea
   );
   const publicUser = toPublicUser(loggedIn);
   setCurrentUser(publicUser);
+  recordActivity(
+    'Akses Masuk',
+    'Login ke aplikasi sebagai Operator Sekolah',
+    false,
+    'update',
+    canonicalName,
+    'Operator'
+  );
   return { success: true, user: publicUser };
 }
 
@@ -1077,6 +1139,14 @@ export async function loginGuru(
     lastLogin: Date.now(),
   };
   setCurrentUser(user);
+  recordActivity(
+    'Akses Masuk',
+    `Login ke aplikasi (${selected.jabatan || 'Guru/Tendik'})`,
+    false,
+    'update',
+    selected.nama,
+    selected.jabatan || 'Guru/Tendik'
+  );
   return { success: true, user };
 }
 
@@ -1133,7 +1203,9 @@ export function getSchoolConfig(): SchoolConfig {
 }
 
 export function getActivities(): WorkActivity[] {
-  return getFromStorage<WorkActivity[]>(KEYS.ACTIVITIES, []);
+  const raw = getFromStorage<WorkActivity[]>(KEYS.ACTIVITIES, []);
+  if (!Array.isArray(raw)) return [];
+  return [...raw].sort((a, b) => (b.ts || 0) - (a.ts || 0));
 }
 
 export function recordActivity(
@@ -1150,7 +1222,7 @@ export function recordActivity(
     const cfg = getSchoolConfig();
     const rawNama = pelaku || cur?.name || cfg.namaOperator || 'RISNA HIDAYAT, S.PD.';
     const userNama = (rawNama || '').toUpperCase().trim();
-    const userRole = role || (cur?.role === 'guru' ? 'Guru/Tendik' : 'Operator');
+    const userRole = role || (cur?.role === 'guru' ? (cur?.jabatan || 'Guru/Tendik') : 'Operator');
 
     const item: WorkActivity = {
       id: `act_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
@@ -1162,7 +1234,9 @@ export function recordActivity(
       userNama,
       userRole,
     };
-    const updated = [item, ...list].slice(0, 300);
+    const updated = [item, ...list.filter((x) => x.id !== item.id)]
+      .sort((a, b) => (b.ts || 0) - (a.ts || 0))
+      .slice(0, 500);
     setToStorage(KEYS.ACTIVITIES, updated);
   } catch (e) {
     console.error('Gagal mencatat aktivitas:', e);
@@ -1582,6 +1656,26 @@ export function saveNilaiRecord(record: NilaiRecord): void {
   );
 }
 
+export function saveNilaiRecordsBatch(records: NilaiRecord[], labelDetail?: string): void {
+  if (records.length === 0) return;
+  const list = getNilaiRecords();
+  const now = Date.now();
+  records.forEach((record) => {
+    const idx = list.findIndex((n) => n.id === record.id);
+    if (idx >= 0) {
+      list[idx] = { ...record, updatedAt: now };
+    } else {
+      list.push({ ...record, updatedAt: now });
+    }
+  });
+  setToStorage(KEYS.NILAI, list);
+  const first = records[0];
+  const detail =
+    labelDetail ||
+    `Simpan penilaian kelas ${first.kelas} (${first.ta} Smt ${first.smt}) - ${records.length} siswa`;
+  recordActivity('Penilaian', detail, false, 'update');
+}
+
 // Letter Templates
 export function getTemplates(): LetterTemplate[] {
   return getFromStorage<LetterTemplate[]>(KEYS.TEMPLATES, initialLetterTemplates);
@@ -1674,6 +1768,14 @@ export function getAllExportableData(): Record<string, unknown> {
     [KEYS.TEMPLATES]: getTemplates(),
     [KEYS.ARSIPABSEN]: getArsipAbsen(),
     [KEYS.KEUANGAN]: getKeuangan(),
+    [KEYS.ACTIVITIES]: getActivities(),
+    [KEYS.ROMBEL]: getFromStorage(KEYS.ROMBEL, []),
+    [KEYS.POS_UJIAN_CFG]: getFromStorage(KEYS.POS_UJIAN_CFG, null),
+    [KEYS.POS_UJIAN_JADWAL]: getFromStorage(KEYS.POS_UJIAN_JADWAL, []),
+    [KEYS.POS_UJIAN_PESERTA]: getFromStorage(KEYS.POS_UJIAN_PESERTA, []),
+    [KEYS.POS_UJIAN_PANITIA]: getFromStorage(KEYS.POS_UJIAN_PANITIA, []),
+    [KEYS.POS_UJIAN_PENGAWAS]: getFromStorage(KEYS.POS_UJIAN_PENGAWAS, []),
+    [KEYS.POS_UJIAN_RAMBU]: getFromStorage(KEYS.POS_UJIAN_RAMBU, []),
   };
 }
 

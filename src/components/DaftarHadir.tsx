@@ -7,7 +7,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Printer, ClipboardList } from 'lucide-react';
 import { Guru, SchoolConfig, Siswa } from '../types';
-import { getRombels } from '../lib/storage';
+import { getRombels, recordActivity } from '../lib/storage';
 import { KopSuratHD } from './KopSuratHD';
 
 interface Props {
@@ -425,6 +425,12 @@ export const DaftarHadir: React.FC<Props> = ({ config, siswa, guru, onToast }) =
       window.removeEventListener('afterprint', cleanUp);
     };
     window.addEventListener('afterprint', cleanUp);
+    recordActivity(
+      'Daftar Hadir',
+      `Cetak/Simpan PDF ${JENIS[jenis].label} - ${scopeLabel} (Periode ${ym})`,
+      false,
+      'update'
+    );
     setTimeout(() => window.print(), 60);
   };
 

@@ -13,6 +13,7 @@ import {
   toPublicUser,
   syncAllOperatorAccounts,
   getSchoolConfig,
+  recordActivity,
 } from '../lib/storage';
 import { initialUsers } from '../data/initialData';
 import { hashPassword, verifyPassword, MIN_PASSWORD_LENGTH } from '../lib/auth';
@@ -110,6 +111,7 @@ export const ProfilPengguna: React.FC<ProfilPenggunaProps> = ({ currentUser, onT
     setToStorage(KEYS.USERS, updatedList);
     setCurrentUser(toPublicUser(updatedUser));
     setUserList(updatedList);
+    recordActivity('Profil', `Perbarui profil akun: ${updatedUser.name}`, false, 'update');
     onToast('Profil Anda berhasil diperbarui!');
   };
 
@@ -145,6 +147,7 @@ export const ProfilPengguna: React.FC<ProfilPenggunaProps> = ({ currentUser, onT
       setOldPass('');
       setNewPass('');
       setConfirmPass('');
+      recordActivity('Keamanan', `Ganti kata sandi akun: ${updatedUser.name}`, false, 'update');
       onToast('Kata sandi berhasil diganti.');
     } catch (err) {
       onToast(err instanceof Error ? err.message : 'Gagal mengganti kata sandi.', true);
