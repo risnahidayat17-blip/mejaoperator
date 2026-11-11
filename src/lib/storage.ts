@@ -240,6 +240,8 @@ export function mergeActivities(remote: WorkActivity[], local: WorkActivity[]): 
   const map = new Map<string, WorkActivity>();
   for (const item of [...(remote || []), ...(local || [])]) {
     if (!item || !item.id) continue;
+    // Sekadar login tanpa mengubah data tidak dimasukkan ke aktivitas
+    if (item.module === 'Akses Masuk' || item.label?.toLowerCase().includes('login ke aplikasi')) continue;
     const ts = typeof item.ts === 'number' && !isNaN(item.ts) ? item.ts : Date.now();
     const existing = map.get(item.id);
     if (!existing || ts >= (existing.ts || 0)) {
@@ -1064,14 +1066,6 @@ export async function loginOperator(password: string): Promise<{ success: boolea
   );
   const publicUser = toPublicUser(loggedIn);
   setCurrentUser(publicUser);
-  recordActivity(
-    'Akses Masuk',
-    'Login ke aplikasi sebagai Operator Sekolah',
-    false,
-    'update',
-    canonicalName,
-    'Operator'
-  );
   return { success: true, user: publicUser };
 }
 
@@ -1149,14 +1143,6 @@ export async function loginGuru(
     lastLogin: Date.now(),
   };
   setCurrentUser(user);
-  recordActivity(
-    'Akses Masuk',
-    `Login ke aplikasi (${selected.jabatan || 'Guru/Tendik'})`,
-    false,
-    'update',
-    selected.nama,
-    selected.jabatan || 'Guru/Tendik'
-  );
   return { success: true, user };
 }
 
@@ -1215,7 +1201,9 @@ export function getSchoolConfig(): SchoolConfig {
 export function getActivities(): WorkActivity[] {
   const raw = getFromStorage<WorkActivity[]>(KEYS.ACTIVITIES, []);
   if (!Array.isArray(raw)) return [];
-  return [...raw].sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  return [...raw]
+    .filter((a) => a.module !== 'Akses Masuk' && !a.label?.toLowerCase().includes('login ke aplikasi'))
+    .sort((a, b) => (b.ts || 0) - (a.ts || 0));
 }
 
 export function recordActivity(
@@ -1226,6 +1214,10 @@ export function recordActivity(
   pelaku?: string,
   role?: string
 ): void {
+  // Sekadar login tanpa mengubah data tidak dimasukkan ke riwayat aktivitas
+  if (module === 'Akses Masuk' || label?.toLowerCase().includes('login ke aplikasi')) {
+    return;
+  }
   try {
     const list = getActivities();
     const cur = getCurrentUser();

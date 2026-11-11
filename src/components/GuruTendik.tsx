@@ -140,11 +140,17 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
   };
 
   const selectedGuru = gurus.find((g) => g.id === selectedGuruId);
-  const canManageCurrentFolder =
-    isOperator ||
-    (currentUser?.guruId && selectedGuru?.id === currentUser?.guruId) ||
-    (currentUser?.name && selectedGuru?.nama.toLowerCase() === currentUser?.name.toLowerCase()) ||
-    role === 'guru';
+  const isOwnerOfGuru = (g?: Guru | null): boolean => {
+    if (!g) return false;
+    if (isOperator) return true;
+    if (currentUser?.guruId && g.id === currentUser.guruId) return true;
+    const cleanCurNip = (currentUser?.nip || '').replace(/\D/g, '');
+    const cleanGNip = (g.nip || '').replace(/\D/g, '');
+    if (cleanCurNip && cleanGNip && cleanCurNip === cleanGNip) return true;
+    if (currentUser?.name && g.nama && g.nama.toLowerCase().trim() === currentUser.name.toLowerCase().trim()) return true;
+    return false;
+  };
+  const canEditCurrentFolder = isOwnerOfGuru(selectedGuru);
 
   const katUmumList = (config.katUmum || 'SK, SKP e-Kinerja, Surat Tugas, Sertifikat dan pelatihan')
     .split(',')
@@ -179,6 +185,10 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
 
   const handleSaveGuru = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!isOperator && editingGuru && !isOwnerOfGuru(editingGuru)) {
+      onToast('Anda hanya memiliki izin mengubah data profil Anda sendiri.', true);
+      return;
+    }
     const form = new FormData(e.currentTarget);
     const nama = String(form.get('nama') || '').trim().toUpperCase();
     if (!nama) {
@@ -218,6 +228,10 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
   const handleSaveDok = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!selectedGuru || savingDok) return;
+    if (!canEditCurrentFolder) {
+      onToast('Anda tidak memiliki izin mengubah dokumen milik orang lain.', true);
+      return;
+    }
     const form = new FormData(e.currentTarget);
     const kategori = String(form.get('kategori') || '').trim();
     const isPribadi = katPribadiList.includes(kategori);
@@ -269,11 +283,7 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
       setEditingDok(null);
       setUploadedFile(null);
       setFileError(null);
-      onToast(
-        cloud
-          ? `Dokumen "${record.judul}" berhasil disimpan ke Database Cloud Supabase & ImageKit.`
-          : `Dokumen "${record.judul}" berhasil disimpan dan tersinkronisasi ke Cloud.`
-      );
+      onToast(`Dokumen "${record.judul}" berhasil disimpan.`);
     } catch (err) {
       if (newlySaved) deleteFile(newlySaved).catch(() => {});
       const msg = err instanceof Error ? err.message : 'Gagal menyimpan dokumen.';
@@ -347,41 +357,28 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingDok(null);
-                  setUploadedFile(null);
-                  setFileError(null);
-                  setIsModalDokOpen(true);
-                }}
-                className="px-3.5 py-2 text-xs font-semibold bg-[#0B6B58] hover:bg-[#095747] text-white rounded-lg shadow-sm flex items-center gap-1.5 transition cursor-pointer"
-              >
-                <Plus className="w-4 h-4" /> Tambah Dokumen
-              </button>
-            </div>
-          </div>
-
-          {/* Status Penyimpanan Database Cloud */}
-          <div className="p-3 bg-emerald-50/80 border border-emerald-200/90 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-2.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse flex-none" />
-              <div>
-                <span className="font-bold text-[#0B6B58]">Penyimpanan Database Cloud Aktif: </span>
-                <span className="text-[#13262A]">
-                  Semua dokumen kepegawaian &amp; berkas scan yang diunggah disimpan permanen di Database Supabase dan ImageKit (tersimpan aman lintas perangkat).
+            {canEditCurrentFolder ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingDok(null);
+                    setUploadedFile(null);
+                    setFileError(null);
+                    setIsModalDokOpen(true);
+                  }}
+                  className="px-3.5 py-2 text-xs font-semibold bg-[#0B6B58] hover:bg-[#095747] text-white rounded-lg shadow-sm flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> Tambah Dokumen
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#F1F4F2] text-[#566A6E] border border-[#D3DDD9]">
+                  Mode Lihat Saja
                 </span>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded font-mono font-bold text-[10px] bg-white border border-emerald-300 text-emerald-800">
-                Database Supabase
-              </span>
-              <span className="px-2 py-0.5 rounded font-mono font-bold text-[10px] bg-[#0B6B58] text-white">
-                ImageKit Storage
-              </span>
-            </div>
+            )}
           </div>
 
           {/* Category Tabs */}
@@ -539,7 +536,7 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
                                   ({((doc.file.size || 0) / 1024).toFixed(0)} KB)
                                 </span>
                               </button>
-                              {canManageCurrentFolder && (
+                              {canEditCurrentFolder && (
                                 <button
                                   type="button"
                                   onClick={async () => {
@@ -571,19 +568,21 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
                                 <Eye className="w-3.5 h-3.5 text-[#0B6B58]" /> Lihat
                               </button>
                             )}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingDok(doc);
-                                setUploadedFile(doc.file || null);
-                                setIsModalDokOpen(true);
-                              }}
-                              className="p-1.5 text-[#566A6E] hover:text-[#0B6B58] hover:bg-[#E8EFEC] rounded transition cursor-pointer"
-                              title="Ubah Dokumen"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                            {canManageCurrentFolder && (
+                            {canEditCurrentFolder && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingDok(doc);
+                                  setUploadedFile(doc.file || null);
+                                  setIsModalDokOpen(true);
+                                }}
+                                className="p-1.5 text-[#566A6E] hover:text-[#0B6B58] hover:bg-[#E8EFEC] rounded transition cursor-pointer"
+                                title="Ubah Dokumen"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {isOperator && (
                               <button
                                 type="button"
                                 onClick={() => {
@@ -623,30 +622,32 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingGuru(null);
-                  setGuruType('Tendik');
-                  setIsModalGuruOpen(true);
-                }}
-                className="px-4 py-2 bg-[#DAEEE7] hover:bg-[#c6e6db] text-[#0B6B58] border border-[#0B6B58]/30 text-xs font-semibold rounded-lg flex items-center gap-2 transition cursor-pointer"
-              >
-                <Plus className="w-4 h-4" /> Tambah Tendik
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingGuru(null);
-                  setGuruType('Guru');
-                  setIsModalGuruOpen(true);
-                }}
-                className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 transition cursor-pointer"
-              >
-                <Plus className="w-4 h-4" /> Tambah Guru
-              </button>
-            </div>
+            {isOperator && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingGuru(null);
+                    setGuruType('Tendik');
+                    setIsModalGuruOpen(true);
+                  }}
+                  className="px-4 py-2 bg-[#DAEEE7] hover:bg-[#c6e6db] text-[#0B6B58] border border-[#0B6B58]/30 text-xs font-semibold rounded-lg flex items-center gap-2 transition cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> Tambah Tendik
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingGuru(null);
+                    setGuruType('Guru');
+                    setIsModalGuruOpen(true);
+                  }}
+                  className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 transition cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> Tambah Guru
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="bg-white p-3.5 rounded-xl border border-[#D3DDD9] flex flex-wrap items-center gap-3 shadow-xs">
@@ -761,18 +762,20 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
                         </td>
                         <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingGuru(g);
-                                setGuruType(g.jenisGtk || 'Guru');
-                                setIsModalGuruOpen(true);
-                              }}
-                              className="p-1.5 text-[#566A6E] hover:text-[#0B6B58] hover:bg-[#E8EFEC] rounded transition cursor-pointer"
-                              title="Ubah Data GTK"
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </button>
+                            {isOwnerOfGuru(g) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingGuru(g);
+                                  setGuruType(g.jenisGtk || 'Guru');
+                                  setIsModalGuruOpen(true);
+                                }}
+                                className="p-1.5 text-[#566A6E] hover:text-[#0B6B58] hover:bg-[#E8EFEC] rounded transition cursor-pointer"
+                                title="Ubah Data GTK"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                            )}
                             {isOperator && (
                               <button
                                 type="button"
@@ -1074,11 +1077,6 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
             <h3 className="text-base font-bold text-[#13262A] font-display">
               {editingDok ? 'Ubah Dokumen GTK' : `Tambah Dokumen untuk ${selectedGuru.nama}`}
             </h3>
-
-            <div className="bg-emerald-50/70 p-2.5 rounded-lg border border-emerald-200 text-[11px] text-[#0B6B58] flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-none" />
-              <span>Dokumen &amp; berkas foto/PDF tersimpan langsung ke Database Cloud Supabase &amp; ImageKit secara permanen.</span>
-            </div>
 
             <form onSubmit={handleSaveDok} className="space-y-3 text-xs">
               <div>
