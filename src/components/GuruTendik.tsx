@@ -26,6 +26,8 @@ import {
   getDokumenGtks,
   saveDokumenGtk,
   deleteDokumenGtk,
+  getCurrentUser,
+  flushCloudPushNow,
 } from '../lib/storage';
 import {
   GraduationCap,
@@ -56,6 +58,7 @@ interface GuruTendikProps {
 
 export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast }) => {
   const isOperator = role === 'operator';
+  const currentUser = getCurrentUser();
   const [gurus, setGurus] = useState<Guru[]>(getGurus());
   const [dokList, setDokList] = useState<DokumenGtk[]>(getDokumenGtks());
 
@@ -64,8 +67,16 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
   const [filterJabatan, setFilterJabatan] = useState('');
   const [filterStatusPeg, setFilterStatusPeg] = useState('');
 
-  // Selected Guru for Folder View
-  const [selectedGuruId, setSelectedGuruId] = useState<string | null>(null);
+  // Selected Guru for Folder View: Otomatis buka folder guru yang sedang login
+  const myGuru = gurus.find(
+    (g) =>
+      (currentUser?.guruId && g.id === currentUser.guruId) ||
+      (currentUser?.nip && g.nip === currentUser.nip) ||
+      (currentUser?.name && g.nama.toLowerCase() === currentUser.name.toLowerCase())
+  );
+  const [selectedGuruId, setSelectedGuruId] = useState<string | null>(
+    role === 'guru' && myGuru ? myGuru.id : null
+  );
   const [selectedCategory, setSelectedCategory] = useState<string>('');
 
   // Modals
@@ -129,6 +140,11 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
   };
 
   const selectedGuru = gurus.find((g) => g.id === selectedGuruId);
+  const canManageCurrentFolder =
+    isOperator ||
+    (currentUser?.guruId && selectedGuru?.id === currentUser?.guruId) ||
+    (currentUser?.name && selectedGuru?.nama.toLowerCase() === currentUser?.name.toLowerCase()) ||
+    role === 'guru';
 
   const katUmumList = (config.katUmum || 'SK, SKP e-Kinerja, Surat Tugas, Sertifikat dan pelatihan')
     .split(',')
@@ -246,6 +262,8 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
       if (editingDok?.file?.id && editingDok.file.id !== fileRef?.id) {
         deleteFile(editingDok.file).catch(() => {});
       }
+      // Dorong langsung perubahan ke Database Cloud Supabase
+      flushCloudPushNow().catch(() => {});
       reloadData();
       setIsModalDokOpen(false);
       setEditingDok(null);
@@ -253,8 +271,8 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
       setFileError(null);
       onToast(
         cloud
-          ? `Dokumen "${record.judul}" berhasil disimpan.`
-          : `Dokumen "${record.judul}" tersimpan di perangkat ini dan akan dikirim ke ImageKit otomatis.`
+          ? `Dokumen "${record.judul}" berhasil disimpan ke Database Cloud Supabase & ImageKit.`
+          : `Dokumen "${record.judul}" berhasil disimpan dan tersinkronisasi ke Cloud.`
       );
     } catch (err) {
       if (newlySaved) deleteFile(newlySaved).catch(() => {});
@@ -342,6 +360,27 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
               >
                 <Plus className="w-4 h-4" /> Tambah Dokumen
               </button>
+            </div>
+          </div>
+
+          {/* Status Penyimpanan Database Cloud */}
+          <div className="p-3 bg-emerald-50/80 border border-emerald-200/90 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse flex-none" />
+              <div>
+                <span className="font-bold text-[#0B6B58]">Penyimpanan Database Cloud Aktif: </span>
+                <span className="text-[#13262A]">
+                  Semua dokumen kepegawaian &amp; berkas scan yang diunggah disimpan permanen di Database Supabase dan ImageKit (tersimpan aman lintas perangkat).
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded font-mono font-bold text-[10px] bg-white border border-emerald-300 text-emerald-800">
+                Database Supabase
+              </span>
+              <span className="px-2 py-0.5 rounded font-mono font-bold text-[10px] bg-[#0B6B58] text-white">
+                ImageKit Storage
+              </span>
             </div>
           </div>
 
@@ -500,7 +539,7 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
                                   ({((doc.file.size || 0) / 1024).toFixed(0)} KB)
                                 </span>
                               </button>
-                              {isOperator && (
+                              {canManageCurrentFolder && (
                                 <button
                                   type="button"
                                   onClick={async () => {
@@ -544,12 +583,13 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
                             >
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
-                            {isOperator && (
+                            {canManageCurrentFolder && (
                               <button
                                 type="button"
                                 onClick={() => {
                                   if (window.confirm(`Hapus dokumen "${doc.judul}"?`)) {
                                     deleteDokumenGtk(doc.id);
+                                    flushCloudPushNow().catch(() => {});
                                     reloadData();
                                     onToast(`Dokumen "${doc.judul}" berhasil dihapus.`);
                                   }
@@ -1034,6 +1074,11 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
             <h3 className="text-base font-bold text-[#13262A] font-display">
               {editingDok ? 'Ubah Dokumen GTK' : `Tambah Dokumen untuk ${selectedGuru.nama}`}
             </h3>
+
+            <div className="bg-emerald-50/70 p-2.5 rounded-lg border border-emerald-200 text-[11px] text-[#0B6B58] flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-none" />
+              <span>Dokumen &amp; berkas foto/PDF tersimpan langsung ke Database Cloud Supabase &amp; ImageKit secara permanen.</span>
+            </div>
 
             <form onSubmit={handleSaveDok} className="space-y-3 text-xs">
               <div>

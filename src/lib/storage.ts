@@ -387,6 +387,16 @@ async function flushCloudPush(): Promise<void> {
   }
 }
 
+/** Dorong semua perubahan antrean ke Supabase Cloud sekarang juga tanpa menunggu timer debounce. */
+export async function flushCloudPushNow(): Promise<boolean> {
+  if (pushTimer) {
+    clearTimeout(pushTimer);
+    pushTimer = null;
+  }
+  await flushCloudPush();
+  return pendingPushKeys.size === 0;
+}
+
 let pulling = false;
 /** Ambil perubahan dari cloud dan GABUNGKAN dengan data lokal. Mengembalikan jumlah modul yang berubah. */
 export async function syncFromCloud(): Promise<number> {
@@ -2473,20 +2483,31 @@ export const EXAM_DAYS: ExamDayInfo[] = [
 ];
 
 export function generateJadwalPengawasOtomatis(shuffle: boolean = false): PengawasSilangItem[] {
-  const gurus = getGurus().filter((g) => g.status === 'Aktif');
-  // Pilih 12 guru untuk penugasan pengawas
-  let candidateGurus = [...gurus];
+  // Ambil daftar panitia ujian agar guru yang sudah jadi panitia TIDAK dimasukkan sebagai pengawas
+  const panitiaList = getPosUjianPanitia();
+  const panitiaNames = new Set(panitiaList.map((p) => (p.nama || '').toUpperCase().trim()));
+  const panitiaNips = new Set(panitiaList.map((p) => (p.nip || '').trim()).filter(Boolean));
+
+  const isPanitia = (g: { nama: string; nip?: string }) => {
+    const n = (g.nama || '').toUpperCase().trim();
+    const nip = (g.nip || '').trim();
+    return panitiaNames.has(n) || (!!nip && panitiaNips.has(nip));
+  };
+
+  // Hanya pilih guru yang berstatus Aktif dan BUKAN Panitia Ujian
+  const nonPanitiaGurus = getGurus().filter((g) => g.status === 'Aktif' && !isPanitia(g));
+  let candidateGurus = [...nonPanitiaGurus];
   if (candidateGurus.length < 12) {
-    const all = [...initialGurus];
+    const all = [...initialGurus].filter((g) => !isPanitia(g));
     for (const g of all) {
       if (candidateGurus.length >= 12) break;
-      if (!candidateGurus.some((c) => c.nama === g.nama)) {
+      if (!candidateGurus.some((c) => (c.nama || '').toUpperCase().trim() === (g.nama || '').toUpperCase().trim())) {
         candidateGurus.push(g);
       }
     }
   }
 
-  // 12 guru utama
+  // 12 guru utama non-panitia
   let selectedGurus = candidateGurus.slice(0, 12);
   if (selectedGurus.length < 12) {
     selectedGurus = candidateGurus;
@@ -2578,11 +2599,27 @@ export function generateJadwalPengawasOtomatis(shuffle: boolean = false): Pengaw
 }
 
 export function getPosUjianPengawas(): PengawasSilangItem[] {
+  const panitia = getPosUjianPanitia();
+  const panitiaNames = new Set(panitia.map((p) => (p.nama || '').toUpperCase().trim()));
+  const panitiaNips = new Set(panitia.map((p) => (p.nip || '').trim()).filter(Boolean));
+
   const existing = localStorage.getItem(KEYS.POS_UJIAN_PENGAWAS);
   if (!existing || existing.includes('SD Negeri 1 Talun') || existing.includes('Nurjanah')) {
     return generateJadwalPengawasOtomatis(false);
   }
   const list = getFromStorage<PengawasSilangItem[]>(KEYS.POS_UJIAN_PENGAWAS, initialPengawasSilang);
+  if (!list || list.length === 0) {
+    return generateJadwalPengawasOtomatis(false);
+  }
+
+  // Jika ada guru yang sudah menjadi panitia namun masih tercatat sebagai pengawas, regenerasi otomatis
+  const hasPanitiaInPengawas = list.some(
+    (p) => panitiaNames.has((p.nama || '').toUpperCase().trim()) || (p.nip && panitiaNips.has((p.nip || '').trim()))
+  );
+  if (hasPanitiaInPengawas) {
+    return generateJadwalPengawasOtomatis(false);
+  }
+
   return list.map((p) => ({ ...p, nama: (p.nama || '').toUpperCase() }));
 }
 
@@ -2608,6 +2645,38 @@ export function deletePosUjianPengawas(id: string): void {
   if (target) {
     recordActivity('POS Ujian', `Menghapus pengawas silang: ${target.nama}`, true, 'delete');
   }
+}
+
+/**
+ * Ganti satu nama guru pengawas di semua jadwal penugasan ruang ujian (global replace)
+ */
+export function replacePengawasGlobally(
+  oldNama: string,
+  newPengawas: { nama: string; nip?: string; asalSekolah?: string; noHp?: string; guruId?: string }
+): void {
+  const list = getPosUjianPengawas();
+  const upperOld = (oldNama || '').toUpperCase().trim();
+  const upperNew = (newPengawas.nama || '').toUpperCase().trim();
+  const updated = list.map((p) => {
+    if (p.nama.toUpperCase().trim() === upperOld) {
+      return {
+        ...p,
+        nama: upperNew,
+        nip: newPengawas.nip !== undefined ? newPengawas.nip : p.nip,
+        asalSekolah: newPengawas.asalSekolah || p.asalSekolah,
+        noHp: newPengawas.noHp !== undefined ? newPengawas.noHp : p.noHp,
+        guruId: newPengawas.guruId !== undefined ? newPengawas.guruId : p.guruId,
+      };
+    }
+    return p;
+  });
+  setToStorage(KEYS.POS_UJIAN_PENGAWAS, updated);
+  recordActivity(
+    'POS Ujian',
+    `Ganti nama pengawas: ${upperOld} -> ${upperNew} di semua jadwal rotasi`,
+    false,
+    'update'
+  );
 }
 
 export function getPosUjianRambu(): RambuUjianItem[] {

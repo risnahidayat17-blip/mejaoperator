@@ -41,6 +41,7 @@ import {
   getSiswas,
   EXAM_DAYS,
   generateJadwalPengawasOtomatis,
+  replacePengawasGlobally,
   recordActivity,
 } from '../lib/storage';
 import { KopSuratHD } from './KopSuratHD';
@@ -419,9 +420,38 @@ export const PosUjian: React.FC<PosUjianProps> = ({
     const mataPelajaran = String(form.get('mataPelajaran') || '').trim();
     const sesi = String(form.get('sesi') || '').trim();
     const noHp = String(form.get('noHp') || '').trim();
+    const gantiSemua = form.get('gantiSemua') === '1' || form.get('gantiSemua') === 'on';
 
     if (!nama || !asalSekolah) {
       onToast('Nama dan Asal Sekolah pengawas wajib diisi.', true);
+      return;
+    }
+
+    // Validasi ketat: Guru yang sudah jadi panitia tidak boleh menjadi pengawas
+    const panitiaNames = new Set(panitiaList.map((p) => p.nama.toLowerCase().trim()));
+    const panitiaNips = new Set(panitiaList.map((p) => (p.nip || '').replace(/\D/g, '')).filter(Boolean));
+    const cleanNip = nip.replace(/\D/g, '');
+    if (panitiaNames.has(nama.toLowerCase().trim()) || (cleanNip && panitiaNips.has(cleanNip))) {
+      onToast(
+        `Perhatian: "${nama}" terdaftar sebagai Panitia Ujian! Guru yang sudah jadi panitia tidak boleh menjadi pengawas. Silakan pilih guru lain.`,
+        true
+      );
+      return;
+    }
+
+    if (editingPengawas && gantiSemua) {
+      const updatedCount = replacePengawasGlobally(editingPengawas.nama, {
+        nama,
+        nip: nip || undefined,
+        asalSekolah,
+        noHp: noHp || undefined,
+      });
+      reloadAll();
+      setIsModalPengawasOpen(false);
+      setEditingPengawas(null);
+      onToast(
+        `Berhasil mengganti "${editingPengawas.nama}" menjadi "${nama}" di seluruh ${updatedCount} jadwal rotasi ruang ujian.`
+      );
       return;
     }
 
@@ -1519,11 +1549,27 @@ export const PosUjian: React.FC<PosUjianProps> = ({
                         <td className="py-3 px-4 bg-emerald-50/30">
                           <div className="space-y-1">
                             {r1.map((p, pIdx) => (
-                              <div key={p.id || pIdx} className="font-bold text-[#13262A] flex items-center gap-1.5">
-                                <span className="w-4 h-4 rounded-full bg-[#E6F2EE] text-[#0B6B58] text-[10px] flex items-center justify-center font-mono font-bold flex-none">
-                                  {pIdx + 1}
-                                </span>
-                                <span className="truncate">{p.nama}</span>
+                              <div
+                                key={p.id || pIdx}
+                                className="font-bold text-[#13262A] flex items-center justify-between gap-1 group/p py-0.5 px-1 rounded hover:bg-emerald-100/60 transition-colors"
+                              >
+                                <div className="flex items-center gap-1.5 truncate">
+                                  <span className="w-4 h-4 rounded-full bg-[#E6F2EE] text-[#0B6B58] text-[10px] flex items-center justify-center font-mono font-bold flex-none">
+                                    {pIdx + 1}
+                                  </span>
+                                  <span className="truncate" title={p.nama}>{p.nama}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingPengawas(p);
+                                    setIsModalPengawasOpen(true);
+                                  }}
+                                  className="opacity-70 group-hover/p:opacity-100 p-1 text-[#0B6B58] hover:text-[#095747] hover:bg-white rounded cursor-pointer transition-all flex-none"
+                                  title={`Ganti pengawas ${p.nama}`}
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                </button>
                               </div>
                             ))}
                           </div>
@@ -1531,11 +1577,27 @@ export const PosUjian: React.FC<PosUjianProps> = ({
                         <td className="py-3 px-4 bg-sky-50/30">
                           <div className="space-y-1">
                             {r2.map((p, pIdx) => (
-                              <div key={p.id || pIdx} className="font-bold text-[#13262A] flex items-center gap-1.5">
-                                <span className="w-4 h-4 rounded-full bg-sky-100 text-sky-800 text-[10px] flex items-center justify-center font-mono font-bold flex-none">
-                                  {pIdx + 1}
-                                </span>
-                                <span className="truncate">{p.nama}</span>
+                              <div
+                                key={p.id || pIdx}
+                                className="font-bold text-[#13262A] flex items-center justify-between gap-1 group/p py-0.5 px-1 rounded hover:bg-sky-100/60 transition-colors"
+                              >
+                                <div className="flex items-center gap-1.5 truncate">
+                                  <span className="w-4 h-4 rounded-full bg-sky-100 text-sky-800 text-[10px] flex items-center justify-center font-mono font-bold flex-none">
+                                    {pIdx + 1}
+                                  </span>
+                                  <span className="truncate" title={p.nama}>{p.nama}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingPengawas(p);
+                                    setIsModalPengawasOpen(true);
+                                  }}
+                                  className="opacity-70 group-hover/p:opacity-100 p-1 text-sky-800 hover:text-sky-950 hover:bg-white rounded cursor-pointer transition-all flex-none"
+                                  title={`Ganti pengawas ${p.nama}`}
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                </button>
                               </div>
                             ))}
                           </div>
@@ -1543,11 +1605,27 @@ export const PosUjian: React.FC<PosUjianProps> = ({
                         <td className="py-3 px-4 bg-amber-50/30">
                           <div className="space-y-1">
                             {r3.map((p, pIdx) => (
-                              <div key={p.id || pIdx} className="font-bold text-[#13262A] flex items-center gap-1.5">
-                                <span className="w-4 h-4 rounded-full bg-amber-100 text-amber-800 text-[10px] flex items-center justify-center font-mono font-bold flex-none">
-                                  {pIdx + 1}
-                                </span>
-                                <span className="truncate">{p.nama}</span>
+                              <div
+                                key={p.id || pIdx}
+                                className="font-bold text-[#13262A] flex items-center justify-between gap-1 group/p py-0.5 px-1 rounded hover:bg-amber-100/60 transition-colors"
+                              >
+                                <div className="flex items-center gap-1.5 truncate">
+                                  <span className="w-4 h-4 rounded-full bg-amber-100 text-amber-800 text-[10px] flex items-center justify-center font-mono font-bold flex-none">
+                                    {pIdx + 1}
+                                  </span>
+                                  <span className="truncate" title={p.nama}>{p.nama}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingPengawas(p);
+                                    setIsModalPengawasOpen(true);
+                                  }}
+                                  className="opacity-70 group-hover/p:opacity-100 p-1 text-amber-800 hover:text-amber-950 hover:bg-white rounded cursor-pointer transition-all flex-none"
+                                  title={`Ganti pengawas ${p.nama}`}
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                </button>
                               </div>
                             ))}
                           </div>
@@ -1567,23 +1645,39 @@ export const PosUjian: React.FC<PosUjianProps> = ({
                 Rekap Beban Tugas Pengawas (12 Guru SDN 2 Cempaka)
               </span>
               <span className="text-[11px] text-[#0B6B58] font-bold">
-                Total 36 Slot Tugas &middot; Masing-masing Guru 3 Kali Mengawas
+                Total 36 Slot Tugas &middot; Masing-masing Guru 3 Kali Mengawas &middot; Klik ikon pensil untuk mengganti
               </span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 text-xs">
               {Array.from(new Set(pengawasList.map((p) => p.nama))).map((nama, idx) => {
                 const count = pengawasList.filter((p) => p.nama === nama).length;
+                const sample = pengawasList.find((p) => p.nama === nama);
                 return (
                   <div
                     key={nama || idx}
-                    className="p-2 rounded-lg bg-white border border-[#E6EDEA] flex items-center justify-between shadow-2xs"
+                    className="p-2 rounded-lg bg-white border border-[#E6EDEA] flex items-center justify-between shadow-2xs hover:border-[#0B6B58]/40 transition-colors"
                   >
                     <div className="truncate font-semibold text-[#13262A] text-[11px]" title={nama}>
                       {nama}
                     </div>
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#E6F2EE] text-[#0B6B58] flex-none ml-1">
-                      {count}x
-                    </span>
+                    <div className="flex items-center gap-1 flex-none ml-1">
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#E6F2EE] text-[#0B6B58]">
+                        {count}x
+                      </span>
+                      {sample && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingPengawas(sample);
+                            setIsModalPengawasOpen(true);
+                          }}
+                          className="p-1 text-[#566A6E] hover:text-[#0B6B58] hover:bg-[#E6F2EE] rounded cursor-pointer transition-colors"
+                          title={`Ganti nama guru ${nama} di seluruh jadwal`}
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -3142,6 +3236,83 @@ export const PosUjian: React.FC<PosUjianProps> = ({
             </div>
 
             <form onSubmit={handleSavePengawas} className="space-y-3.5 text-xs">
+              {/* Pilihan cepat dari guru non-panitia */}
+              <div className="bg-emerald-50/70 p-3 rounded-xl border border-emerald-200 space-y-1.5">
+                <label className="block font-bold text-[#0B6B58] text-[11px]">
+                  Pilih Guru Sekolah (Otomatis Filter: Panitia Ujian Tidak Ditampilkan)
+                </label>
+                <select
+                  defaultValue=""
+                  onChange={(e) => {
+                    const selId = e.target.value;
+                    const cleanPanitiaNips = new Set(
+                      panitiaList.map((p) => (p.nip || '').replace(/\D/g, '')).filter(Boolean)
+                    );
+                    const panitiaNames = new Set(panitiaList.map((p) => p.nama.toLowerCase().trim()));
+                    const candidates = allGurus.filter((g) => {
+                      const cleanNip = (g.nip || '').replace(/\D/g, '');
+                      return (
+                        !panitiaNames.has(g.nama.toLowerCase().trim()) &&
+                        (!cleanNip || !cleanPanitiaNips.has(cleanNip))
+                      );
+                    });
+                    const g = candidates.find((x) => x.id === selId);
+                    if (!g) return;
+                    const form = e.target.form;
+                    if (!form) return;
+                    const inputNama = form.elements.namedItem('nama') as HTMLInputElement | null;
+                    const inputNip = form.elements.namedItem('nip') as HTMLInputElement | null;
+                    const inputSekolah = form.elements.namedItem('asalSekolah') as HTMLInputElement | null;
+                    const inputHp = form.elements.namedItem('noHp') as HTMLInputElement | null;
+                    if (inputNama) inputNama.value = g.nama;
+                    if (inputNip) inputNip.value = g.nip || '';
+                    if (inputSekolah) inputSekolah.value = 'SDN 2 Cempaka';
+                    if (inputHp) inputHp.value = g.telp || '';
+                  }}
+                  className="w-full px-3 py-2 bg-white border border-emerald-300 rounded-lg font-semibold text-[#13262A]"
+                >
+                  <option value="">-- Pilih Guru SDN 2 Cempaka (Bukan Panitia) --</option>
+                  {allGurus
+                    .filter((g) => {
+                      const cleanNip = (g.nip || '').replace(/\D/g, '');
+                      const panitiaNames = new Set(panitiaList.map((p) => p.nama.toLowerCase().trim()));
+                      const cleanPanitiaNips = new Set(
+                        panitiaList.map((p) => (p.nip || '').replace(/\D/g, '')).filter(Boolean)
+                      );
+                      return (
+                        !panitiaNames.has(g.nama.toLowerCase().trim()) &&
+                        (!cleanNip || !cleanPanitiaNips.has(cleanNip))
+                      );
+                    })
+                    .map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.nama} ({g.jabatan || 'Guru'}{g.nip ? ` - NIP ${g.nip}` : ''})
+                      </option>
+                    ))}
+                </select>
+                <p className="text-[10px] text-[#566A6E]">
+                  * Guru yang sudah menjadi Panitia Ujian ({panitiaList.length} orang) tidak muncul di daftar agar tidak terjadi rangkap tugas.
+                </p>
+              </div>
+
+              {editingPengawas && (
+                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 space-y-1">
+                  <label className="flex items-center gap-2 cursor-pointer font-bold text-amber-900 text-xs">
+                    <input
+                      type="checkbox"
+                      name="gantiSemua"
+                      value="1"
+                      defaultChecked={true}
+                      className="w-4 h-4 rounded text-[#0B6B58] focus:ring-[#0B6B58]"
+                    />
+                    Ganti guru ini di SELURUH jadwal rotasi ujian (3 sesi pengawasan)
+                  </label>
+                  <p className="text-[10px] text-amber-800 ml-6">
+                    Bila dicentang, nama &quot;{editingPengawas.nama}&quot; akan otomatis digantikan di semua ruang dan jadwal rotasi silang.
+                  </p>
+                </div>
+              )}
+
               <div>
                 <label className="block font-semibold text-[#566A6E] mb-1">Nama Lengkap &amp; Gelar Pengawas *</label>
                 <input
