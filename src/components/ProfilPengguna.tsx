@@ -72,10 +72,6 @@ export const ProfilPengguna: React.FC<ProfilPenggunaProps> = ({ currentUser, onT
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isOperator) {
-      onToast('Mode lihat saja. Guru tidak dapat mengubah data.', true);
-      return;
-    }
     if (!name.trim()) {
       onToast('Nama tidak boleh kosong.', true);
       return;
@@ -121,7 +117,7 @@ export const ProfilPengguna: React.FC<ProfilPenggunaProps> = ({ currentUser, onT
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isOperator || changingPw) return;
+    if (changingPw) return;
     if (newPass.length < MIN_PASSWORD_LENGTH) {
       onToast(`Kata sandi baru minimal ${MIN_PASSWORD_LENGTH} karakter.`, true);
       return;
@@ -162,7 +158,6 @@ export const ProfilPengguna: React.FC<ProfilPenggunaProps> = ({ currentUser, onT
 
   /** Operator mengatur ulang kata sandi akun operator lain (kata sandi lama tidak perlu/ tidak ditampilkan). */
   const handleResetUserPassword = async (u: User) => {
-    if (!isOperator) return;
     const pw = window.prompt(`Kata sandi baru untuk "${u.username}" (minimal ${MIN_PASSWORD_LENGTH} karakter):`);
     if (pw === null) return;
     if (pw.length < MIN_PASSWORD_LENGTH) {
@@ -183,7 +178,6 @@ export const ProfilPengguna: React.FC<ProfilPenggunaProps> = ({ currentUser, onT
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isOperator) return;
     const needsPw = newRole === 'operator';
     if (!newUsername.trim() || !newName.trim() || (needsPw && !newPassword)) {
       onToast('Mohon lengkapi username, nama' + (needsPw ? ', dan password.' : '.'), true);
@@ -224,7 +218,6 @@ export const ProfilPengguna: React.FC<ProfilPenggunaProps> = ({ currentUser, onT
   };
 
   const handleDeleteUser = (id: string, username: string) => {
-    if (!isOperator) return;
     if (id === currentUser.id) {
       onToast('Anda tidak dapat menghapus akun yang sedang digunakan.', true);
       return;
@@ -243,12 +236,12 @@ export const ProfilPengguna: React.FC<ProfilPenggunaProps> = ({ currentUser, onT
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-[#13262A] font-display">
-            {isOperator ? 'Profil & Manajemen Pengguna' : 'Profil Pengguna'}
+            {isOperator ? 'Profil & Manajemen Pengguna' : 'Pengaturan Profil Pengguna'}
           </h1>
           <p className="text-xs text-[#566A6E] mt-1">
             {isOperator
               ? 'Kelola profil pribadi, kata sandi, serta hak akses dan akun pengguna lain.'
-              : 'Informasi akun pengguna Anda (Mode Lihat Saja).'}
+              : 'Perbarui data pribadi dan nomor kontak Anda.'}
           </p>
         </div>
 
@@ -299,7 +292,7 @@ export const ProfilPengguna: React.FC<ProfilPenggunaProps> = ({ currentUser, onT
                   <label className="block font-semibold text-[#566A6E] mb-1">Peran / Hak Akses</label>
                   <input
                     type="text"
-                    value={isOperator ? 'Operator (Full Akses)' : 'Guru / Tendik (Lihat Saja)'}
+                    value={isOperator ? 'Operator (Full Akses)' : 'Guru / Tendik (Akses Terbatas)'}
                     disabled
                     className="w-full px-3 py-2 bg-[#E8EFEC] font-semibold text-[#0B6B58] border border-[#D3DDD9] rounded-lg cursor-not-allowed"
                   />
@@ -312,10 +305,9 @@ export const ProfilPengguna: React.FC<ProfilPenggunaProps> = ({ currentUser, onT
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  disabled={!isOperator}
                   required
                   placeholder="Contoh: Rudi Hartono, S.Pd."
-                  className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg focus:ring-2 focus:ring-[#0B6B58] disabled:bg-[#E8EFEC] disabled:text-[#566A6E] disabled:cursor-not-allowed"
+                  className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg focus:ring-2 focus:ring-[#0B6B58]"
                 />
               </div>
 
@@ -326,8 +318,7 @@ export const ProfilPengguna: React.FC<ProfilPenggunaProps> = ({ currentUser, onT
                     type="text"
                     value={jabatan}
                     onChange={(e) => setJabatan(e.target.value)}
-                    disabled={!isOperator}
-                    className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg disabled:bg-[#E8EFEC] disabled:text-[#566A6E] disabled:cursor-not-allowed"
+                    className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg"
                   />
                 </div>
                 <div>
@@ -336,8 +327,7 @@ export const ProfilPengguna: React.FC<ProfilPenggunaProps> = ({ currentUser, onT
                     type="text"
                     value={nip}
                     onChange={(e) => setNip(e.target.value)}
-                    disabled={!isOperator}
-                    className="w-full px-3 py-2 font-mono border border-[#D3DDD9] rounded-lg disabled:bg-[#E8EFEC] disabled:text-[#566A6E] disabled:cursor-not-allowed"
+                    className="w-full px-3 py-2 font-mono border border-[#D3DDD9] rounded-lg"
                   />
                 </div>
               </div>
@@ -349,9 +339,8 @@ export const ProfilPengguna: React.FC<ProfilPenggunaProps> = ({ currentUser, onT
                     type="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    disabled={!isOperator}
                     placeholder="mis. 0812-3456-7890"
-                    className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg disabled:bg-[#E8EFEC] disabled:text-[#566A6E] disabled:cursor-not-allowed"
+                    className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg"
                   />
                 </div>
                 <div>
@@ -362,9 +351,8 @@ export const ProfilPengguna: React.FC<ProfilPenggunaProps> = ({ currentUser, onT
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    disabled={!isOperator}
                     placeholder={isOperator ? 'mis. operator@sdn2cempaka.sch.id / risnahidayat09@gmail.com' : 'email@contoh.com'}
-                    className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-mono text-xs disabled:bg-[#E8EFEC] disabled:text-[#566A6E] disabled:cursor-not-allowed"
+                    className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-mono text-xs"
                   />
                 </div>
               </div>
@@ -394,16 +382,14 @@ export const ProfilPengguna: React.FC<ProfilPenggunaProps> = ({ currentUser, onT
                 </div>
               )}
 
-              {isOperator && (
-                <div className="pt-3 flex justify-end">
-                  <button
-                    type="submit"
-                    className="px-5 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 cursor-pointer transition"
-                  >
-                    <Save className="w-4 h-4" /> Simpan Profil
-                  </button>
-                </div>
-              )}
+              <div className="pt-3 flex justify-end">
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 cursor-pointer transition"
+                >
+                  <Save className="w-4 h-4" /> Simpan Profil
+                </button>
+              </div>
             </form>
 
             {isOperator && (

@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 
 interface RekapLaporanProps {
-  role?: 'operator' | 'guru';
   config: SchoolConfig;
   siswa: Siswa[];
   guru: Guru[];

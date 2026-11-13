@@ -127,6 +127,16 @@ function getFileBadge(file: FileRef): { label: string; cls: string; icon: React.
 }
 
 export const ArsipLaporanSekolah: React.FC<ArsipLaporanSekolahProps> = ({ role, config, onToast }) => {
+  if (role !== 'operator') {
+    return (
+      <div className="bg-white p-8 rounded-xl border border-[#D3DDD9] text-center">
+        <p className="text-xs text-rose-700 font-semibold">
+          Akses ditolak. Modul Arsip Laporan Sekolah hanya dapat dibuka oleh Operator.
+        </p>
+      </div>
+    );
+  }
+
   const isOperator = role === 'operator';
   const currentUser = getCurrentUser();
   const currentTa = config.tahunAjaran || '2026/2027';
@@ -207,10 +217,14 @@ export const ArsipLaporanSekolah: React.FC<ArsipLaporanSekolahProps> = ({ role, 
     e.target.value = '';
   };
 
-  const canEditItem = (): boolean => isOperator;
+  const canEditItem = (item: IArsipLaporan): boolean => {
+    if (isOperator) return true;
+    if (!currentUser) return false;
+    if (item.uploadedById && currentUser.id) return item.uploadedById === currentUser.id;
+    return !!item.uploadedBy && item.uploadedBy.toLowerCase() === currentUser.name.toLowerCase();
+  };
 
   const openNewModal = () => {
-    if (!isOperator) return;
     setEditing(null);
     setSelectedFile(null);
     setFileError(null);
@@ -219,7 +233,7 @@ export const ArsipLaporanSekolah: React.FC<ArsipLaporanSekolahProps> = ({ role, 
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!isOperator || saving) return;
+    if (saving) return;
 
     if (!selectedFile && !editing) {
       const msg = 'Pilih atau seret file laporan terlebih dahulu.';
@@ -329,9 +343,7 @@ export const ArsipLaporanSekolah: React.FC<ArsipLaporanSekolahProps> = ({ role, 
     const ok = await openFile(item.file);
     if (!ok) {
       onToast(
-        isOperator
-          ? 'Berkas tidak ditemukan. Pastikan ImageKit sudah diatur atau buka dari perangkat pengunggah.'
-          : 'Berkas belum tersedia untuk dibuka.',
+        'Berkas tidak ditemukan. Pastikan ImageKit sudah diatur atau buka dari perangkat pengunggah.',
         true
       );
     }
@@ -341,16 +353,14 @@ export const ArsipLaporanSekolah: React.FC<ArsipLaporanSekolahProps> = ({ role, 
     const ok = await downloadFile(item.file);
     if (!ok) {
       onToast(
-        isOperator
-          ? 'Berkas tidak ditemukan. Pastikan ImageKit sudah diatur atau unduh dari perangkat pengunggah.'
-          : 'Berkas belum tersedia untuk diunduh.',
+        'Berkas tidak ditemukan. Pastikan ImageKit sudah diatur atau unduh dari perangkat pengunggah.',
         true
       );
     }
   };
 
   const performDelete = () => {
-    if (!isOperator || !confirmDelete) return;
+    if (!confirmDelete) return;
     const item = confirmDelete;
     setConfirmDelete(null);
     if (saveArsipLaporanList(getArsipLaporan().filter((i) => i.id !== item.id))) {
@@ -377,21 +387,17 @@ export const ArsipLaporanSekolah: React.FC<ArsipLaporanSekolahProps> = ({ role, 
         <div>
           <h1 className="text-2xl font-bold text-[#13262A] font-display">Arsip Laporan Sekolah</h1>
           <p className="text-xs text-[#566A6E] mt-1">
-            {isOperator
-              ? 'Unggah, kelompokkan, dan simpan berkas laporan sekolah (PDF, Word, Excel, maupun foto/scan) secara terpusat.'
-              : 'Daftar arsip berkas laporan sekolah yang telah diunggah oleh Operator (Mode Lihat Saja).'}
+            Unggah, kelompokkan, dan simpan berkas laporan sekolah (PDF, Word, Excel, maupun foto/scan) secara terpusat.
           </p>
         </div>
 
-        {isOperator && (
-          <button
-            type="button"
-            onClick={openNewModal}
-            className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 transition cursor-pointer whitespace-nowrap"
-          >
-            <Plus className="w-4 h-4" /> Unggah Laporan
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={openNewModal}
+          className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 transition cursor-pointer whitespace-nowrap"
+        >
+          <Plus className="w-4 h-4" /> Unggah Laporan
+        </button>
       </div>
 
       {/* Ringkasan */}
@@ -429,7 +435,7 @@ export const ArsipLaporanSekolah: React.FC<ArsipLaporanSekolahProps> = ({ role, 
         </div>
       </div>
 
-      {isOperator && pendingFiles > 0 && (
+      {pendingFiles > 0 && (
         <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 text-xs rounded-lg font-medium">
           {pendingFiles} berkas tersimpan di perangkat ini dan sedang dikirim ke ImageKit. Pastikan koneksi internet aktif.
         </div>
@@ -489,12 +495,10 @@ export const ArsipLaporanSekolah: React.FC<ArsipLaporanSekolahProps> = ({ role, 
           </h3>
           <p className="text-xs max-w-md mx-auto">
             {items.length === 0
-              ? isOperator
-                ? 'Klik tombol "Unggah Laporan" untuk menyimpan berkas laporan bulanan, BOS, akademik, dapodik, sarpras, atau kegiatan sekolah (PDF, Word, Excel, JPG/PNG).'
-                : 'Belum ada berkas arsip laporan yang diunggah oleh Operator.'
+              ? 'Klik tombol "Unggah Laporan" untuk menyimpan berkas laporan bulanan, BOS, akademik, dapodik, sarpras, atau kegiatan sekolah (PDF, Word, Excel, JPG/PNG).'
               : 'Ubah kata kunci pencarian atau filter kategori/tahun ajaran.'}
           </p>
-          {isOperator && items.length === 0 && (
+          {items.length === 0 && (
             <button
               type="button"
               onClick={openNewModal}
@@ -530,7 +534,7 @@ export const ArsipLaporanSekolah: React.FC<ArsipLaporanSekolahProps> = ({ role, 
                 <tbody className="divide-y divide-gray-100">
                   {grp.rows.map((row) => {
                     const badge = getFileBadge(row.file);
-                    const editable = canEditItem();
+                    const editable = canEditItem(row);
                     return (
                       <tr key={row.id} className="hover:bg-gray-50/80">
                         <td className="py-3 px-4 align-top">
@@ -628,7 +632,7 @@ export const ArsipLaporanSekolah: React.FC<ArsipLaporanSekolahProps> = ({ role, 
       )}
 
       {/* UPLOAD / EDIT MODAL */}
-      {isOperator && isModalOpen && (
+      {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
           <form
             key={editing?.id || 'baru'}
@@ -818,7 +822,7 @@ export const ArsipLaporanSekolah: React.FC<ArsipLaporanSekolahProps> = ({ role, 
       )}
 
       {/* CONFIRM DELETE MODAL */}
-      {isOperator && confirmDelete && (
+      {confirmDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
           <div className="bg-white rounded-2xl shadow-xl border border-[#D3DDD9] max-w-sm w-full p-5 space-y-4">
             <div className="flex items-start gap-3">

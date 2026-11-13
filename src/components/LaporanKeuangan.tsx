@@ -740,7 +740,16 @@ const KwitansiView: React.FC<{
 };
 
 export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, onToast }) => {
-  const isOperator = role === 'operator';
+  if (role !== 'operator') {
+    return (
+      <div className="bg-white p-8 rounded-xl border border-[#D3DDD9] text-center">
+        <p className="text-xs text-rose-700 font-semibold">
+          Akses ditolak. Modul Laporan Keuangan hanya dapat dibuka oleh Operator.
+        </p>
+      </div>
+    );
+  }
+
   const [state, setState] = useState<KeuanganState>(getKeuangan());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
@@ -757,7 +766,6 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
   }, []);
 
   const saveState = (newState: KeuanganState) => {
-    if (!isOperator) return;
     setState(newState);
     saveKeuangan(newState);
   };
@@ -812,7 +820,6 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
   };
 
   const updateRowEdit = (rowId: string, patch: Partial<{ noKw: string; tgl: string; penerima: string; untuk: string; kodeRek: string }>) => {
-    if (!isOperator) return;
     saveState({
       ...state,
       edits: {
@@ -826,7 +833,6 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
   };
 
   const updateSettings = (patch: Partial<KeuanganState['settings']>) => {
-    if (!isOperator) return;
     saveState({
       ...state,
       settings: {
@@ -837,7 +843,7 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
   };
 
   const handleFileUpload = async (file?: File) => {
-    if (!isOperator || !file) return;
+    if (!file) return;
     try {
       const records = await parseBkuFile(file);
       saveState({
@@ -854,7 +860,6 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
   };
 
   const handleClearData = () => {
-    if (!isOperator) return;
     if (!confirmClear) {
       setConfirmClear(true);
       setTimeout(() => setConfirmClear(false), 4000);
@@ -938,75 +943,60 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
             <span className="text-[11px] text-[#566A6E]">
               {state.fileName} &middot; {bku.length} kwitansi
             </span>
-            {isOperator && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-[#D3DDD9] text-[#13262A] cursor-pointer hover:bg-gray-50"
-                >
-                  Ganti BKU
-                </button>
-                <button
-                  type="button"
-                  onClick={handleClearData}
-                  className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-[#D3DDD9] text-rose-700 cursor-pointer hover:bg-rose-50"
-                >
-                  {confirmClear ? 'Klik lagi untuk hapus' : 'Hapus'}
-                </button>
-              </>
-            )}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-[#D3DDD9] text-[#13262A] cursor-pointer hover:bg-gray-50"
+            >
+              Ganti BKU
+            </button>
+            <button
+              type="button"
+              onClick={handleClearData}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-[#D3DDD9] text-rose-700 cursor-pointer hover:bg-rose-50"
+            >
+              {confirmClear ? 'Klik lagi untuk hapus' : 'Hapus'}
+            </button>
           </div>
         )}
       </div>
 
-      {isOperator && (
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".xlsx,.xlsm,.csv,.tsv,.txt"
-          className="hidden"
-          onChange={(e) => {
-            handleFileUpload(e.target.files?.[0]);
-            e.target.value = '';
-          }}
-        />
-      )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,.xlsm,.csv,.tsv,.txt"
+        className="hidden"
+        onChange={(e) => {
+          handleFileUpload(e.target.files?.[0]);
+          e.target.value = '';
+        }}
+      />
 
       {/* Upload Box if Empty */}
       {!hasData && (
-        isOperator ? (
-          <div
-            onDragOver={(e) => {
-              e.preventDefault();
-              setIsDragging(true);
-            }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setIsDragging(false);
-              handleFileUpload(e.dataTransfer.files?.[0]);
-            }}
-            onClick={() => fileInputRef.current?.click()}
-            className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition ${
-              isDragging ? 'border-[#0B6B58] bg-[#E8EFEC]' : 'border-[#D3DDD9] bg-white hover:border-[#0B6B58]'
-            }`}
-          >
-            <Upload className="w-10 h-10 mx-auto text-[#0B6B58]" />
-            <h3 className="font-bold text-sm text-[#13262A] mt-2">Import Buku Kas Umum (BKU)</h3>
-            <p className="text-xs text-[#566A6E] mt-1">Klik atau seret file .xlsx / .csv ke sini</p>
-            <p className="text-[11px] text-[#566A6E] mt-3">
-              Kolom yang otomatis dibaca: <b>Tanggal</b> &middot; <b>No. Bukti</b> &middot; <b>Uraian</b> &middot; <b>Pengeluaran</b>
-            </p>
-          </div>
-        ) : (
-          <div className="bg-white border border-dashed border-[#D3DDD9] rounded-xl p-12 text-center space-y-2">
-            <h3 className="font-bold text-sm text-[#13262A]">Belum Ada Data Laporan Keuangan / BKU</h3>
-            <p className="text-xs text-[#566A6E] max-w-md mx-auto">
-              Data BKU dan kwitansi belum diunggah oleh Operator Sekolah (Mode Lihat Saja).
-            </p>
-          </div>
-        )
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDragging(false);
+            handleFileUpload(e.dataTransfer.files?.[0]);
+          }}
+          onClick={() => fileInputRef.current?.click()}
+          className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition ${
+            isDragging ? 'border-[#0B6B58] bg-[#E8EFEC]' : 'border-[#D3DDD9] bg-white hover:border-[#0B6B58]'
+          }`}
+        >
+          <Upload className="w-10 h-10 mx-auto text-[#0B6B58]" />
+          <h3 className="font-bold text-sm text-[#13262A] mt-2">Import Buku Kas Umum (BKU)</h3>
+          <p className="text-xs text-[#566A6E] mt-1">Klik atau seret file .xlsx / .csv ke sini</p>
+          <p className="text-[11px] text-[#566A6E] mt-3">
+            Kolom yang otomatis dibaca: <b>Tanggal</b> &middot; <b>No. Bukti</b> &middot; <b>Uraian</b> &middot; <b>Pengeluaran</b>
+          </p>
+        </div>
       )}
 
       {/* Main Content Layout */}
@@ -1093,104 +1083,102 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
               </button>
             </div>
 
-            {/* Pengaturan Ukuran, Warna & Gambar Preview / Print (hanya bisa diubah Operator) */}
-            {isOperator && (
-              <div className="mb-3 p-3 rounded-xl bg-[#F8FAF9] border border-[#D3DDD9] flex flex-wrap items-center justify-between gap-3 text-xs">
-                {/* Pilihan Ukuran */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[11px] font-semibold text-[#566A6E]">Ukuran:</span>
-                  <div className="inline-flex rounded-lg border border-[#D3DDD9] bg-white p-0.5">
-                    {(Object.keys(KWITANSI_SIZES) as KwitansiSizeKey[]).map((key) => {
-                      const spec = KWITANSI_SIZES[key];
-                      const active = sizeKey === key;
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => updateSettings({ ukuranKwitansi: key })}
-                          className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition cursor-pointer whitespace-nowrap ${
-                            active
-                              ? 'bg-[#0B6B58] text-white shadow-xs'
-                              : 'text-[#566A6E] hover:text-[#13262A]'
-                          }`}
-                        >
-                          {spec.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Pilihan Warna Kwitansi */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[11px] font-semibold text-[#566A6E] flex items-center gap-1">
-                    <Palette className="w-3.5 h-3.5 text-[#0B6B58]" />
-                    Warna:
-                  </span>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {(Object.keys(KWITANSI_COLORS) as KwitansiColorKey[]).map((key) => {
-                      const p = KWITANSI_COLORS[key];
-                      const active = colorKey === key;
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          title={p.label}
-                          onClick={() => updateSettings({ warnaKwitansi: key })}
-                          className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[11px] font-medium transition cursor-pointer whitespace-nowrap ${
-                            active
-                              ? 'bg-white border-[#0B6B58] text-[#13262A] ring-1 ring-[#0B6B58]/30 shadow-xs'
-                              : 'bg-white/70 border-[#D3DDD9] text-[#566A6E] hover:bg-white'
-                          }`}
-                        >
-                          <span
-                            className="w-3 h-3 rounded-full border border-black/15 shrink-0"
-                            style={{ backgroundColor: p.swatch }}
-                          />
-                          <span>{p.label.split(' ')[0]}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Toggle Gambar di Preview & Saat Print */}
-                <div className="flex items-center gap-2 flex-wrap w-full pt-2 border-t border-[#E4EBE8]">
-                  <span className="text-[11px] font-semibold text-[#566A6E]">Gambar Kwitansi:</span>
-                  <button
-                    type="button"
-                    onClick={() => updateSettings({ previewGambar: !showPreviewArt })}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition cursor-pointer whitespace-nowrap ${
-                      showPreviewArt
-                        ? 'bg-emerald-50 border-[#0B6B58]/40 text-[#0B6B58]'
-                        : 'bg-white border-[#D3DDD9] text-[#566A6E]'
-                    }`}
-                  >
-                    {showPreviewArt ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                    Preview: {showPreviewArt ? 'Dengan Gambar' : 'Tanpa Gambar'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => updateSettings({ printGambar: !showPrintArt })}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition cursor-pointer whitespace-nowrap ${
-                      showPrintArt
-                        ? 'bg-emerald-50 border-[#0B6B58]/40 text-[#0B6B58]'
-                        : 'bg-white border-[#D3DDD9] text-[#566A6E]'
-                    }`}
-                  >
-                    {showPrintArt ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                    Saat Print: {showPrintArt ? 'Ikut Gambar' : 'Tanpa Gambar (Blangko)'}
-                  </button>
-
-                  <span className="text-[11px] text-[#566A6E] ml-auto">
-                    {showPrintArt
-                      ? 'Cetak penuh dengan gambar & warna latar (kertas polos).'
-                      : 'Print hanya mencetak teks & kolom (gambar hanya tampil di preview).'}
-                  </span>
+            {/* Pengaturan Ukuran, Warna & Gambar Preview / Print */}
+            <div className="mb-3 p-3 rounded-xl bg-[#F8FAF9] border border-[#D3DDD9] flex flex-wrap items-center justify-between gap-3 text-xs">
+              {/* Pilihan Ukuran */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] font-semibold text-[#566A6E]">Ukuran:</span>
+                <div className="inline-flex rounded-lg border border-[#D3DDD9] bg-white p-0.5">
+                  {(Object.keys(KWITANSI_SIZES) as KwitansiSizeKey[]).map((key) => {
+                    const spec = KWITANSI_SIZES[key];
+                    const active = sizeKey === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => updateSettings({ ukuranKwitansi: key })}
+                        className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition cursor-pointer whitespace-nowrap ${
+                          active
+                            ? 'bg-[#0B6B58] text-white shadow-xs'
+                            : 'text-[#566A6E] hover:text-[#13262A]'
+                        }`}
+                      >
+                        {spec.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-            )}
+
+              {/* Pilihan Warna Kwitansi */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] font-semibold text-[#566A6E] flex items-center gap-1">
+                  <Palette className="w-3.5 h-3.5 text-[#0B6B58]" />
+                  Warna:
+                </span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {(Object.keys(KWITANSI_COLORS) as KwitansiColorKey[]).map((key) => {
+                    const p = KWITANSI_COLORS[key];
+                    const active = colorKey === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        title={p.label}
+                        onClick={() => updateSettings({ warnaKwitansi: key })}
+                        className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[11px] font-medium transition cursor-pointer whitespace-nowrap ${
+                          active
+                            ? 'bg-white border-[#0B6B58] text-[#13262A] ring-1 ring-[#0B6B58]/30 shadow-xs'
+                            : 'bg-white/70 border-[#D3DDD9] text-[#566A6E] hover:bg-white'
+                        }`}
+                      >
+                        <span
+                          className="w-3 h-3 rounded-full border border-black/15 shrink-0"
+                          style={{ backgroundColor: p.swatch }}
+                        />
+                        <span>{p.label.split(' ')[0]}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Toggle Gambar di Preview & Saat Print */}
+              <div className="flex items-center gap-2 flex-wrap w-full pt-2 border-t border-[#E4EBE8]">
+                <span className="text-[11px] font-semibold text-[#566A6E]">Gambar Kwitansi:</span>
+                <button
+                  type="button"
+                  onClick={() => updateSettings({ previewGambar: !showPreviewArt })}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition cursor-pointer whitespace-nowrap ${
+                    showPreviewArt
+                      ? 'bg-emerald-50 border-[#0B6B58]/40 text-[#0B6B58]'
+                      : 'bg-white border-[#D3DDD9] text-[#566A6E]'
+                  }`}
+                >
+                  {showPreviewArt ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                  Preview: {showPreviewArt ? 'Dengan Gambar' : 'Tanpa Gambar'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => updateSettings({ printGambar: !showPrintArt })}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition cursor-pointer whitespace-nowrap ${
+                    showPrintArt
+                      ? 'bg-emerald-50 border-[#0B6B58]/40 text-[#0B6B58]'
+                      : 'bg-white border-[#D3DDD9] text-[#566A6E]'
+                  }`}
+                >
+                  {showPrintArt ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                  Saat Print: {showPrintArt ? 'Ikut Gambar' : 'Tanpa Gambar (Blangko)'}
+                </button>
+
+                <span className="text-[11px] text-[#566A6E] ml-auto">
+                  {showPrintArt
+                    ? 'Cetak penuh dengan gambar & warna latar (kertas polos).'
+                    : 'Print hanya mencetak teks & kolom (gambar hanya tampil di preview).'}
+                </span>
+              </div>
+            </div>
 
             {/* Scaled Sheet Container */}
             <div ref={previewContainerRef} className="w-full bg-[#F1F4F2] rounded-lg overflow-hidden p-2 border border-[#E2E8E5]">
@@ -1219,8 +1207,7 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
                 <input
                   value={computedSelected.noKw}
                   onChange={(e) => updateRowEdit(selectedRow.id, { noKw: e.target.value })}
-                  disabled={!isOperator}
-                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
+                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
                 />
               </div>
               <div>
@@ -1229,8 +1216,7 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
                   type="date"
                   value={computedSelected.tgl}
                   onChange={(e) => updateRowEdit(selectedRow.id, { tgl: e.target.value })}
-                  disabled={!isOperator}
-                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
+                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
                 />
               </div>
               <div>
@@ -1238,9 +1224,8 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
                 <input
                   value={computedSelected.kodeRek}
                   onChange={(e) => updateRowEdit(selectedRow.id, { kodeRek: e.target.value })}
-                  disabled={!isOperator}
                   placeholder="mis. 5.1.02.01.01.0026"
-                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white font-mono disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
+                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white font-mono"
                 />
               </div>
               <div>
@@ -1248,9 +1233,8 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
                 <input
                   value={computedSelected.penerima}
                   onChange={(e) => updateRowEdit(selectedRow.id, { penerima: e.target.value })}
-                  disabled={!isOperator}
                   placeholder="Nama toko / penerima uang"
-                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
+                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
                 />
               </div>
               <div className="md:col-span-4">
@@ -1258,9 +1242,8 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
                 <textarea
                   value={computedSelected.untuk}
                   onChange={(e) => updateRowEdit(selectedRow.id, { untuk: e.target.value })}
-                  disabled={!isOperator}
                   rows={2}
-                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
+                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
                 />
               </div>
             </div>
@@ -1276,8 +1259,7 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
                   <input
                     value={state.settings.bendaharaNama}
                     onChange={(e) => updateSettings({ bendaharaNama: e.target.value })}
-                    disabled={!isOperator}
-                    className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
+                    className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
                   />
                 </div>
                 <div>
@@ -1285,8 +1267,7 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
                   <input
                     value={state.settings.bendaharaNip}
                     onChange={(e) => updateSettings({ bendaharaNip: e.target.value })}
-                    disabled={!isOperator}
-                    className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white font-mono disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
+                    className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white font-mono"
                   />
                 </div>
                 <div>
@@ -1294,8 +1275,7 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
                   <input
                     value={state.settings.sumberDana}
                     onChange={(e) => updateSettings({ sumberDana: e.target.value })}
-                    disabled={!isOperator}
-                    className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
+                    className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
                   />
                 </div>
                 <div>
@@ -1303,8 +1283,7 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
                   <input
                     value={state.settings.kota}
                     onChange={(e) => updateSettings({ kota: e.target.value })}
-                    disabled={!isOperator}
-                    className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
+                    className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
                   />
                 </div>
               </div>

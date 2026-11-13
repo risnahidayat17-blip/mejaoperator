@@ -179,7 +179,7 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
     if (currentUser?.name && g.nama && g.nama.toLowerCase().trim() === currentUser.name.toLowerCase().trim()) return true;
     return false;
   };
-  const canEditCurrentFolder = isOperator;
+  const canEditCurrentFolder = isOwnerOfGuru(selectedGuru);
 
   const katUmumList = (config.katUmum || 'SK, SKP e-Kinerja, Surat Tugas, Sertifikat dan pelatihan')
     .split(',')
@@ -214,7 +214,10 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
 
   const handleSaveGuru = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!isOperator) return;
+    if (!isOperator && editingGuru && !isOwnerOfGuru(editingGuru)) {
+      onToast('Anda hanya memiliki izin mengubah data profil Anda sendiri.', true);
+      return;
+    }
     const form = new FormData(e.currentTarget);
     const nama = String(form.get('nama') || '').trim().toUpperCase();
     if (!nama) {
@@ -254,7 +257,11 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
 
   const handleSaveDok = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!isOperator || !selectedGuru || savingDok) return;
+    if (!selectedGuru || savingDok) return;
+    if (!canEditCurrentFolder) {
+      onToast('Anda tidak memiliki izin mengubah dokumen milik orang lain.', true);
+      return;
+    }
     const form = new FormData(e.currentTarget);
     const kategori = String(form.get('kategori') || '').trim();
     const isPribadi = katPribadiList.includes(kategori);
@@ -330,7 +337,6 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!isOperator) return;
     const input = e.target;
     const file = input.files?.[0];
     if (!file) return;
@@ -351,9 +357,7 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
     const ok = await openFile(f);
     if (!ok) {
       onToast(
-        isOperator
-          ? 'Berkas tidak ditemukan. Pastikan berkas sudah terunggah ke ImageKit atau buka dari perangkat yang mengunggahnya.'
-          : 'Berkas tidak ditemukan atau belum tersedia.',
+        'Berkas tidak ditemukan. Pastikan berkas sudah terunggah ke ImageKit atau buka dari perangkat yang mengunggahnya.',
         true
       );
     }
@@ -756,9 +760,7 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
                     <th className="py-2.5 px-4 border-b border-[#D3DDD9]">Status Pegawai</th>
                     <th className="py-2.5 px-4 border-b border-[#D3DDD9]">Kontak</th>
                     <th className="py-2.5 px-4 border-b border-[#D3DDD9] text-center">Folder Dokumen</th>
-                    {isOperator && (
-                      <th className="py-2.5 px-4 border-b border-[#D3DDD9] text-right">Aksi</th>
-                    )}
+                    <th className="py-2.5 px-4 border-b border-[#D3DDD9] text-right">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#D3DDD9]">
@@ -820,9 +822,9 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
                             <span>{docCount} berkas</span>
                           </button>
                         </td>
-                        {isOperator && (
-                          <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-end gap-1.5">
+                        <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1.5">
+                            {isOwnerOfGuru(g) && (
                               <button
                                 type="button"
                                 onClick={() => {
@@ -835,6 +837,8 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
                               >
                                 <Pencil className="w-4 h-4" />
                               </button>
+                            )}
+                            {isOperator && (
                               <button
                                 type="button"
                                 onClick={() => openPwModal(g)}
@@ -843,6 +847,8 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
                               >
                                 <KeyRound className="w-4 h-4" />
                               </button>
+                            )}
+                            {isOperator && (
                               <button
                                 type="button"
                                 onClick={() => {
@@ -857,9 +863,9 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
-                            </div>
-                          </td>
-                        )}
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
@@ -975,7 +981,7 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
       )}
 
       {/* MODAL: ADD / EDIT GURU */}
-      {isOperator && isModalGuruOpen && (
+      {isModalGuruOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-xl border border-[#D3DDD9] max-w-xl w-full p-6 space-y-4 my-6">
             <div className="flex items-center justify-between pb-3 border-b border-[#D3DDD9]">
@@ -1127,7 +1133,7 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
       )}
 
       {/* MODAL: ADD / EDIT DOKUMEN GTK */}
-      {isOperator && isModalDokOpen && selectedGuru && (
+      {isModalDokOpen && selectedGuru && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-xl shadow-xl border border-[#D3DDD9] max-w-lg w-full p-6 space-y-4 my-6">
             <h3 className="text-base font-bold text-[#13262A] font-display">

@@ -20,6 +20,7 @@ import {
   BadgeDollarSign,
   UserCheck,
   Settings,
+  Lock,
   ShieldCheck,
   Cloud,
   ClipboardCheck,
@@ -52,7 +53,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenSupabaseModal,
 }) => {
   const isOperator = role === 'operator';
-  const projectId = isOperator ? getSupabaseConfig().projectId : '';
+  const projectId = getSupabaseConfig().projectId;
 
   const sections = [
     {
@@ -86,12 +87,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ],
     },
     {
-      title: isOperator ? 'Pengaturan & Cloud' : 'Profil & Pengaturan',
+      title: 'Pengaturan & Cloud',
       items: [
         { id: 'profil', label: 'Profil Pengguna', icon: <UserCheck className="w-4 h-4" /> },
         { id: 'pengaturan', label: 'Pengaturan & Kop', icon: <Settings className="w-4 h-4" />, badge: 'Admin' },
       ],
     },
+  ];
+
+  const allowedForGuru = [
+    'dasbor',
+    'guru',
+    'bukuinduk',
+    'posujian',
+    'suratkeluar',
+    'arsipabsen',
+    'daftarhadir',
+    'penilaian',
+    'profil',
   ];
 
   return (
@@ -105,13 +118,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <UserCheck className="w-4 h-4 text-[#8FE8A8]" />
           )}
           <span className="font-bold text-white font-display">
-            {isOperator ? 'Mode Operator Penuh' : 'Mode Guru (Lihat Saja)'}
+            {isOperator ? 'Mode Operator Penuh' : 'Mode Guru & Tendik'}
           </span>
         </div>
         <p className="text-[11px] text-[#CFE6DF] leading-relaxed">
           {isOperator
             ? 'Full akses seluruh administrasi, siswa, GTK, aset, surat, kop logo, dan Supabase Cloud.'
-            : 'Anda dapat membuka dan melihat seluruh menu data administrasi sekolah (hanya lihat, tidak dapat menambah atau mengubah data).'}
+            : 'Akses Guru & Tendik: Mengelola GTK, Buku Induk Siswa, POS Ujian, Penilaian, Surat Keluar, dan Absensi (Data Siswa khusus Operator).'}
         </p>
       </div>
 
@@ -125,32 +138,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="space-y-0.5">
               {section.items.map((item) => {
                 const isActive = currentTab === item.id;
+                const isLocked = !isOperator && !allowedForGuru.includes(item.id);
 
                 return (
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => onSelectTab(item.id)}
+                    disabled={isLocked}
+                    aria-disabled={isLocked}
+                    title={isLocked ? 'Terkunci \u2014 khusus Operator' : undefined}
+                    onClick={() => !isLocked && onSelectTab(item.id)}
                     className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition ${
-                      isActive
+                      isLocked
+                        ? 'text-white/35 cursor-not-allowed'
+                        : isActive
                         ? 'bg-gradient-to-r from-[#0F8B72] to-[#0E7490] text-white font-bold shadow-sm cursor-pointer'
                         : 'text-[#E4F1ED] hover:bg-white/10 hover:text-white cursor-pointer'
                     }`}
                   >
                     <div className="flex items-center gap-2.5 truncate">
-                      <span className={isActive ? 'text-white' : 'text-[#8FD1C1]'}>
+                      <span className={isActive ? 'text-white' : isLocked ? 'text-white/35' : 'text-[#8FD1C1]'}>
                         {item.icon}
                       </span>
                       <span className="truncate">{item.label}</span>
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {isOperator && item.badge && (
+                      {isLocked && <Lock className="w-3.5 h-3.5 text-white/40" />}
+                      {!isLocked && item.badge && (
                         <span className="text-[9px] font-bold uppercase px-1.5 py-0.2 rounded bg-amber-400/20 text-amber-200 border border-amber-300/25">
                           {item.badge}
                         </span>
                       )}
-                      {item.count !== undefined && item.count > 0 && (
+                      {!isLocked && item.count !== undefined && item.count > 0 && (
                         <span
                           className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
                             isActive ? 'bg-white text-[#0B6B58] font-bold' : 'bg-white/15 text-[#E4F1ED]'

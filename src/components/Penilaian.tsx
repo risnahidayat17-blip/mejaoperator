@@ -93,12 +93,10 @@ export const Penilaian: React.FC<PenilaianProps> = ({ role, config, onToast }) =
   };
 
   const handleScoreChange = (sId: string, val: string) => {
-    if (!isOperator) return;
     setTempScores((prev) => ({ ...prev, [sId]: val }));
   };
 
   const handleSaveScores = () => {
-    if (!isOperator) return;
     const recordsToSave: NilaiRecord[] = [];
     activeStudentsInClass.forEach((s) => {
       if (tempScores[s.id] !== undefined) {
@@ -205,7 +203,6 @@ export const Penilaian: React.FC<PenilaianProps> = ({ role, config, onToast }) =
 
   const handleSaveBerkas = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!isOperator) return;
     const form = new FormData(e.currentTarget);
     const newBerkas: BerkasPenilaian = {
       id: `bp_${Date.now()}`,
@@ -226,7 +223,6 @@ export const Penilaian: React.FC<PenilaianProps> = ({ role, config, onToast }) =
   };
 
   const handleDeleteBerkas = (id: string, judul: string) => {
-    if (!isOperator) return;
     if (window.confirm(`Hapus berkas "${judul}"?`)) {
       const current = getFromStorage<BerkasPenilaian[]>(KEYS.BERKAS, []);
       setToStorage(KEYS.BERKAS, current.filter((b) => b.id !== id));
@@ -375,23 +371,19 @@ export const Penilaian: React.FC<PenilaianProps> = ({ role, config, onToast }) =
           <div className="p-4 border-b border-[#D3DDD9] flex items-center justify-between">
             <div>
               <h2 className="text-sm font-bold text-[#13262A] font-display">
-                {isOperator ? 'Input Nilai' : 'Daftar Nilai'} {selectedMapel} &middot; Kelas {selectedKelas} ({activeStudentsInClass.length} Siswa Aktif)
+                Input Nilai {selectedMapel} &middot; Kelas {selectedKelas} ({activeStudentsInClass.length} Siswa Aktif)
               </h2>
               <p className="text-xs text-[#566A6E]">
-                {isOperator
-                  ? `Masukkan nilai angka 0 - 100. Nilai di bawah KKM (${config.kkm}) otomatis ditandai.`
-                  : `Mode Lihat Saja: pantau capaian nilai siswa (KKM: ${config.kkm}).`}
+                Masukkan nilai angka 0 - 100. Nilai di bawah KKM ({config.kkm}) otomatis ditandai.
               </p>
             </div>
-            {isOperator && (
-              <button
-                type="button"
-                onClick={handleSaveScores}
-                className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 transition cursor-pointer"
-              >
-                <Save className="w-4 h-4" /> Simpan Nilai
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={handleSaveScores}
+              className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 transition cursor-pointer"
+            >
+              <Save className="w-4 h-4" /> Simpan Nilai
+            </button>
           </div>
 
           {activeStudentsInClass.length === 0 ? (
@@ -430,10 +422,9 @@ export const Penilaian: React.FC<PenilaianProps> = ({ role, config, onToast }) =
                             min="0"
                             max="100"
                             value={val}
-                            disabled={!isOperator}
                             onChange={(e) => handleScoreChange(s.id, e.target.value)}
-                            placeholder={isOperator ? '0-100' : '-'}
-                            className={`w-24 px-2.5 py-1.5 text-center text-xs font-mono font-bold rounded-lg border focus:outline-none focus:ring-2 focus:ring-[#0B6B58] disabled:cursor-not-allowed disabled:opacity-90 ${
+                            placeholder="0-100"
+                            className={`w-24 px-2.5 py-1.5 text-center text-xs font-mono font-bold rounded-lg border focus:outline-none focus:ring-2 focus:ring-[#0B6B58] ${
                               isBelowKkm
                                 ? 'bg-[#FBEFD0] border-amber-400 text-amber-900'
                                 : 'bg-white border-[#D3DDD9] text-[#13262A]'
@@ -560,15 +551,13 @@ export const Penilaian: React.FC<PenilaianProps> = ({ role, config, onToast }) =
             <p className="text-xs text-[#566A6E]">
               Arsip berkas blangko rapor kurikulum merdeka, leger nilai, dan dokumen pendukung asesmen.
             </p>
-            {isOperator && (
-              <button
-                type="button"
-                onClick={() => setIsModalBerkasOpen(true)}
-                className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 transition cursor-pointer"
-              >
-                <Plus className="w-4 h-4" /> Tambah Berkas
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setIsModalBerkasOpen(true)}
+              className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 transition cursor-pointer"
+            >
+              <Plus className="w-4 h-4" /> Tambah Berkas
+            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -611,7 +600,7 @@ export const Penilaian: React.FC<PenilaianProps> = ({ role, config, onToast }) =
       )}
 
       {/* MODAL TAMBAH BERKAS */}
-      {isOperator && isModalBerkasOpen && (
+      {isModalBerkasOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-xl shadow-xl border border-[#D3DDD9] max-w-md w-full p-6 space-y-4 my-6">
             <h3 className="text-base font-bold text-[#13262A] font-display">Tambah Berkas Penilaian / Rapor</h3>

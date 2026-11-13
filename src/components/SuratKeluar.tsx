@@ -177,7 +177,6 @@ export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast 
   };
 
   const openEditor = (surat?: ISuratKeluar | null) => {
-    if (!isOperator) return;
     if (surat) {
       setEditingSurat(surat);
       setJenis(surat.jenis);
@@ -273,7 +272,6 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
 
   const handleSaveSurat = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isOperator) return;
     if (!perihal.trim()) {
       onToast('Perihal surat wajib diisi.', true);
       return;
@@ -357,7 +355,7 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
     const size = pSize || paperSize;
     document.body.setAttribute('data-paper-size', size.toLowerCase());
     const current = previewSurat || editingSurat;
-    if (isOperator && current) {
+    if (current) {
       recordActivity('Surat Keluar', `Cetak surat keluar: ${current.perihal || current.noSurat || 'Surat'}`, false, 'update');
     }
     window.print();
@@ -443,7 +441,7 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
     window.confirm('Isi surat yang sedang ada akan diganti. Lanjutkan?');
 
   const handleUploadDocx = async (file?: File | null) => {
-    if (!isOperator || !file) return;
+    if (!file) return;
     if (!/\.docx$/i.test(file.name)) {
       onToast('Pilih berkas Word berformat .docx. Jika berkasnya .doc, buka di Word lalu Simpan Sebagai .docx.', true);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -494,7 +492,6 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
   };
 
   const handleSaveTemplate = () => {
-    if (!isOperator) return;
     const html = sanitizeLetterHtml(isiHtmlRef.current);
     if (!htmlToPlainText(html)) {
       onToast('Isi surat masih kosong, belum ada yang bisa disimpan sebagai template.', true);
@@ -524,7 +521,6 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
   };
 
   const handleDeleteTemplate = () => {
-    if (!isOperator) return;
     const t = templateList.find((x) => x.id === tplId);
     if (!t) return;
     if (!window.confirm(`Hapus template "${t.judul}"? Surat yang sudah dibuat tidak terpengaruh.`)) return;
@@ -703,15 +699,13 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
           </p>
         </div>
 
-        {isOperator && (
-          <button
-            type="button"
-            onClick={() => openEditor()}
-            className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 transition cursor-pointer"
-          >
-            <Plus className="w-4 h-4" /> Buat Surat Baru
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => openEditor()}
+          className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 transition cursor-pointer"
+        >
+          <Plus className="w-4 h-4" /> Buat Surat Baru
+        </button>
       </div>
 
       {/* Search & Filter Bar */}
@@ -785,16 +779,14 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
                       >
                         <Eye className="w-4 h-4" />
                       </button>
-                      {isOperator && (
-                        <button
-                          type="button"
-                          onClick={() => openEditor(s)}
-                          className="p-1.5 text-[#566A6E] hover:text-[#0B6B58] hover:bg-[#E8EFEC] rounded transition cursor-pointer"
-                          title="Ubah Surat"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => openEditor(s)}
+                        className="p-1.5 text-[#566A6E] hover:text-[#0B6B58] hover:bg-[#E8EFEC] rounded transition cursor-pointer"
+                        title="Ubah Surat"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
                       {isOperator && (
                         <button
                           type="button"
@@ -815,7 +807,7 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
       </div>
 
       {/* EDITOR MODAL WITH LIVE PREVIEW */}
-      {isOperator && isEditorOpen && (
+      {isEditorOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl border border-[#D3DDD9] w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden my-4">
             <div className="px-6 py-3.5 bg-[#0B6B58] text-white flex items-center justify-between">

@@ -17,7 +17,6 @@ interface BukuIndukProps {
 }
 
 export const BukuInduk: React.FC<BukuIndukProps> = ({ config, role = 'operator', onToast }) => {
-  const isOperator = role === 'operator';
   const [siswaList, setSiswaList] = useState(getSiswas());
   const [nilaiList] = useState(getNilaiRecords());
   const [isImportDapodikOpen, setIsImportDapodikOpen] = useState(false);
@@ -66,24 +65,20 @@ export const BukuInduk: React.FC<BukuIndukProps> = ({ config, role = 'operator',
         </div>
 
         <div className="flex items-center gap-2">
-          {isOperator && (
-            <button
-              type="button"
-              onClick={() => setIsImportDapodikOpen(true)}
-              className="px-3.5 py-2 text-xs font-semibold bg-[#E6F2EE] hover:bg-[#d8e9e4] text-[#0B6B58] border border-[#B8D7CD] rounded-lg transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-              title="Impor profil peserta didik dari berkas Dapodik (.xlsx, .xls, .csv)"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-[#0B6B58]" /> Impor Data PD Dapodik
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setIsImportDapodikOpen(true)}
+            className="px-3.5 py-2 text-xs font-semibold bg-[#E6F2EE] hover:bg-[#d8e9e4] text-[#0B6B58] border border-[#B8D7CD] rounded-lg transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            title="Impor profil peserta didik dari berkas Dapodik (.xlsx, .xls, .csv)"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-[#0B6B58]" /> Impor Data PD Dapodik
+          </button>
 
           {currentSiswa && (
             <button
               type="button"
               onClick={() => {
-                if (isOperator) {
-                  recordActivity('Buku Induk', `Cetak lembar buku induk: ${currentSiswa.nama} (Kelas ${currentSiswa.kelas})`, false, 'update');
-                }
+                recordActivity('Buku Induk', `Cetak lembar buku induk: ${currentSiswa.nama} (Kelas ${currentSiswa.kelas})`, false, 'update');
                 window.print();
               }}
               className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 cursor-pointer"
@@ -307,26 +302,24 @@ export const BukuInduk: React.FC<BukuIndukProps> = ({ config, role = 'operator',
       </div>
 
       {/* MODAL IMPOR DATA PD DAPODIK */}
-      {isOperator && (
-        <ImportDapodikSiswaModal
-          role={role}
-          config={config}
-          isOpen={isImportDapodikOpen}
-          onClose={() => setIsImportDapodikOpen(false)}
-          onToast={onToast || ((msg) => console.log(msg))}
-          onSuccess={(res, count) => {
-            const fresh = getSiswas();
-            setSiswaList(fresh);
-            if (fresh.length > 0 && !selectedSiswaId) {
-              setSelectedSiswaId(fresh[0].id);
-            }
-            let msg = `Berhasil mengimpor ${count} data Dapodik: ${res.added} siswa baru ditambahkan`;
-            if (res.updated > 0) msg += `, ${res.updated} data diperbarui`;
-            if (res.skipped > 0) msg += `, ${res.skipped} dilewati`;
-            if (onToast) onToast(msg + '.');
-          }}
-        />
-      )}
+      <ImportDapodikSiswaModal
+        role={role}
+        config={config}
+        isOpen={isImportDapodikOpen}
+        onClose={() => setIsImportDapodikOpen(false)}
+        onToast={onToast || ((msg) => console.log(msg))}
+        onSuccess={(res, count) => {
+          const fresh = getSiswas();
+          setSiswaList(fresh);
+          if (fresh.length > 0 && !selectedSiswaId) {
+            setSelectedSiswaId(fresh[0].id);
+          }
+          let msg = `Berhasil mengimpor ${count} data Dapodik: ${res.added} siswa baru ditambahkan`;
+          if (res.updated > 0) msg += `, ${res.updated} data diperbarui`;
+          if (res.skipped > 0) msg += `, ${res.skipped} dilewati`;
+          if (onToast) onToast(msg + '.');
+        }}
+      />
     </div>
   );
 };

@@ -126,18 +126,14 @@ const toCloudImage = async (dataUrl: string, baseName: string): Promise<string> 
 };
 
 export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
-  role,
   config,
   onToast,
   initialTab = 'kop',
   onOpenSupabaseModal,
 }) => {
-  const isOperator = role === 'operator';
   const [formData, setFormData] = useState<SchoolConfig>(config);
   const [activeTab, setActiveTab] = useState<string>(initialTab);
   const [templates, setTemplates] = useState<LetterTemplate[]>(getTemplates());
-
-  const effectiveTab = !isOperator && ['supabase', 'dapodik', 'backup'].includes(activeTab) ? 'kop' : activeTab;
 
   // Template Form Modal
   const [isModalTemplateOpen, setIsModalTemplateOpen] = useState(false);
@@ -150,8 +146,8 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
   const [isDraggingPemda, setIsDraggingPemda] = useState(false);
   const [isDraggingSekolah, setIsDraggingSekolah] = useState(false);
 
-  // Supabase Testing in Settings (operator only)
-  const [sbConfig] = useState(() => (isOperator ? getSupabaseConfig() : DEFAULT_SUPABASE_CONFIG));
+  // Supabase Testing in Settings
+  const [sbConfig, setSbConfig] = useState(getSupabaseConfig());
   const [sbTesting, setSbTesting] = useState(false);
   const [sbTestResult, setSbTestResult] = useState<{ connected: boolean; latencyMs: number; message: string } | null>(null);
   const [copiedSql, setCopiedSql] = useState(false);
@@ -161,7 +157,6 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
   const rombelNow = getKelasList();
   const siswaPerRombel = (k: string) => getSiswas().filter((x) => x.kelas === k && x.status === 'Aktif').length;
   const handleAddRombel = () => {
-    if (!isOperator) return;
     const r = addRombel(newRombel);
     onToast(r.message, !r.ok);
     if (r.ok && r.value) {
@@ -170,7 +165,6 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
     }
   };
   const handleRemoveRombel = (k: string) => {
-    if (!isOperator) return;
     if (!window.confirm(`Hapus rombel kelas "${k}"?`)) return;
     const r = removeRombel(k);
     onToast(r.message, !r.ok);
@@ -178,13 +172,11 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
   };
 
   const handleFieldChange = (field: keyof SchoolConfig, val: any) => {
-    if (!isOperator) return;
     setFormData((prev) => ({ ...prev, [field]: val }));
   };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isOperator) return;
     saveSchoolConfig(formData);
     if (formData.namaOperator?.trim()) {
       syncAllOperatorAccounts(
@@ -198,7 +190,6 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
   };
 
   const handleUploadPemda = async (file: File) => {
-    if (!isOperator) return;
     if (file.size > 10 * 1024 * 1024) {
       onToast('Ukuran berkas logo maksimal 10 MB.', true);
       return;
@@ -213,7 +204,6 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
   };
 
   const handleUploadSekolah = async (file: File) => {
-    if (!isOperator) return;
     if (file.size > 10 * 1024 * 1024) {
       onToast('Ukuran berkas logo maksimal 10 MB.', true);
       return;
@@ -228,7 +218,6 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
   };
 
   const runSbTest = async () => {
-    if (!isOperator) return;
     setSbTesting(true);
     const res = await testSupabaseConnection(sbConfig);
     setSbTestResult(res);
@@ -236,7 +225,6 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
   };
 
   const handlePushSupabase = async () => {
-    if (!isOperator) return;
     try {
       const data = getAllExportableData();
       const res = await pushAllToSupabase(data);
@@ -248,7 +236,6 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
   };
 
   const handlePullSupabase = async () => {
-    if (!isOperator) return;
     if (!window.confirm('Unduh data dari Supabase Cloud dan timpa data lokal?')) return;
     try {
       const res = await pullAllFromSupabase();
@@ -286,9 +273,7 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
             Pengaturan Master Sekolah & Kop Surat
           </h1>
           <p className="text-xs text-[#566A6E] mt-1">
-            {isOperator
-              ? 'Konfigurasi logo Pemda dan logo Sekolah hasil upload, tata letak kop surat, koneksi Supabase, penomoran surat, dan cadangan data.'
-              : 'Informasi profil sekolah, tata letak kop surat resmi, format surat, dan penomoran surat (Mode Lihat Saja).'}
+            Konfigurasi logo Pemda dan logo Sekolah hasil upload, tata letak kop surat, koneksi Supabase, penomoran surat, dan cadangan data.
           </p>
         </div>
 
@@ -298,7 +283,7 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
             type="button"
             onClick={() => setActiveTab('kop')}
             className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
-              effectiveTab === 'kop' ? 'bg-[#0B6B58] text-white shadow-xs' : 'text-[#566A6E] hover:text-[#13262A]'
+              activeTab === 'kop' ? 'bg-[#0B6B58] text-white shadow-xs' : 'text-[#566A6E] hover:text-[#13262A]'
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" /> Kop Surat & Logo
@@ -307,38 +292,34 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
             type="button"
             onClick={() => setActiveTab('profil')}
             className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer ${
-              effectiveTab === 'profil' ? 'bg-white text-[#0B6B58] shadow-xs' : 'text-[#566A6E] hover:text-[#13262A]'
+              activeTab === 'profil' ? 'bg-white text-[#0B6B58] shadow-xs' : 'text-[#566A6E] hover:text-[#13262A]'
             }`}
           >
             Profil Sekolah
           </button>
-          {isOperator && (
-            <>
-              <button
-                type="button"
-                onClick={() => setActiveTab('supabase')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
-                  effectiveTab === 'supabase' ? 'bg-[#0B6B58] text-white shadow-xs' : 'text-[#566A6E] hover:text-[#13262A]'
-                }`}
-              >
-                <Cloud className="w-3.5 h-3.5" /> Koneksi Supabase
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('dapodik')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
-                  effectiveTab === 'dapodik' ? 'bg-[#0B6B58] text-white shadow-xs' : 'text-[#566A6E] hover:text-[#13262A]'
-                }`}
-              >
-                <Server className="w-3.5 h-3.5" /> Web Service Dapodik
-              </button>
-            </>
-          )}
+          <button
+            type="button"
+            onClick={() => setActiveTab('supabase')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'supabase' ? 'bg-[#0B6B58] text-white shadow-xs' : 'text-[#566A6E] hover:text-[#13262A]'
+            }`}
+          >
+            <Cloud className="w-3.5 h-3.5" /> Koneksi Supabase
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('dapodik')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'dapodik' ? 'bg-[#0B6B58] text-white shadow-xs' : 'text-[#566A6E] hover:text-[#13262A]'
+            }`}
+          >
+            <Server className="w-3.5 h-3.5" /> Web Service Dapodik
+          </button>
           <button
             type="button"
             onClick={() => setActiveTab('template')}
             className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer ${
-              effectiveTab === 'template' ? 'bg-white text-[#0B6B58] shadow-xs' : 'text-[#566A6E] hover:text-[#13262A]'
+              activeTab === 'template' ? 'bg-white text-[#0B6B58] shadow-xs' : 'text-[#566A6E] hover:text-[#13262A]'
             }`}
           >
             Format Surat
@@ -347,28 +328,26 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
             type="button"
             onClick={() => setActiveTab('surat')}
             className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer ${
-              effectiveTab === 'surat' ? 'bg-white text-[#0B6B58] shadow-xs' : 'text-[#566A6E] hover:text-[#13262A]'
+              activeTab === 'surat' ? 'bg-white text-[#0B6B58] shadow-xs' : 'text-[#566A6E] hover:text-[#13262A]'
             }`}
           >
             Penomoran Surat
           </button>
-          {isOperator && (
-            <button
-              type="button"
-              onClick={() => setActiveTab('backup')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer ${
-                effectiveTab === 'backup' ? 'bg-white text-[#0B6B58] shadow-xs' : 'text-[#566A6E] hover:text-[#13262A]'
-              }`}
-            >
-              Cadangan & Reset
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setActiveTab('backup')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer ${
+              activeTab === 'backup' ? 'bg-white text-[#0B6B58] shadow-xs' : 'text-[#566A6E] hover:text-[#13262A]'
+            }`}
+          >
+            Cadangan & Reset
+          </button>
         </div>
       </div>
 
       <form onSubmit={handleSave} className="space-y-6">
         {/* TAB 1: KOP SURAT & LOGO */}
-        {effectiveTab === 'kop' && (
+        {activeTab === 'kop' && (
           <div className="space-y-6">
             <div className="bg-white border border-[#D3DDD9] rounded-xl p-6 shadow-xs space-y-6">
               <div className="pb-3 border-b border-[#D3DDD9]">
@@ -432,31 +411,29 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                       <div className="flex-1 min-w-0 space-y-1 text-xs">
                         <div className="font-bold text-[#13262A] truncate">Logo Pemda Aktif</div>
                         <p className="text-[10px] text-[#566A6E]">Tampil di pojok kiri atas kop surat.</p>
-                        {isOperator && (
-                          <div className="flex items-center gap-2 pt-1">
-                            <button
-                              type="button"
-                              onClick={() => filePemdaRef.current?.click()}
-                              className="text-xs font-semibold text-[#0B6B58] hover:underline cursor-pointer"
-                            >
-                              Ganti Berkas
-                            </button>
-                            <span className="text-gray-300">&middot;</span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleFieldChange('logoPemda', '');
-                                onToast('Logo Pemda dihapus.');
-                              }}
-                              className="text-xs font-semibold text-rose-600 hover:underline cursor-pointer"
-                            >
-                              Hapus
-                            </button>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => filePemdaRef.current?.click()}
+                            className="text-xs font-semibold text-[#0B6B58] hover:underline cursor-pointer"
+                          >
+                            Ganti Berkas
+                          </button>
+                          <span className="text-gray-300">&middot;</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleFieldChange('logoPemda', '');
+                              onToast('Logo Pemda dihapus.');
+                            }}
+                            className="text-xs font-semibold text-rose-600 hover:underline cursor-pointer"
+                          >
+                            Hapus
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  ) : isOperator ? (
+                  ) : (
                     <div
                       onDragOver={(e) => {
                         e.preventDefault();
@@ -479,10 +456,6 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                       <Upload className="w-5 h-5 text-[#0B6B58]" />
                       <div className="text-xs font-bold text-[#13262A]">Klik untuk unggah Logo Pemda</div>
                       <div className="text-[10px] text-[#566A6E]">PNG transparan, SVG, atau JPG resolusi tinggi</div>
-                    </div>
-                  ) : (
-                    <div className="p-4 rounded-lg border border-[#D3DDD9] bg-white text-center text-xs text-[#566A6E]">
-                      Belum ada Logo Pemda yang terpasang.
                     </div>
                   )}
                 </div>
@@ -527,31 +500,29 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                       <div className="flex-1 min-w-0 space-y-1 text-xs">
                         <div className="font-bold text-[#13262A] truncate">Logo Sekolah Aktif</div>
                         <p className="text-[10px] text-[#566A6E]">Emblem resmi satuan pendidikan.</p>
-                        {isOperator && (
-                          <div className="flex items-center gap-2 pt-1">
-                            <button
-                              type="button"
-                              onClick={() => fileSekolahRef.current?.click()}
-                              className="text-xs font-semibold text-[#0B6B58] hover:underline cursor-pointer"
-                            >
-                              Ganti Berkas
-                            </button>
-                            <span className="text-gray-300">&middot;</span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleFieldChange('logoSekolah', '');
-                                onToast('Logo Sekolah dihapus.');
-                              }}
-                              className="text-xs font-semibold text-rose-600 hover:underline cursor-pointer"
-                            >
-                              Hapus
-                            </button>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => fileSekolahRef.current?.click()}
+                            className="text-xs font-semibold text-[#0B6B58] hover:underline cursor-pointer"
+                          >
+                            Ganti Berkas
+                          </button>
+                          <span className="text-gray-300">&middot;</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleFieldChange('logoSekolah', '');
+                              onToast('Logo Sekolah dihapus.');
+                            }}
+                            className="text-xs font-semibold text-rose-600 hover:underline cursor-pointer"
+                          >
+                            Hapus
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  ) : isOperator ? (
+                  ) : (
                     <div
                       onDragOver={(e) => {
                         e.preventDefault();
@@ -575,10 +546,6 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                       <div className="text-xs font-bold text-[#13262A]">Klik untuk unggah Logo Sekolah</div>
                       <div className="text-[10px] text-[#566A6E]">PNG transparan, SVG, atau JPG resolusi tinggi</div>
                     </div>
-                  ) : (
-                    <div className="p-4 rounded-lg border border-[#D3DDD9] bg-white text-center text-xs text-[#566A6E]">
-                      Belum ada Logo Sekolah yang terpasang.
-                    </div>
                   )}
                 </div>
               </div>
@@ -592,8 +559,7 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                   <select
                     value={formData.tataLetakLogo || 'kiri_kedua'}
                     onChange={(e) => handleFieldChange('tataLetakLogo', e.target.value)}
-                    disabled={!isOperator}
-                    className="w-full px-3 py-2 text-xs border border-[#D3DDD9] rounded-lg bg-white font-bold text-[#0B6B58] disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
+                    className="w-full px-3 py-2 text-xs border border-[#D3DDD9] rounded-lg bg-white font-bold text-[#0B6B58]"
                   >
                     <option value="kiri_kedua">
                       Pojok Kiri Atas: Logo Pemda & Logo Sekolah Berdampingan (Sesuai Permintaan)
@@ -625,8 +591,7 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                     step="2"
                     value={formData.logoHeight || 85}
                     onChange={(e) => handleFieldChange('logoHeight', Number(e.target.value))}
-                    disabled={!isOperator}
-                    className="w-full accent-[#0B6B58] cursor-pointer disabled:cursor-not-allowed"
+                    className="w-full accent-[#0B6B58] cursor-pointer"
                   />
                   <div className="flex justify-between text-[10px] text-[#566A6E]">
                     <span>Kompak (65px)</span>
@@ -651,9 +616,8 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                     type="text"
                     value={formData.kopInduk1 || ''}
                     onChange={(e) => handleFieldChange('kopInduk1', e.target.value)}
-                    disabled={!isOperator}
                     placeholder="Contoh: PEMERINTAH KABUPATEN CIREBON"
-                    className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-semibold uppercase disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
+                    className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-semibold uppercase"
                   />
                 </div>
                 <div>
@@ -664,9 +628,8 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                     type="text"
                     value={formData.kopInduk2 || ''}
                     onChange={(e) => handleFieldChange('kopInduk2', e.target.value)}
-                    disabled={!isOperator}
                     placeholder="Contoh: DINAS PENDIDIKAN"
-                    className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-semibold uppercase disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
+                    className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-semibold uppercase"
                   />
                 </div>
                 <div>
@@ -677,9 +640,8 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                     type="text"
                     value={formData.kopAlamat || ''}
                     onChange={(e) => handleFieldChange('kopAlamat', e.target.value)}
-                    disabled={!isOperator}
                     placeholder="Jl. Raden Cempa No. 101 Desa Cempaka Kec. Talun Kab. Cirebon 45171"
-                    className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg text-gray-700 disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
+                    className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg text-gray-700"
                   />
                 </div>
               </div>
@@ -703,7 +665,7 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
         )}
 
         {/* TAB 2: PROFIL SEKOLAH */}
-        {effectiveTab === 'profil' && (
+        {activeTab === 'profil' && (
           <div className="bg-white border border-[#D3DDD9] rounded-xl p-6 shadow-xs space-y-4">
             <h2 className="text-sm font-bold text-[#13262A] pb-2 border-b border-[#D3DDD9] font-display flex items-center gap-2">
               <School className="w-4 h-4 text-[#0B6B58]" /> Identitas Satuan Pendidikan
@@ -715,9 +677,8 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                   type="text"
                   value={formData.namaSekolah}
                   onChange={(e) => handleFieldChange('namaSekolah', e.target.value)}
-                  disabled={!isOperator}
                   required
-                  className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-bold text-[#13262A] disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
+                  className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-bold text-[#13262A]"
                 />
               </div>
               <div>
@@ -726,9 +687,8 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                   type="text"
                   value={formData.npsn}
                   onChange={(e) => handleFieldChange('npsn', e.target.value)}
-                  disabled={!isOperator}
                   required
-                  className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-mono font-bold disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
+                  className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-mono font-bold"
                 />
               </div>
               <div>
@@ -737,8 +697,7 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                   type="text"
                   value={formData.nss || ''}
                   onChange={(e) => handleFieldChange('nss', e.target.value)}
-                  disabled={!isOperator}
-                  className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-mono disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
+                  className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-mono"
                 />
               </div>
               <div>
@@ -746,8 +705,7 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                 <select
                   value={formData.statusSekolah || 'a. Negeri Biasa'}
                   onChange={(e) => handleFieldChange('statusSekolah', e.target.value)}
-                  disabled={!isOperator}
-                  className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
+                  className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg"
                 >
                   <option value="a. Negeri Biasa">a. Negeri Biasa</option>
                   <option value="b. Negeri Inpres">b. Negeri Inpres</option>
@@ -761,9 +719,8 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                 <textarea
                   value={formData.alamat}
                   onChange={(e) => handleFieldChange('alamat', e.target.value)}
-                  disabled={!isOperator}
                   rows={2}
-                  className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
+                  className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg"
                 />
               </div>
               <div>
@@ -772,8 +729,7 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                   type="text"
                   value={formData.kecamatan || ''}
                   onChange={(e) => handleFieldChange('kecamatan', e.target.value)}
-                  disabled={!isOperator}
-                  className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
+                  className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg"
                 />
               </div>
               <div>
@@ -782,8 +738,7 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                   type="text"
                   value={formData.kabupaten || ''}
                   onChange={(e) => handleFieldChange('kabupaten', e.target.value)}
-                  disabled={!isOperator}
-                  className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
+                  className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg"
                 />
               </div>
               <div className="pt-3 md:col-span-2 border-t border-[#D3DDD9]">
@@ -797,9 +752,8 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                       type="text"
                       value={formData.kepsek}
                       onChange={(e) => handleFieldChange('kepsek', e.target.value)}
-                      disabled={!isOperator}
                       required
-                      className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-bold disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
+                      className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-bold"
                     />
                   </div>
                   <div>
@@ -808,8 +762,7 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                       type="text"
                       value={formData.nipKepsek}
                       onChange={(e) => handleFieldChange('nipKepsek', e.target.value)}
-                      disabled={!isOperator}
-                      className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-mono font-semibold disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
+                      className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-mono font-semibold"
                     />
                   </div>
                 </div>
@@ -819,16 +772,12 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                     <h4 className="text-xs font-bold uppercase tracking-wider text-[#0B6B58] flex items-center gap-1.5">
                       <ShieldCheck className="w-4 h-4 text-[#0B6B58]" /> Operator Sekolah & Admin Dapodik
                     </h4>
-                    {isOperator && (
-                      <span className="text-[10px] text-[#0B6B58] bg-[#DAEEE7] border border-[#0B6B58]/20 px-2.5 py-0.5 rounded-full font-semibold">
-                        Nama Disinkronkan Otomatis (Email 1 & Email 2 Sama)
-                      </span>
-                    )}
+                    <span className="text-[10px] text-[#0B6B58] bg-[#DAEEE7] border border-[#0B6B58]/20 px-2.5 py-0.5 rounded-full font-semibold">
+                      Nama Disinkronkan Otomatis (Email 1 & Email 2 Sama)
+                    </span>
                   </div>
                   <p className="text-[11px] text-[#566A6E] leading-relaxed">
-                    {isOperator
-                      ? 'Nama operator sekolah selalu dijaga sama persis di seluruh sistem. Perubahan nama di akun email 1 otomatis tersinkron ke email 2 dan Supabase Cloud sehingga nama tidak berbeda-beda.'
-                      : 'Informasi identitas Operator Sekolah.'}
+                    Nama operator sekolah selalu dijaga sama persis di seluruh sistem. Perubahan nama di akun email 1 otomatis tersinkron ke email 2 dan Supabase Cloud sehingga nama tidak berbeda-beda.
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -837,9 +786,8 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                         type="text"
                         value={formData.namaOperator || ''}
                         onChange={(e) => handleFieldChange('namaOperator', e.target.value)}
-                        disabled={!isOperator}
                         placeholder="Contoh: Risna Hidayat, S.Kom"
-                        className="w-full px-3 py-2 border border-[#0B6B58] rounded-lg font-bold text-[#0B6B58] bg-[#DAEEE7]/20 disabled:bg-[#E8EFEC] disabled:border-[#D3DDD9] disabled:text-[#566A6E] disabled:cursor-not-allowed"
+                        className="w-full px-3 py-2 border border-[#0B6B58] rounded-lg font-bold text-[#0B6B58] bg-[#DAEEE7]/20"
                       />
                     </div>
                     <div>
@@ -848,9 +796,8 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                         type="text"
                         value={formData.nipOperator || ''}
                         onChange={(e) => handleFieldChange('nipOperator', e.target.value)}
-                        disabled={!isOperator}
                         placeholder="Contoh: 19890412 201902 1 003"
-                        className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-mono disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
+                        className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-mono"
                       />
                     </div>
                     <div>
@@ -859,9 +806,8 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                         type="email"
                         value={formData.emailOperator || ''}
                         onChange={(e) => handleFieldChange('emailOperator', e.target.value)}
-                        disabled={!isOperator}
                         placeholder="Contoh: operator@sdn2cempaka.sch.id / risnahidayat09@gmail.com"
-                        className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-mono text-xs disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
+                        className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-mono text-xs"
                       />
                     </div>
                     <div>
@@ -870,9 +816,8 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                         type="email"
                         value={formData.emailOperator2 || ''}
                         onChange={(e) => handleFieldChange('emailOperator2', e.target.value)}
-                        disabled={!isOperator}
                         placeholder="Contoh: risnahidayat17@admin.sd.belajar.id"
-                        className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-mono text-xs disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
+                        className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-mono text-xs"
                       />
                     </div>
                   </div>
@@ -882,66 +827,61 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
           </div>
         )}
 
-        {/* ROMBEL KELAS */}
-        {effectiveTab === 'profil' && (
+        {/* ROMBEL KELAS (khusus operator) */}
+        {activeTab === 'profil' && (
           <div className="bg-white border border-[#D3DDD9] rounded-xl p-6 shadow-xs space-y-3">
             <h2 className="text-sm font-bold text-[#13262A] pb-2 border-b border-[#D3DDD9] font-display flex items-center gap-2">
               <School className="w-4 h-4 text-[#0B6B58]" /> Rombel Kelas
-              {isOperator && (
-                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">Khusus Operator</span>
-              )}
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">Khusus Operator</span>
             </h2>
             <p className="text-xs text-[#566A6E] leading-relaxed">
-              Daftar rombongan belajar aktif yang dipakai di data siswa, mutasi, arsip absensi, penilaian, dan laporan.
+              Daftar ini dipakai di data siswa, mutasi, arsip absensi, penilaian, dan laporan. Tambahkan rombel paralel dengan nama seperti
+              <b> 1A</b>, <b>1B</b>, <b>4B</b>. Perubahan tersimpan langsung.
             </p>
             <div className="flex flex-wrap gap-2">
               {rombelNow.map((k) => (
-                <span key={k} className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#F1F4F2] border border-[#D3DDD9] rounded-full text-xs font-bold text-[#13262A]">
+                <span key={k} className="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1 bg-[#F1F4F2] border border-[#D3DDD9] rounded-full text-xs font-bold text-[#13262A]">
                   Kelas {k}
                   <span className="text-[10px] font-mono font-semibold text-[#566A6E]">{siswaPerRombel(k)} siswa</span>
-                  {isOperator && (
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveRombel(k)}
-                      className="p-1 text-rose-600 hover:bg-rose-50 rounded-full cursor-pointer"
-                      title={`Hapus rombel ${k}`}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveRombel(k)}
+                    className="p-1 text-rose-600 hover:bg-rose-50 rounded-full cursor-pointer"
+                    title={`Hapus rombel ${k}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </span>
               ))}
             </div>
-            {isOperator && (
-              <div className="flex items-center gap-2 text-xs">
-                <input
-                  type="text"
-                  value={newRombel}
-                  onChange={(e) => setNewRombel(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddRombel();
-                    }
-                  }}
-                  maxLength={12}
-                  placeholder="Contoh: 1A"
-                  className="w-40 px-3 py-2 border border-[#D3DDD9] rounded-lg font-bold"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddRombel}
-                  className="px-3.5 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white font-semibold rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Tambah Rombel
-                </button>
-              </div>
-            )}
+            <div className="flex items-center gap-2 text-xs">
+              <input
+                type="text"
+                value={newRombel}
+                onChange={(e) => setNewRombel(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddRombel();
+                  }
+                }}
+                maxLength={12}
+                placeholder="Contoh: 1A"
+                className="w-40 px-3 py-2 border border-[#D3DDD9] rounded-lg font-bold"
+              />
+              <button
+                type="button"
+                onClick={handleAddRombel}
+                className="px-3.5 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white font-semibold rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <Plus className="w-3.5 h-3.5" /> Tambah Rombel
+              </button>
+            </div>
           </div>
         )}
 
         {/* TAB 3: KONEKSI SUPABASE */}
-        {isOperator && effectiveTab === 'supabase' && (
+        {activeTab === 'supabase' && (
           <div className="bg-white border border-[#D3DDD9] rounded-xl p-6 shadow-xs space-y-5">
             <div className="pb-3 border-b border-[#D3DDD9] flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -1078,14 +1018,14 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
         )}
 
         {/* TAB 3B: WEB SERVICE LOKAL DAPODIK */}
-        {isOperator && effectiveTab === 'dapodik' && (
+        {activeTab === 'dapodik' && (
           <div className="bg-white border border-[#D3DDD9] rounded-xl p-6 shadow-xs">
             <DapodikWebServicePanel config={formData} onToast={onToast} />
           </div>
         )}
 
         {/* TAB 4: TEMPLATE SURAT */}
-        {effectiveTab === 'template' && (
+        {activeTab === 'template' && (
           <div className="bg-white border border-[#D3DDD9] rounded-xl p-6 shadow-xs space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#D3DDD9]">
               <div>
@@ -1093,20 +1033,16 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                   <FileText className="w-5 h-5 text-[#0B6B58]" /> Format & Template Surat Keluar
                 </h2>
                 <p className="text-xs text-[#566A6E]">
-                  {isOperator
-                    ? 'Kelola template surat yang siap dipilih langsung di pembuat Surat Keluar.'
-                    : 'Daftar template format surat keluar sekolah (Mode Lihat Saja).'}
+                  Kelola template surat yang siap dipilih langsung di pembuat Surat Keluar.
                 </p>
               </div>
-              {isOperator && (
-                <button
-                  type="button"
-                  onClick={() => setIsModalTemplateOpen(true)}
-                  className="px-3.5 py-1.5 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-xs transition cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Tambah Format Baru
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => setIsModalTemplateOpen(true)}
+                className="px-3.5 py-1.5 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" /> Tambah Format Baru
+              </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1124,22 +1060,20 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                         </span>
                       </div>
                     </div>
-                    {isOperator && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (window.confirm(`Hapus format "${t.judul}"?`)) {
-                            deleteTemplate(t.id);
-                            setTemplates(getTemplates());
-                            onToast(`Format "${t.judul}" dihapus.`);
-                          }
-                        }}
-                        className="p-1.5 text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
-                        title="Hapus Format"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm(`Hapus format "${t.judul}"?`)) {
+                          deleteTemplate(t.id);
+                          setTemplates(getTemplates());
+                          onToast(`Format "${t.judul}" dihapus.`);
+                        }
+                      }}
+                      className="p-1.5 text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
+                      title="Hapus Format"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                   <div className="text-xs text-gray-600 line-clamp-3 bg-white p-2.5 rounded-lg border border-gray-200 font-sans leading-relaxed">
                     {t.isi || (t.isiHtml ? htmlToPlainText(t.isiHtml) : '(Belum ada isi format)')}
@@ -1151,7 +1085,7 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
         )}
 
         {/* TAB 5: PENOMORAN SURAT */}
-        {effectiveTab === 'surat' && (
+        {activeTab === 'surat' && (
           <div className="bg-white border border-[#D3DDD9] rounded-xl p-6 shadow-xs space-y-4">
             <h2 className="text-sm font-bold text-[#13262A] pb-2 border-b border-[#D3DDD9] font-display flex items-center gap-2">
               <Settings className="w-4 h-4 text-[#0B6B58]" /> Pola Format Penomoran Surat Keluar
@@ -1163,9 +1097,8 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                   type="text"
                   value={formData.formatNoSurat || ''}
                   onChange={(e) => handleFieldChange('formatNoSurat', e.target.value)}
-                  disabled={!isOperator}
                   placeholder="Contoh: 421.2/{no:3}/SD/{tahun}"
-                  className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-mono font-bold text-[#0B6B58] disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
+                  className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-mono font-bold text-[#0B6B58]"
                 />
                 <p className="text-[11px] text-[#566A6E] mt-1">
                   Tag yang didukung:{' '}
@@ -1179,7 +1112,7 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
         )}
 
         {/* TAB 6: BACKUP & RESTORE */}
-        {isOperator && effectiveTab === 'backup' && (
+        {activeTab === 'backup' && (
           <div className="bg-white border border-[#D3DDD9] rounded-xl p-6 shadow-xs space-y-4">
             <h2 className="text-sm font-bold text-[#13262A] pb-2 border-b border-[#D3DDD9] font-display flex items-center gap-2">
               <Download className="w-4 h-4 text-[#0B6B58]" /> Cadangan Data & Pemulihan
@@ -1254,7 +1187,7 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
         )}
 
         {/* Global Save Button */}
-        {isOperator && effectiveTab !== 'dapodik' && (
+        {activeTab !== 'dapodik' && (
           <div className="flex justify-end pt-2">
             <button
               type="submit"

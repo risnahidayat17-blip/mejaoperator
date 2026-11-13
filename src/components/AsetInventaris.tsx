@@ -116,7 +116,6 @@ export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, on
 
   const handleSave = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!isOperator) return;
     const form = new FormData(e.currentTarget);
     const record: Aset = {
       id: editingAset ? editingAset.id : `ast_${Date.now()}`,
@@ -156,7 +155,6 @@ export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, on
   };
 
   const handleProcessFile = async (file: File) => {
-    if (!isOperator) return;
     setIsProcessingFile(true);
     try {
       const { result, sheets } = await parseSikatonFile(file);
@@ -188,7 +186,6 @@ export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, on
   };
 
   const handleExecuteImport = () => {
-    if (!isOperator) return;
     if (!parsedResult || !parsedResult.items.length) {
       onToast('Tidak ada data barang yang bisa diimpor.', true);
       return;
@@ -246,30 +243,28 @@ export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, on
           </p>
         </div>
 
-        {isOperator && (
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setIsImportModalOpen(true);
-              }}
-              className="px-3.5 py-2 bg-white border border-[#D3DDD9] hover:bg-[#F3F7F5] text-[#13262A] text-xs font-semibold rounded-lg shadow-2xs flex items-center gap-2 transition cursor-pointer"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-[#0B6B58]" /> Impor SIKATON (.xlsx / .csv)
-            </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setIsImportModalOpen(true);
+            }}
+            className="px-3.5 py-2 bg-white border border-[#D3DDD9] hover:bg-[#F3F7F5] text-[#13262A] text-xs font-semibold rounded-lg shadow-2xs flex items-center gap-2 transition cursor-pointer"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-[#0B6B58]" /> Impor SIKATON (.xlsx / .csv)
+          </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setEditingAset(null);
-                setIsModalOpen(true);
-              }}
-              className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 transition cursor-pointer"
-            >
-              <Plus className="w-4 h-4" /> Catat Barang Baru
-            </button>
-          </div>
-        )}
+          <button
+            type="button"
+            onClick={() => {
+              setEditingAset(null);
+              setIsModalOpen(true);
+            }}
+            className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 transition cursor-pointer"
+          >
+            <Plus className="w-4 h-4" /> Catat Barang Baru
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -371,9 +366,7 @@ export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, on
                     <th className="py-2.5 px-4 border-b border-[#D3DDD9] text-center">Kondisi</th>
                     <th className="py-2.5 px-4 border-b border-[#D3DDD9]">Lokasi / Ruangan</th>
                     <th className="py-2.5 px-4 border-b border-[#D3DDD9] text-right">Nilai Total</th>
-                    {isOperator && (
-                      <th className="py-2.5 px-4 border-b border-[#D3DDD9] text-right">Aksi</th>
-                    )}
+                    <th className="py-2.5 px-4 border-b border-[#D3DDD9] text-right">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#D3DDD9]">
@@ -416,20 +409,20 @@ export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, on
                               }).format(totalVal)
                             : '-'}
                         </td>
-                        {isOperator && (
-                          <td className="py-3 px-4 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingAset(a);
-                                  setIsModalOpen(true);
-                                }}
-                                className="p-1.5 text-[#566A6E] hover:text-[#0B6B58] hover:bg-[#E8EFEC] rounded transition cursor-pointer"
-                                title="Ubah Aset"
-                              >
-                                <Pencil className="w-4 h-4" />
-                              </button>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingAset(a);
+                                setIsModalOpen(true);
+                              }}
+                              className="p-1.5 text-[#566A6E] hover:text-[#0B6B58] hover:bg-[#E8EFEC] rounded transition cursor-pointer"
+                              title="Ubah Aset"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            {isOperator && (
                               <button
                                 type="button"
                                 onClick={() => handleDelete(a.id, a.nama)}
@@ -438,33 +431,29 @@ export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, on
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
-                            </div>
-                          </td>
-                        )}
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={isOperator ? 7 : 6} className="py-12 text-center text-[#566A6E]">
+                      <td colSpan={7} className="py-12 text-center text-[#566A6E]">
                         <Package className="w-10 h-10 text-[#A0B0AD] mx-auto mb-2 opacity-60" />
                         <p className="font-semibold text-sm text-[#13262A]">Tidak ada data barang yang sesuai</p>
                         <p className="text-xs text-[#566A6E] mt-1 max-w-md mx-auto">
-                          {isOperator
-                            ? 'Mulai catat barang baru atau impor berkas data aset resmi SIKATON (.xlsx / .csv).'
-                            : 'Belum ada data barang inventaris yang sesuai pencarian.'}
+                          Mulai catat barang baru atau impor berkas data aset resmi SIKATON (.xlsx / .csv).
                         </p>
-                        {isOperator && (
-                          <div className="mt-4 flex justify-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setIsImportModalOpen(true)}
-                              className="px-3.5 py-1.5 bg-white border border-[#D3DDD9] hover:bg-[#F3F7F5] text-xs font-semibold rounded-lg flex items-center gap-2 cursor-pointer shadow-2xs"
-                            >
-                              <FileSpreadsheet className="w-4 h-4 text-[#0B6B58]" /> Impor SIKATON (.xlsx / .csv)
-                            </button>
-                          </div>
-                        )}
+                        <div className="mt-4 flex justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setIsImportModalOpen(true)}
+                            className="px-3.5 py-1.5 bg-white border border-[#D3DDD9] hover:bg-[#F3F7F5] text-xs font-semibold rounded-lg flex items-center gap-2 cursor-pointer shadow-2xs"
+                          >
+                            <FileSpreadsheet className="w-4 h-4 text-[#0B6B58]" /> Impor SIKATON (.xlsx / .csv)
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )}
@@ -498,9 +487,8 @@ export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, on
               <input
                 type="text"
                 value={penanggungJawab}
-                disabled={!isOperator}
                 onChange={(e) => setPenanggungJawab(e.target.value)}
-                className="text-xs px-3 py-1.5 border border-[#D3DDD9] rounded-lg w-56 disabled:bg-gray-50 disabled:text-[#566A6E] disabled:cursor-not-allowed"
+                className="text-xs px-3 py-1.5 border border-[#D3DDD9] rounded-lg w-56"
               />
             </div>
 
@@ -620,7 +608,7 @@ export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, on
       {activeTab === 'bmd' && <StikerBmd role={role} config={config} onToast={onToast} />}
 
       {/* ADD / EDIT MODAL */}
-      {isOperator && isModalOpen && (
+      {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-xl shadow-xl border border-[#D3DDD9] max-w-lg w-full p-6 space-y-4 my-6">
             <h3 className="text-base font-bold text-[#13262A] font-display">
@@ -755,7 +743,7 @@ export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, on
       )}
 
       {/* MODAL IMPOR SIKATON */}
-      {isOperator && isImportModalOpen && (
+      {isImportModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl border border-[#D3DDD9] max-w-4xl w-full p-6 space-y-4 my-6 text-xs max-h-[92vh] flex flex-col">
             <div className="flex items-center justify-between border-b border-[#E6EDEA] pb-3 flex-none">
