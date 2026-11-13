@@ -93,6 +93,7 @@ export const KEYS = {
 };
 
 const listeners = new Set<() => void>();
+let notifyScheduled = false;
 
 export function subscribeToStorage(callback: () => void): () => void {
   listeners.add(callback);
@@ -102,6 +103,7 @@ export function subscribeToStorage(callback: () => void): () => void {
 }
 
 function notifyListeners(): void {
+  notifyScheduled = false;
   listeners.forEach((cb) => {
     try {
       cb();
@@ -111,10 +113,30 @@ function notifyListeners(): void {
   });
 }
 
+function scheduleNotifyListeners(): void {
+  if (notifyScheduled) return;
+  notifyScheduled = true;
+  if (typeof queueMicrotask === 'function') {
+    queueMicrotask(notifyListeners);
+  } else {
+    Promise.resolve().then(notifyListeners);
+  }
+}
+
+// In-memory JSON parse cache indexed by storage key + raw string check
+const jsonCache = new Map<string, { raw: string; parsed: unknown }>();
+
 export function getFromStorage<T>(key: string, defaultValue: T): T {
   try {
-    const item = localStorage.getItem(key);
-    return item ? JSON.parse(item) : defaultValue;
+    const raw = localStorage.getItem(key);
+    if (!raw) return defaultValue;
+    const hit = jsonCache.get(key);
+    if (hit && hit.raw === raw) {
+      return (Array.isArray(hit.parsed) ? hit.parsed.slice() : hit.parsed) as T;
+    }
+    const parsed = JSON.parse(raw);
+    jsonCache.set(key, { raw, parsed });
+    return (Array.isArray(parsed) ? parsed.slice() : parsed) as T;
   } catch {
     return defaultValue;
   }
@@ -490,17 +512,21 @@ export async function syncFromCloud(force = false): Promise<number> {
 }
 
 let cloudPollingStarted = false;
+let lastCloudPullAt = 0;
 export function startCloudPolling(): void {
   if (cloudPollingStarted || typeof window === 'undefined') return;
   cloudPollingStarted = true;
-  const run = () => {
+  const run = (minIntervalMs = 0) => {
+    const now = Date.now();
+    if (minIntervalMs > 0 && now - lastCloudPullAt < minIntervalMs) return;
+    lastCloudPullAt = now;
     syncFromCloud().catch(() => {});
   };
-  run();
-  setInterval(run, 15000);
-  window.addEventListener('focus', run);
+  run(0);
+  setInterval(() => run(0), 20000);
+  window.addEventListener('focus', () => run(8000));
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') run();
+    if (document.visibilityState === 'visible') run(8000);
   });
 }
 
@@ -515,9 +541,11 @@ export function setToStorage<T>(key: string, value: T): boolean {
         oldRaw = localStorage.getItem(key);
       } catch {}
     }
-    localStorage.setItem(key, JSON.stringify(value));
+    const nextRaw = JSON.stringify(value);
+    localStorage.setItem(key, nextRaw);
+    jsonCache.set(key, { raw: nextRaw, parsed: value });
     if (oldRaw) recordDeletions(key, oldRaw, value);
-    notifyListeners();
+    scheduleNotifyListeners();
     scheduleCloudPush(key);
     return true;
   } catch (err) {
@@ -637,11 +665,12 @@ export function initStorageDefaults(): void {
     }
   } catch {}
 
-  // Pastikan pengawas berasal dari 12 guru sekolah sendiri (3 ruang x 6 hari)
+  // Pastikan pengawas berasal dari 12 guru sekolah sendiri (3 ruang x 6 hari) — tulis langsung tanpa notifyListeners berulang
   try {
     const storedPengawasRaw = localStorage.getItem(KEYS.POS_UJIAN_PENGAWAS);
     if (!storedPengawasRaw || storedPengawasRaw.includes('SD Negeri 1 Talun') || storedPengawasRaw.includes('Nurjanah')) {
-      generateJadwalPengawasOtomatis(false);
+      const built = buildJadwalPengawasOtomatis(false);
+      localStorage.setItem(KEYS.POS_UJIAN_PENGAWAS, JSON.stringify(built));
     }
   } catch {}
 
@@ -2668,21 +2697,26 @@ export const EXAM_DAYS: ExamDayInfo[] = [
   },
 ];
 
-export function generateJadwalPengawasOtomatis(shuffle: boolean = false): PengawasSilangItem[] {
+function cleanNipDigits(nip?: string): string {
+  const digits = (nip || '').replace(/\D/g, '');
+  return digits.length >= 5 ? digits : '';
+}
+
+function buildJadwalPengawasOtomatis(shuffle: boolean = false): PengawasSilangItem[] {
   // Ambil daftar panitia ujian agar guru yang sudah jadi panitia TIDAK dimasukkan sebagai pengawas
   const panitiaList = getPosUjianPanitia();
-  const panitiaNames = new Set(panitiaList.map((p) => (p.nama || '').toUpperCase().trim()));
-  const panitiaNips = new Set(panitiaList.map((p) => (p.nip || '').trim()).filter(Boolean));
+  const panitiaNames = new Set(panitiaList.map((p) => (p.nama || '').toUpperCase().trim()).filter(Boolean));
+  const panitiaNips = new Set(panitiaList.map((p) => cleanNipDigits(p.nip)).filter(Boolean));
 
   const isPanitia = (g: { nama: string; nip?: string }) => {
     const n = (g.nama || '').toUpperCase().trim();
-    const nip = (g.nip || '').trim();
+    const nip = cleanNipDigits(g.nip);
     return panitiaNames.has(n) || (!!nip && panitiaNips.has(nip));
   };
 
   // Hanya pilih guru yang berstatus Aktif dan BUKAN Panitia Ujian
   const nonPanitiaGurus = getGurus().filter((g) => g.status === 'Aktif' && !isPanitia(g));
-  let candidateGurus = [...nonPanitiaGurus];
+  const candidateGurus = [...nonPanitiaGurus];
   if (candidateGurus.length < 12) {
     const all = [...initialGurus].filter((g) => !isPanitia(g));
     for (const g of all) {
@@ -2694,10 +2728,8 @@ export function generateJadwalPengawasOtomatis(shuffle: boolean = false): Pengaw
   }
 
   // 12 guru utama non-panitia
-  let selectedGurus = candidateGurus.slice(0, 12);
-  if (selectedGurus.length < 12) {
-    selectedGurus = candidateGurus;
-  }
+  const selectedGurus = candidateGurus.slice(0, 12);
+  if (selectedGurus.length === 0) return [];
 
   if (shuffle) {
     for (let i = selectedGurus.length - 1; i > 0; i--) {
@@ -2774,6 +2806,11 @@ export function generateJadwalPengawasOtomatis(shuffle: boolean = false): Pengaw
     });
   });
 
+  return result;
+}
+
+export function generateJadwalPengawasOtomatis(shuffle: boolean = false): PengawasSilangItem[] {
+  const result = buildJadwalPengawasOtomatis(shuffle);
   setToStorage(KEYS.POS_UJIAN_PENGAWAS, result);
   recordActivity(
     'POS Ujian',
@@ -2785,27 +2822,10 @@ export function generateJadwalPengawasOtomatis(shuffle: boolean = false): Pengaw
 }
 
 export function getPosUjianPengawas(): PengawasSilangItem[] {
-  const panitia = getPosUjianPanitia();
-  const panitiaNames = new Set(panitia.map((p) => (p.nama || '').toUpperCase().trim()));
-  const panitiaNips = new Set(panitia.map((p) => (p.nip || '').trim()).filter(Boolean));
-
-  const existing = localStorage.getItem(KEYS.POS_UJIAN_PENGAWAS);
-  if (!existing || existing.includes('SD Negeri 1 Talun') || existing.includes('Nurjanah')) {
-    return generateJadwalPengawasOtomatis(false);
-  }
   const list = getFromStorage<PengawasSilangItem[]>(KEYS.POS_UJIAN_PENGAWAS, initialPengawasSilang);
   if (!list || list.length === 0) {
-    return generateJadwalPengawasOtomatis(false);
+    return initialPengawasSilang.map((p) => ({ ...p, nama: (p.nama || '').toUpperCase() }));
   }
-
-  // Jika ada guru yang sudah menjadi panitia namun masih tercatat sebagai pengawas, regenerasi otomatis
-  const hasPanitiaInPengawas = list.some(
-    (p) => panitiaNames.has((p.nama || '').toUpperCase().trim()) || (p.nip && panitiaNips.has((p.nip || '').trim()))
-  );
-  if (hasPanitiaInPengawas) {
-    return generateJadwalPengawasOtomatis(false);
-  }
-
   return list.map((p) => ({ ...p, nama: (p.nama || '').toUpperCase() }));
 }
 
@@ -2894,27 +2914,27 @@ export function deletePosUjianRambu(id: string): void {
 
 export function swapPesertaMeja(idA: string, idB: string): void {
   const list = getPosUjianPeserta();
-  const a = list.find((x) => x.id === idA);
-  const b = list.find((x) => x.id === idB);
-  if (!a || !b) return;
+  const idxA = list.findIndex((x) => x.id === idA);
+  const idxB = list.findIndex((x) => x.id === idB);
+  if (idxA < 0 || idxB < 0) return;
 
-  const tempMeja = a.nomorMeja;
-  const tempRuang = a.ruang;
-
-  a.nomorMeja = b.nomorMeja;
-  a.ruang = b.ruang;
-  b.nomorMeja = tempMeja;
-  b.ruang = tempRuang;
+  const a = list[idxA];
+  const b = list[idxB];
+  const nextA: PesertaUjian = { ...a, nomorMeja: b.nomorMeja, ruang: b.ruang };
+  const nextB: PesertaUjian = { ...b, nomorMeja: a.nomorMeja, ruang: a.ruang };
+  list[idxA] = nextA;
+  list[idxB] = nextB;
 
   setToStorage(KEYS.POS_UJIAN_PESERTA, list);
-  recordActivity('POS Ujian', `Menukar posisi meja antara ${a.nama} (Meja ${a.nomorMeja}) dan ${b.nama} (Meja ${b.nomorMeja})`, true, 'update');
+  recordActivity('POS Ujian', `Menukar posisi meja antara ${nextA.nama} (Meja ${nextA.nomorMeja}) dan ${nextB.nama} (Meja ${nextB.nomorMeja})`, true, 'update');
 }
 
 export function setPesertaMeja(id: string, nomorMejaBaru: number): void {
   const list = getPosUjianPeserta();
-  const target = list.find((x) => x.id === id);
-  if (!target) return;
-  target.nomorMeja = nomorMejaBaru;
+  const idx = list.findIndex((x) => x.id === id);
+  if (idx < 0) return;
+  const target = { ...list[idx], nomorMeja: nomorMejaBaru };
+  list[idx] = target;
   setToStorage(KEYS.POS_UJIAN_PESERTA, list);
   recordActivity('POS Ujian', `Memindahkan meja ${target.nama} ke Meja ${nomorMejaBaru}`, true, 'update');
 }

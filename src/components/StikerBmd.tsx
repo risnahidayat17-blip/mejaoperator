@@ -91,9 +91,9 @@ function autoNamaSekolah(config: SchoolConfig): string {
 
 export const StikerBmd: React.FC<StikerBmdProps> = ({ role, config, onToast }) => {
   const isOperator = role === 'operator';
-  const [items, setItems] = useState<BmdItem[]>(getBmdItems());
+  const [items, setItems] = useState<BmdItem[]>(() => getBmdItems());
   const [selected, setSelected] = useState<Set<string>>(() => new Set(getBmdItems().map((b) => b.id)));
-  const [cfg, setCfg] = useState<StikerConfig>(getStikerConfig());
+  const [cfg, setCfg] = useState<StikerConfig>(() => getStikerConfig());
   const stikerPrintRef = useRef<HTMLDivElement>(null);
   const [startPos, setStartPos] = useState(1);
   const [search, setSearch] = useState('');

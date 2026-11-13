@@ -52,7 +52,7 @@ interface AsetInventarisProps {
 export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, onToast }) => {
   const isOperator = role === 'operator';
   const [activeTab, setActiveTab] = useState<'daftar' | 'kir' | 'label' | 'bmd'>('daftar');
-  const [asets, setAsets] = useState<Aset[]>(getAsets());
+  const [asets, setAsets] = useState<Aset[]>(() => getAsets());
   const kirPrintRef = useRef<HTMLDivElement>(null);
   const labelPrintRef = useRef<HTMLDivElement>(null);
 

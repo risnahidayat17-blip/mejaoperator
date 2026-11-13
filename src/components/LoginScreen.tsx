@@ -23,7 +23,7 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ config, onLoggedIn }) => {
-  const [gurus, setGurus] = useState<Guru[]>(getGurus());
+  const [gurus, setGurus] = useState<Guru[]>(() => getGurus());
   const activeGurus = gurus.filter((g) => g.status !== 'Nonaktif');
   const [selectedGuruId, setSelectedGuruId] = useState(activeGurus[0]?.id || '');
   const [operatorPassword, setOperatorPassword] = useState('');
@@ -42,7 +42,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ config, onLoggedIn }) 
     const check = () => {
       setGurus(getGurus());
     };
-    check();
     window.addEventListener('focus', check);
     const unsub = subscribeToStorage(() => {
       if (isMounted) check();

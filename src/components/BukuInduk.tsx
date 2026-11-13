@@ -18,8 +18,8 @@ interface BukuIndukProps {
 }
 
 export const BukuInduk: React.FC<BukuIndukProps> = ({ config, role = 'operator', onToast }) => {
-  const [siswaList, setSiswaList] = useState(getSiswas());
-  const [nilaiList] = useState(getNilaiRecords());
+  const [siswaList, setSiswaList] = useState(() => getSiswas());
+  const [nilaiList] = useState(() => getNilaiRecords());
   const [isImportDapodikOpen, setIsImportDapodikOpen] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState('');

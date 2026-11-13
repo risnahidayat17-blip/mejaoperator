@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, Suspense, lazy } from 'react';
 import {
   User,
   SchoolConfig,
@@ -22,7 +22,6 @@ import {
   subscribeToStorage,
   subscribeToCloudChanges,
   startCloudPolling,
-  loadDapodikData,
   migrateLegacyFiles,
   migratePasswords,
   STORAGE_ERROR_EVENT,
@@ -45,29 +44,32 @@ import {
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { LoginScreen } from './components/LoginScreen';
-import { Dashboard } from './components/Dashboard';
-import { SiswaMutasi } from './components/SiswaMutasi';
-import { GuruTendik } from './components/GuruTendik';
-import { BukuInduk } from './components/BukuInduk';
-import { SuratKeluar as CompSuratKeluar } from './components/SuratKeluar';
-import { SuratMasuk as CompSuratMasuk } from './components/SuratMasuk';
-import { Penilaian } from './components/Penilaian';
-import { ArsipAbsen } from './components/ArsipAbsen';
-import { ArsipLaporanSekolah } from './components/ArsipLaporanSekolah';
-import { DaftarHadir } from './components/DaftarHadir';
-import { AsetInventaris } from './components/AsetInventaris';
-import { LaporanBulan } from './components/LaporanBulan';
-import { RekapLaporan } from './components/RekapLaporan';
-import { LaporanKeuangan } from './components/LaporanKeuangan';
-import { ProfilPengguna } from './components/ProfilPengguna';
-import { PengaturanSekolah } from './components/PengaturanSekolah';
-import { PosUjian } from './components/PosUjian';
-import { SupabaseSyncModal } from './components/SupabaseSyncModal';
 import { Lock, ShieldCheck } from 'lucide-react';
 
+const Dashboard = lazy(() => import('./components/Dashboard').then((m) => ({ default: m.Dashboard })));
+const SiswaMutasi = lazy(() => import('./components/SiswaMutasi').then((m) => ({ default: m.SiswaMutasi })));
+const GuruTendik = lazy(() => import('./components/GuruTendik').then((m) => ({ default: m.GuruTendik })));
+const BukuInduk = lazy(() => import('./components/BukuInduk').then((m) => ({ default: m.BukuInduk })));
+const CompSuratKeluar = lazy(() => import('./components/SuratKeluar').then((m) => ({ default: m.SuratKeluar })));
+const CompSuratMasuk = lazy(() => import('./components/SuratMasuk').then((m) => ({ default: m.SuratMasuk })));
+const Penilaian = lazy(() => import('./components/Penilaian').then((m) => ({ default: m.Penilaian })));
+const ArsipAbsen = lazy(() => import('./components/ArsipAbsen').then((m) => ({ default: m.ArsipAbsen })));
+const ArsipLaporanSekolah = lazy(() =>
+  import('./components/ArsipLaporanSekolah').then((m) => ({ default: m.ArsipLaporanSekolah }))
+);
+const DaftarHadir = lazy(() => import('./components/DaftarHadir').then((m) => ({ default: m.DaftarHadir })));
+const AsetInventaris = lazy(() => import('./components/AsetInventaris').then((m) => ({ default: m.AsetInventaris })));
+const LaporanBulan = lazy(() => import('./components/LaporanBulan').then((m) => ({ default: m.LaporanBulan })));
+const RekapLaporan = lazy(() => import('./components/RekapLaporan').then((m) => ({ default: m.RekapLaporan })));
+const LaporanKeuangan = lazy(() => import('./components/LaporanKeuangan').then((m) => ({ default: m.LaporanKeuangan })));
+const ProfilPengguna = lazy(() => import('./components/ProfilPengguna').then((m) => ({ default: m.ProfilPengguna })));
+const PengaturanSekolah = lazy(() => import('./components/PengaturanSekolah').then((m) => ({ default: m.PengaturanSekolah })));
+const PosUjian = lazy(() => import('./components/PosUjian').then((m) => ({ default: m.PosUjian })));
+const SupabaseSyncModal = lazy(() => import('./components/SupabaseSyncModal').then((m) => ({ default: m.SupabaseSyncModal })));
+
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [config, setConfig] = useState<SchoolConfig>(getSchoolConfig());
+  const [currentUser, setCurrentUser] = useState<User | null>(() => getCurrentUser());
+  const [config, setConfig] = useState<SchoolConfig>(() => getSchoolConfig());
   const [siswaList, setSiswaList] = useState<Siswa[]>([]);
   const [guruList, setGuruList] = useState<Guru[]>([]);
   const [asetList, setAsetList] = useState<Aset[]>([]);
@@ -76,11 +78,14 @@ export default function App() {
   const [dokGtkList, setDokGtkList] = useState<DokumenGtk[]>([]);
   const [nilaiList, setNilaiList] = useState<NilaiRecord[]>([]);
   const [berkasList, setBerkasList] = useState<BerkasPenilaian[]>([]);
+  const [arsipAbsenCount, setArsipAbsenCount] = useState<number>(0);
+  const [arsipLaporanCount, setArsipLaporanCount] = useState<number>(0);
 
   const [currentTab, setCurrentTab] = useState<string>('dasbor');
   const [toast, setToast] = useState<{ message: string; isError?: boolean } | null>(null);
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
   const toastTimeoutRef = useRef<any>(null);
+  const lastRawRef = useRef<Record<string, string | null>>({});
 
   const showToast = (message: string, isError = false) => {
     setToast({ message, isError });
@@ -90,23 +95,38 @@ export default function App() {
     }, 3800);
   };
 
-  const refreshAllData = () => {
-    setCurrentUser(getCurrentUser());
-    setConfig(getSchoolConfig());
-    setSiswaList(getSiswas());
-    setGuruList(getGurus());
-    setAsetList(getAsets());
-    setSuratMasukList(getSuratMasuk());
-    setSuratKeluarList(getSuratKeluar());
-    setDokGtkList(getDokumenGtks());
-    setNilaiList(getNilaiRecords());
-    setBerkasList(getFromStorage(KEYS.BERKAS, []));
+  const refreshAllData = (force = false) => {
+    const rawUser = sessionStorage.getItem(KEYS.CURRENT_USER);
+    if (force || lastRawRef.current[KEYS.CURRENT_USER] !== rawUser) {
+      lastRawRef.current[KEYS.CURRENT_USER] = rawUser;
+      setCurrentUser(getCurrentUser());
+    }
+
+    const syncSlice = (key: string, apply: () => void) => {
+      const raw = localStorage.getItem(key);
+      if (force || lastRawRef.current[key] !== raw) {
+        lastRawRef.current[key] = raw;
+        apply();
+      }
+    };
+
+    syncSlice(KEYS.CFG, () => setConfig(getSchoolConfig()));
+    syncSlice(KEYS.SISWA, () => setSiswaList(getSiswas()));
+    syncSlice(KEYS.GURU, () => setGuruList(getGurus()));
+    syncSlice(KEYS.ASET, () => setAsetList(getAsets()));
+    syncSlice(KEYS.SURATMASUK, () => setSuratMasukList(getSuratMasuk()));
+    syncSlice(KEYS.SURATKELUAR, () => setSuratKeluarList(getSuratKeluar()));
+    syncSlice(KEYS.DOKGTK, () => setDokGtkList(getDokumenGtks()));
+    syncSlice(KEYS.NILAI, () => setNilaiList(getNilaiRecords()));
+    syncSlice(KEYS.BERKAS, () => setBerkasList(getFromStorage(KEYS.BERKAS, [])));
+    syncSlice(KEYS.ARSIPABSEN, () => setArsipAbsenCount(getArsipAbsen().length));
+    syncSlice(KEYS.ARSIPLAPORAN, () => setArsipLaporanCount(getArsipLaporan().length));
   };
 
   useEffect(() => {
     initStorageDefaults();
     migratePasswords().catch(() => {});
-    refreshAllData();
+    refreshAllData(true);
     const unsub = subscribeToStorage(() => {
       refreshAllData();
     });
@@ -175,16 +195,19 @@ export default function App() {
   const isOperator = role === 'operator';
   const isRestrictedForGuru = !isOperator && !['dasbor', 'guru', 'bukuinduk', 'posujian', 'suratkeluar', 'arsipabsen', 'daftarhadir', 'penilaian', 'profil'].includes(currentTab);
 
-  const counts = {
-    siswa: siswaList.filter((s) => s.status === 'Aktif').length,
-    guru: guruList.filter((g) => g.status !== 'Nonaktif').length,
-    aset: asetList.length,
-    suratmasuk: suratMasukList.length,
-    suratkeluar: suratKeluarList.length,
-    berkas: berkasList.length,
-    arsipabsen: getArsipAbsen().length,
-    arsiplaporan: getArsipLaporan().length,
-  };
+  const counts = useMemo(
+    () => ({
+      siswa: siswaList.filter((s) => s.status === 'Aktif').length,
+      guru: guruList.filter((g) => g.status !== 'Nonaktif').length,
+      aset: asetList.length,
+      suratmasuk: suratMasukList.length,
+      suratkeluar: suratKeluarList.length,
+      berkas: berkasList.length,
+      arsipabsen: arsipAbsenCount,
+      arsiplaporan: arsipLaporanCount,
+    }),
+    [siswaList, guruList, asetList, suratMasukList, suratKeluarList, berkasList, arsipAbsenCount, arsipLaporanCount]
+  );
 
   // Login view if not authenticated
   if (!currentUser) {
@@ -264,7 +287,13 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              <>
+              <Suspense
+                fallback={
+                  <div className="bg-white/90 border border-[#D3DDD9] rounded-2xl p-8 text-center text-xs font-semibold text-[#566A6E] shadow-xs">
+                    Memuat modul...
+                  </div>
+                }
+              >
                 {currentTab === 'dasbor' && (
                   <Dashboard
                     config={config}
@@ -360,19 +389,21 @@ export default function App() {
                     onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
                   />
                 )}
-              </>
+              </Suspense>
             )}
           </div>
         </main>
       </div>
 
       {/* Supabase Cloud Connection & Sync Modal */}
-      {isOperator && (
-        <SupabaseSyncModal
-          isOpen={isSupabaseModalOpen}
-          onClose={() => setIsSupabaseModalOpen(false)}
-          onToast={showToast}
-        />
+      {isOperator && isSupabaseModalOpen && (
+        <Suspense fallback={null}>
+          <SupabaseSyncModal
+            isOpen={isSupabaseModalOpen}
+            onClose={() => setIsSupabaseModalOpen(false)}
+            onToast={showToast}
+          />
+        </Suspense>
       )}
 
       {/* Floating Toast Notification */}

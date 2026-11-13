@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { printDomElement } from '../lib/print';
 import {
   SchoolConfig,
@@ -105,16 +105,16 @@ export const PosUjian: React.FC<PosUjianProps> = ({
 }) => {
   const isOperator = role === 'operator';
 
-  // State Data
+  // State Data (lazy initializers agar tidak mem-parse ulang setiap render)
   const [activeTab, setActiveTab] = useState<PosTab>('ringkasan');
-  const [posConfig, setPosConfig] = useState<PosUjianConfig>(getPosUjianConfig());
-  const [jadwalList, setJadwalList] = useState<JadwalUjianItem[]>(getPosUjianJadwal());
-  const [pesertaList, setPesertaList] = useState<PesertaUjian[]>(getPosUjianPeserta());
-  const [panitiaList, setPanitiaList] = useState<PanitiaUjianItem[]>(getPosUjianPanitia());
-  const [pengawasList, setPengawasList] = useState<PengawasSilangItem[]>(getPosUjianPengawas());
-  const [rambuList, setRambuList] = useState<RambuUjianItem[]>(getPosUjianRambu());
-  const [allGurus, setAllGurus] = useState<Guru[]>(propGuruList || getGurus());
-  const [allSiswas, setAllSiswas] = useState<Siswa[]>(propSiswaList || getSiswas());
+  const [posConfig, setPosConfig] = useState<PosUjianConfig>(() => getPosUjianConfig());
+  const [jadwalList, setJadwalList] = useState<JadwalUjianItem[]>(() => getPosUjianJadwal());
+  const [pesertaList, setPesertaList] = useState<PesertaUjian[]>(() => getPosUjianPeserta());
+  const [panitiaList, setPanitiaList] = useState<PanitiaUjianItem[]>(() => getPosUjianPanitia());
+  const [pengawasList, setPengawasList] = useState<PengawasSilangItem[]>(() => getPosUjianPengawas());
+  const [rambuList, setRambuList] = useState<RambuUjianItem[]>(() => getPosUjianRambu());
+  const [allGurus, setAllGurus] = useState<Guru[]>(() => propGuruList || getGurus());
+  const [allSiswas, setAllSiswas] = useState<Siswa[]>(() => propSiswaList || getSiswas());
 
   // Filter & Search states
   const [selectedRuang, setSelectedRuang] = useState<string>('Semua');
@@ -181,7 +181,6 @@ export const PosUjian: React.FC<PosUjianProps> = ({
   };
 
   useEffect(() => {
-    reloadAll();
     const u1 = subscribeToStorage(reloadAll);
     const u2 = subscribeToCloudChanges(reloadAll);
     return () => {
@@ -191,12 +190,10 @@ export const PosUjian: React.FC<PosUjianProps> = ({
   }, []);
 
   // List of available rooms
-  const ruangOptions = Array.from(
-    new Set(pesertaList.map((p) => p.ruang).filter(Boolean))
-  ).sort();
-  if (ruangOptions.length === 0) {
-    ruangOptions.push('Ruang 01', 'Ruang 02');
-  }
+  const ruangOptions = useMemo(() => {
+    const opts = Array.from(new Set(pesertaList.map((p) => p.ruang).filter(Boolean))).sort();
+    return opts.length > 0 ? opts : ['Ruang 01', 'Ruang 02'];
+  }, [pesertaList]);
 
   // Active Seating Scheme config
   const skema: SkemaDudukConfig = posConfig.skemaDuduk || {
@@ -207,32 +204,37 @@ export const PosUjian: React.FC<PosUjianProps> = ({
   };
 
   // Filtered Peserta
-  const filteredPeserta = pesertaList.filter((p) => {
-    const matchRuang = selectedRuang === 'Semua' || p.ruang === selectedRuang;
+  const filteredPeserta = useMemo(() => {
     const term = searchPeserta.toLowerCase().trim();
-    const matchTerm =
-      !term ||
-      p.nama.toLowerCase().includes(term) ||
-      p.nomorPeserta.toLowerCase().includes(term) ||
-      (p.nisn && p.nisn.includes(term)) ||
-      (p.nis && p.nis.includes(term));
-    return matchRuang && matchTerm;
-  });
+    return pesertaList.filter((p) => {
+      const matchRuang = selectedRuang === 'Semua' || p.ruang === selectedRuang;
+      const matchTerm =
+        !term ||
+        p.nama.toLowerCase().includes(term) ||
+        p.nomorPeserta.toLowerCase().includes(term) ||
+        (p.nisn && p.nisn.includes(term)) ||
+        (p.nis && p.nis.includes(term));
+      return matchRuang && matchTerm;
+    });
+  }, [pesertaList, selectedRuang, searchPeserta]);
 
   // Filtered Rambu
-  const filteredRambu = rambuList.filter((r) => {
+  const filteredRambu = useMemo(() => {
     const term = searchRambu.toLowerCase().trim();
-    const matchTerm =
-      !term ||
-      r.judul.toLowerCase().includes(term) ||
-      r.subjudul.toLowerCase().includes(term) ||
-      (r.pesanPoin && r.pesanPoin.some((p) => p.toLowerCase().includes(term)));
-    const matchKat = filterRambuKategori === 'Semua' || r.kategori === filterRambuKategori;
-    return matchTerm && matchKat;
-  });
+    return rambuList.filter((r) => {
+      const matchTerm =
+        !term ||
+        r.judul.toLowerCase().includes(term) ||
+        r.subjudul.toLowerCase().includes(term) ||
+        (r.pesanPoin && r.pesanPoin.some((p) => p.toLowerCase().includes(term)));
+      const matchKat = filterRambuKategori === 'Semua' || r.kategori === filterRambuKategori;
+      return matchTerm && matchKat;
+    });
+  }, [rambuList, searchRambu, filterRambuKategori]);
 
-  const rambuKategoriList = Array.from(
-    new Set(rambuList.map((r) => r.kategori || 'Umum').filter(Boolean))
+  const rambuKategoriList = useMemo(
+    () => Array.from(new Set(rambuList.map((r) => r.kategori || 'Umum').filter(Boolean))),
+    [rambuList]
   );
 
   // ---------------------------------------------------------------------------
@@ -438,10 +440,12 @@ export const PosUjian: React.FC<PosUjianProps> = ({
     }
 
     // Validasi ketat: Guru yang sudah jadi panitia tidak boleh menjadi pengawas
-    const panitiaNames = new Set(panitiaList.map((p) => p.nama.toLowerCase().trim()));
-    const panitiaNips = new Set(panitiaList.map((p) => (p.nip || '').replace(/\D/g, '')).filter(Boolean));
+    const panitiaNames = new Set(panitiaList.map((p) => p.nama.toLowerCase().trim()).filter(Boolean));
+    const panitiaNips = new Set(
+      panitiaList.map((p) => (p.nip || '').replace(/\D/g, '')).filter((d) => d.length >= 5)
+    );
     const cleanNip = nip.replace(/\D/g, '');
-    if (panitiaNames.has(nama.toLowerCase().trim()) || (cleanNip && panitiaNips.has(cleanNip))) {
+    if (panitiaNames.has(nama.toLowerCase().trim()) || (cleanNip.length >= 5 && panitiaNips.has(cleanNip))) {
       onToast(
         `Perhatian: "${nama}" terdaftar sebagai Panitia Ujian! Guru yang sudah jadi panitia tidak boleh menjadi pengawas. Silakan pilih guru lain.`,
         true

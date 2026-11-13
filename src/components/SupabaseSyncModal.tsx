@@ -59,7 +59,7 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
   onClose,
   onToast,
 }) => {
-  const [config, setConfig] = useState(getSupabaseConfig());
+  const [config, setConfig] = useState(() => getSupabaseConfig());
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{
     connected: boolean;
@@ -71,7 +71,7 @@ export const SupabaseSyncModal: React.FC<SupabaseSyncModalProps> = ({
   const [isSyncing, setIsSyncing] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
   const [activeTab, setActiveTab] = useState<'status' | 'sync' | 'sql' | 'credentials' | 'imagekit'>('status');
-  const [ikConfig, setIkConfig] = useState(getImageKitConfig());
+  const [ikConfig, setIkConfig] = useState(() => getImageKitConfig());
   const [ikTesting, setIkTesting] = useState(false);
   const [ikResult, setIkResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [migrating, setMigrating] = useState(false);

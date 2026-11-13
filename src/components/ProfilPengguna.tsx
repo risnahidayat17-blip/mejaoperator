@@ -61,7 +61,7 @@ export const ProfilPengguna: React.FC<ProfilPenggunaProps> = ({ currentUser, onT
   const [changingPw, setChangingPw] = useState(false);
 
   // All Users List (for Operator)
-  const [userList, setUserList] = useState<User[]>(getFromStorage<User[]>(KEYS.USERS, initialUsers));
+  const [userList, setUserList] = useState<User[]>(() => getFromStorage<User[]>(KEYS.USERS, initialUsers));
 
   // Add User Form State
   const [newUsername, setNewUsername] = useState('');

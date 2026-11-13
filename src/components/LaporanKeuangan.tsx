@@ -751,7 +751,7 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
     );
   }
 
-  const [state, setState] = useState<KeuanganState>(getKeuangan());
+  const [state, setState] = useState<KeuanganState>(() => getKeuangan());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [searchFilter, setSearchFilter] = useState('');

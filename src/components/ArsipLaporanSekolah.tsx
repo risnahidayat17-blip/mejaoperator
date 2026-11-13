@@ -132,7 +132,7 @@ export const ArsipLaporanSekolah: React.FC<ArsipLaporanSekolahProps> = ({ role, 
   const currentTa = config.tahunAjaran || '2026/2027';
   const todayStr = new Date().toISOString().split('T')[0];
 
-  const [items, setItems] = useState<IArsipLaporan[]>(getArsipLaporan());
+  const [items, setItems] = useState<IArsipLaporan[]>(() => getArsipLaporan());
   const [searchQuery, setSearchQuery] = useState('');
   const [filterKategori, setFilterKategori] = useState('semua');
   const [filterTa, setFilterTa] = useState('semua');
@@ -144,7 +144,7 @@ export const ArsipLaporanSekolah: React.FC<ArsipLaporanSekolahProps> = ({ role, 
   const [isDragging, setIsDragging] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<IArsipLaporan | null>(null);
-  const [pendingFiles, setPendingFiles] = useState(getPendingFileCount());
+  const [pendingFiles, setPendingFiles] = useState(() => getPendingFileCount());
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 

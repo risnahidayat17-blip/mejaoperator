@@ -135,7 +135,7 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
   const isOperator = role === 'operator';
   const [formData, setFormData] = useState<SchoolConfig>(config);
   const [activeTab, setActiveTab] = useState<string>(initialTab);
-  const [templates, setTemplates] = useState<LetterTemplate[]>(getTemplates());
+  const [templates, setTemplates] = useState<LetterTemplate[]>(() => getTemplates());
 
   const effectiveTab = !isOperator && ['supabase', 'dapodik', 'backup'].includes(activeTab) ? 'kop' : activeTab;
 

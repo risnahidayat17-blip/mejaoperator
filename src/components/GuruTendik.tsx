@@ -62,8 +62,8 @@ interface GuruTendikProps {
 export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast }) => {
   const isOperator = role === 'operator';
   const currentUser = getCurrentUser();
-  const [gurus, setGurus] = useState<Guru[]>(getGurus());
-  const [dokList, setDokList] = useState<DokumenGtk[]>(getDokumenGtks());
+  const [gurus, setGurus] = useState<Guru[]>(() => getGurus());
+  const [dokList, setDokList] = useState<DokumenGtk[]>(() => getDokumenGtks());
 
   // Search & Filter
   const [searchTerm, setSearchTerm] = useState('');

@@ -225,7 +225,9 @@ export function startFileSync(): void {
     flushPendingFiles().catch(() => {});
   };
   run();
-  setInterval(run, 20000);
+  setInterval(() => {
+    if (pendingCount > 0) run();
+  }, 30000);
   window.addEventListener('online', run);
   subscribeImageKitConfig(run); // begitu ImageKit diatur, antrean langsung dikirim
 }

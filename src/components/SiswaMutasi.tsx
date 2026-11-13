@@ -60,10 +60,10 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
 }) => {
   const isOperator = role === 'operator';
   const [activeTab, setActiveTab] = useState<'daftar' | 'rombel' | 'mutasi'>('daftar');
-  const [siswaList, setSiswaList] = useState<Siswa[]>(getSiswas());
-  const [mutasiList, setMutasiList] = useState<Mutasi[]>(getMutasi());
-  const [rombelList, setRombelList] = useState<Rombel[]>(getRombels());
-  const [guruList, setGuruList] = useState<Guru[]>(getGurus());
+  const [siswaList, setSiswaList] = useState<Siswa[]>(() => getSiswas());
+  const [mutasiList, setMutasiList] = useState<Mutasi[]>(() => getMutasi());
+  const [rombelList, setRombelList] = useState<Rombel[]>(() => getRombels());
+  const [guruList, setGuruList] = useState<Guru[]>(() => getGurus());
 
   // Search & Filter
   const [searchSiswa, setSearchSiswa] = useState('');

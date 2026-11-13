@@ -75,7 +75,7 @@ export const ArsipAbsen: React.FC<ArsipAbsenProps> = ({ role, config, onToast })
     .filter(Boolean);
   const currentTa = config.tahunAjaran || '2026/2027';
 
-  const [items, setItems] = useState<IArsipAbsen[]>(getArsipAbsen());
+  const [items, setItems] = useState<IArsipAbsen[]>(() => getArsipAbsen());
   const [filterKelas, setFilterKelas] = useState('semua');
   const [filterTa, setFilterTa] = useState('semua');
 
@@ -84,7 +84,7 @@ export const ArsipAbsen: React.FC<ArsipAbsenProps> = ({ role, config, onToast })
   const [selectedFile, setSelectedFile] = useState<PreparedFile | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [pendingFiles, setPendingFiles] = useState(getPendingFileCount());
+  const [pendingFiles, setPendingFiles] = useState(() => getPendingFileCount());
 
   useEffect(() => subscribeFileSync(() => setPendingFiles(getPendingFileCount())), []);
 

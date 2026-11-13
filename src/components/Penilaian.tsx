@@ -52,9 +52,9 @@ export const Penilaian: React.FC<PenilaianProps> = ({ role, config, onToast }) =
   const [selectedTA, setSelectedTA] = useState(config.tahunAjaran || '2026/2027');
   const [selectedMapel, setSelectedMapel] = useState(mapelOptions[0] || 'Matematika');
 
-  const [siswaList, setSiswaList] = useState<Siswa[]>(getSiswas());
-  const [nilaiList, setNilaiList] = useState<NilaiRecord[]>(getNilaiRecords());
-  const [berkasList, setBerkasList] = useState<BerkasPenilaian[]>(getFromStorage(KEYS.BERKAS, []));
+  const [siswaList, setSiswaList] = useState<Siswa[]>(() => getSiswas());
+  const [nilaiList, setNilaiList] = useState<NilaiRecord[]>(() => getNilaiRecords());
+  const [berkasList, setBerkasList] = useState<BerkasPenilaian[]>(() => getFromStorage(KEYS.BERKAS, []));
 
   // Temporary score edits: { [siswaId]: string }
   const [tempScores, setTempScores] = useState<Record<string, string>>({});

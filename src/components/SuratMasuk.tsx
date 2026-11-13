@@ -102,7 +102,7 @@ const compressImage = async (file: File): Promise<string> => {
 
 export const SuratMasuk: React.FC<SuratMasukProps> = ({ role, onToast }) => {
   const isOperator = role === 'operator';
-  const [list, setList] = useState<ISuratMasuk[]>(getSuratMasuk());
+  const [list, setList] = useState<ISuratMasuk[]>(() => getSuratMasuk());
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('');

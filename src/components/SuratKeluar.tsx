@@ -91,9 +91,9 @@ function cleanNip(nip?: string): string {
 
 export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast }) => {
   const isOperator = role === 'operator';
-  const [suratList, setSuratList] = useState<ISuratKeluar[]>(getSuratKeluar());
-  const [siswaList, setSiswaList] = useState<Siswa[]>(getSiswas());
-  const [templateList, setTemplateList] = useState<LetterTemplate[]>(getTemplates());
+  const [suratList, setSuratList] = useState<ISuratKeluar[]>(() => getSuratKeluar());
+  const [siswaList, setSiswaList] = useState<Siswa[]>(() => getSiswas());
+  const [templateList, setTemplateList] = useState<LetterTemplate[]>(() => getTemplates());
 
   useEffect(() => {
     const reload = () => {
@@ -121,7 +121,7 @@ export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast 
   const [jenis, setJenis] = useState('Surat keterangan aktif siswa');
   const [siswaId, setSiswaId] = useState('');
   const [noSurat, setNoSurat] = useState('');
-  const [tglSurat, setTglSurat] = useState(new Date().toISOString().split('T')[0]);
+  const [tglSurat, setTglSurat] = useState(() => new Date().toISOString().split('T')[0]);
   const [tempat, setTempat] = useState(config.kabupaten || 'Cirebon');
   const [perihal, setPerihal] = useState('');
   const [tujuan, setTujuan] = useState('');
