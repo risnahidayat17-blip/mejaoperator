@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { SchoolConfig, Siswa, Mutasi, Rombel, Guru } from '../types';
 import {
   getSiswas,
@@ -20,6 +20,7 @@ import {
   subscribeToStorage,
   subscribeToCloudChanges,
 } from '../lib/storage';
+import { printDomElement } from '../lib/print';
 import { KopSuratHD } from './KopSuratHD';
 import { ImportDapodikSiswaModal } from './ImportDapodikSiswaModal';
 import {
@@ -87,8 +88,8 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
   const [isModalMutasiKeluarOpen, setIsModalMutasiKeluarOpen] = useState(false);
 
   const [isModalMutasiMasukOpen, setIsModalMutasiMasukOpen] = useState(false);
-  const [isModalPrintRekapOpen, setIsModalPrintRekapOpen] = useState(false);
   const [isImportDapodikOpen, setIsImportDapodikOpen] = useState(false);
+  const rekapPrintRef = useRef<HTMLDivElement>(null);
 
   const reloadData = () => {
     setSiswaList(getSiswas());
@@ -495,10 +496,10 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
             <>
               <button
                 type="button"
-                onClick={() => setIsModalPrintRekapOpen(true)}
+                onClick={() => printDomElement(rekapPrintRef.current, { paper: 'A4', margin: '12mm 16mm' })}
                 className="px-3.5 py-2 text-xs font-semibold bg-[#0B6B58] hover:bg-[#095747] text-white rounded-lg transition flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
-                <Printer className="w-3.5 h-3.5" /> Cetak Rekap Mutasi
+                <Printer className="w-3.5 h-3.5" /> Cetak Rekap Mutasi (Preview Google)
               </button>
               <button
                 type="button"
@@ -1450,84 +1451,67 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
         </div>
       )}
 
-      {/* MODAL 4: PRINT REKAP MUTASI WITH KOP HD */}
-      {isModalPrintRekapOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
-          <div className="bg-[#F1F4F2] rounded-2xl shadow-xl border border-[#D3DDD9] w-full max-w-[1060px] my-4 p-4 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h3 className="text-base font-bold text-[#13262A] font-display flex items-center gap-2">
-                <Printer className="w-5 h-5 text-[#0B6B58]" />
-                Rekap Mutasi Siswa &mdash; Pratinjau Cetak Kop HD
-              </h3>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs"
-                >
-                  <Printer className="w-4 h-4" /> Cetak Lembar Rekap
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsModalPrintRekapOpen(false)}
-                  className="p-2 text-gray-500 hover:text-gray-800 rounded cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
+      {/* OFF-SCREEN TARGET FOR 1-CLICK GOOGLE PRINT PREVIEW REKAP MUTASI */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          left: '-99999px',
+          top: 0,
+          width: '780px',
+          pointerEvents: 'none',
+          opacity: 0,
+        }}
+      >
+        <div ref={rekapPrintRef} className="bg-white p-8 text-black print-sheet">
+          <KopSuratHD config={config} />
+          <div className="text-center font-bold text-sm tracking-wider uppercase underline pb-3">
+            REKAPITULASI CATATAN MUTASI PESERTA DIDIK
+          </div>
 
-            <div className="overflow-x-auto bg-white p-8 rounded-xl border border-gray-300 shadow-sm print-sheet">
-              <KopSuratHD config={config} />
-              <div className="text-center font-bold text-sm tracking-wider uppercase underline pb-3">
-                REKAPITULASI CATATAN MUTASI PESERTA DIDIK
-              </div>
+          <table className="w-full text-left text-xs border-collapse border border-black">
+            <thead>
+              <tr className="bg-gray-100 text-center font-bold">
+                <th className="border border-black p-2 w-10">No</th>
+                <th className="border border-black p-2 w-28">Tanggal</th>
+                <th className="border border-black p-2">Nama Siswa</th>
+                <th className="border border-black p-2 w-16">Kelas</th>
+                <th className="border border-black p-2 w-32">Jenis Mutasi</th>
+                <th className="border border-black p-2">Sekolah Asal / Tujuan</th>
+                <th className="border border-black p-2">Alasan</th>
+              </tr>
+            </thead>
+            <tbody>
+              {mutasiList.map((m, idx) => (
+                <tr key={m.id}>
+                  <td className="border border-black p-2 text-center font-mono">{idx + 1}</td>
+                  <td className="border border-black p-2 font-mono whitespace-nowrap">{m.tanggal}</td>
+                  <td className="border border-black p-2 font-bold">{m.nama}</td>
+                  <td className="border border-black p-2 text-center font-bold">{m.kelas}</td>
+                  <td className="border border-black p-2 text-center font-semibold">{m.jenis}</td>
+                  <td className="border border-black p-2">
+                    {m.jenis === 'Masuk (pindahan)' ? m.asal || '-' : m.tujuan || '-'}
+                  </td>
+                  <td className="border border-black p-2">{m.alasan || '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
-              <table className="w-full text-left text-xs border-collapse border border-black">
-                <thead>
-                  <tr className="bg-gray-100 text-center font-bold">
-                    <th className="border border-black p-2 w-10">No</th>
-                    <th className="border border-black p-2 w-28">Tanggal</th>
-                    <th className="border border-black p-2">Nama Siswa</th>
-                    <th className="border border-black p-2 w-16">Kelas</th>
-                    <th className="border border-black p-2 w-32">Jenis Mutasi</th>
-                    <th className="border border-black p-2">Sekolah Asal / Tujuan</th>
-                    <th className="border border-black p-2">Alasan</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {mutasiList.map((m, idx) => (
-                    <tr key={m.id}>
-                      <td className="border border-black p-2 text-center font-mono">{idx + 1}</td>
-                      <td className="border border-black p-2 font-mono whitespace-nowrap">{m.tanggal}</td>
-                      <td className="border border-black p-2 font-bold">{m.nama}</td>
-                      <td className="border border-black p-2 text-center font-bold">{m.kelas}</td>
-                      <td className="border border-black p-2 text-center font-semibold">{m.jenis}</td>
-                      <td className="border border-black p-2">
-                        {m.jenis === 'Masuk (pindahan)' ? m.asal || '-' : m.tujuan || '-'}
-                      </td>
-                      <td className="border border-black p-2">{m.alasan || '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              <div className="flex justify-end pt-8 text-xs">
-                <div className="text-center w-64">
-                  <div>
-                    {config.kabupaten || 'Cirebon'},{' '}
-                    {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                  </div>
-                  <div>Kepala Sekolah,</div>
-                  <div className="h-16" />
-                  <div className="font-bold underline">{config.kepsek}</div>
-                  <div>NIP. {config.nipKepsek}</div>
-                </div>
+          <div className="flex justify-end pt-8 text-xs">
+            <div className="text-center w-64">
+              <div>
+                {config.kabupaten || 'Cirebon'},{' '}
+                {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
               </div>
+              <div>Kepala Sekolah,</div>
+              <div className="h-16" />
+              <div className="font-bold underline">{config.kepsek}</div>
+              <div>NIP. {config.nipKepsek}</div>
             </div>
           </div>
         </div>
-      )}
+      </div>
 
       {/* MODAL 5: TAMBAH / UBAH ROMBEL BELAJAR */}
       {isModalRombelOpen && (

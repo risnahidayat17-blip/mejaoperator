@@ -7,6 +7,7 @@ import React, { useState, useEffect, useRef, useMemo, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { SchoolConfig, KeuanganState } from '../types';
 import { getKeuangan, saveKeuangan, subscribeToStorage } from '../lib/storage';
+import { triggerGooglePrint } from '../lib/print';
 import {
   Upload,
   Printer,
@@ -910,18 +911,11 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
       onToast('Pilih kwitansi yang akan dicetak.', true);
       return;
     }
-    const styleEl = document.createElement('style');
-    styleEl.textContent = `@page{size:${activeSize.widthMm}mm ${activeSize.heightMm}mm;margin:0}`;
-    document.head.appendChild(styleEl);
-    document.body.classList.add('printing-kwitansi');
-
-    const cleanUp = () => {
-      document.body.classList.remove('printing-kwitansi');
-      styleEl.remove();
-      window.removeEventListener('afterprint', cleanUp);
-    };
-    window.addEventListener('afterprint', cleanUp);
-    setTimeout(() => window.print(), 60);
+    triggerGooglePrint({
+      pageCss: `@page{size:${activeSize.widthMm}mm ${activeSize.heightMm}mm;margin:0}`,
+      bodyClass: 'printing-kwitansi',
+      targetRoot: document.getElementById('kw-print-root') || document.body,
+    });
   };
 
   const selectedIndex = selectedRow ? bku.findIndex((r) => r.id === selectedRow.id) : -1;

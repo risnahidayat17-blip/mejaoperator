@@ -40,8 +40,10 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={onOpenSettingsKop}
-            title="Klik untuk mengatur logo sekolah & kop surat"
-            className="w-10 h-10 rounded-lg bg-[#DAEEE7] border border-[#0B6B58]/20 flex items-center justify-center shrink-0 overflow-hidden text-[#0B6B58] hover:ring-2 hover:ring-[#0B6B58] transition cursor-pointer"
+            title={onOpenSettingsKop ? 'Klik untuk mengatur logo sekolah & kop surat' : (config.namaSekolah || 'Meja Operator Sekolah')}
+            className={`w-10 h-10 rounded-lg bg-[#DAEEE7] border border-[#0B6B58]/20 flex items-center justify-center shrink-0 overflow-hidden text-[#0B6B58] transition ${
+              onOpenSettingsKop ? 'hover:ring-2 hover:ring-[#0B6B58] cursor-pointer' : 'cursor-default'
+            }`}
           >
             {logo ? (
               <img src={logo} alt="Logo Sekolah" className="w-8 h-8 object-contain logo-hd" />
@@ -76,7 +78,7 @@ export const Header: React.FC<HeaderProps> = ({
                   {isOperator ? (
                     <span className="text-[#0B6B58] font-semibold">Operator (Full Akses)</span>
                   ) : (
-                    <span className="text-[#1D7A3A] font-semibold">Guru / Tendik</span>
+                    <span className="text-[#1D7A3A] font-semibold">Guru / Tendik (Lihat Saja)</span>
                   )}
                 </div>
               </div>

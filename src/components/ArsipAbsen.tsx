@@ -140,7 +140,7 @@ export const ArsipAbsen: React.FC<ArsipAbsenProps> = ({ role, config, onToast })
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (saving) return;
+    if (!isOperator || saving) return;
     if (!selectedFile && !editing) {
       setFileError('Pilih berkas PDF absen terlebih dahulu.');
       onToast('Pilih berkas PDF absen terlebih dahulu.', true);
@@ -236,15 +236,24 @@ export const ArsipAbsen: React.FC<ArsipAbsenProps> = ({ role, config, onToast })
 
   const handleView = async (item: IArsipAbsen) => {
     const ok = await openFile(item.file);
-    if (!ok) onToast('Berkas tidak ditemukan. Pastikan ImageKit sudah diatur (menu Koneksi Supabase > ImageKit) atau buka dari perangkat yang mengunggahnya.', true);
+    if (!ok) {
+      onToast(
+        isOperator
+          ? 'Berkas tidak ditemukan. Pastikan ImageKit sudah diatur (menu Koneksi Supabase > ImageKit) atau buka dari perangkat yang mengunggahnya.'
+          : 'Berkas tidak ditemukan atau belum tersedia.',
+        true
+      );
+    }
   };
 
   const handleDownload = async (item: IArsipAbsen) => {
+    if (!isOperator) return;
     const ok = await downloadFile(item.file);
     if (!ok) onToast('Berkas tidak ditemukan. Pastikan ImageKit sudah diatur (menu Koneksi Supabase > ImageKit) atau unduh dari perangkat yang mengunggahnya.', true);
   };
 
   const handleDelete = (item: IArsipAbsen) => {
+    if (!isOperator) return;
     if (window.confirm(`Hapus arsip absen "${item.file.name}" (Kelas ${item.kelas})?`)) {
       if (saveArsipAbsenList(getArsipAbsen().filter((i) => i.id !== item.id))) {
         deleteFile(item.file).catch(() => {});
@@ -273,21 +282,23 @@ export const ArsipAbsen: React.FC<ArsipAbsenProps> = ({ role, config, onToast })
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            setEditing(null);
-            setIsModalOpen(true);
-            setSelectedFile(null);
-            setFileError(null);
-          }}
-          className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 transition cursor-pointer"
-        >
-          <Plus className="w-4 h-4" /> Unggah Absen (PDF)
-        </button>
+        {isOperator && (
+          <button
+            type="button"
+            onClick={() => {
+              setEditing(null);
+              setIsModalOpen(true);
+              setSelectedFile(null);
+              setFileError(null);
+            }}
+            className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 transition cursor-pointer"
+          >
+            <Plus className="w-4 h-4" /> Unggah Absen (PDF)
+          </button>
+        )}
       </div>
 
-      {pendingFiles > 0 && (
+      {isOperator && pendingFiles > 0 && (
         <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 text-xs rounded-lg font-medium">
           {pendingFiles} berkas tersimpan di perangkat ini dan sedang dikirim ke ImageKit. Biarkan aplikasi tetap terbuka
           dan pastikan internet aktif. Jika terus muncul, periksa pengaturan ImageKit di menu Koneksi Supabase.
@@ -333,7 +344,9 @@ export const ArsipAbsen: React.FC<ArsipAbsenProps> = ({ role, config, onToast })
           <CalendarCheck className="w-12 h-12 mx-auto text-gray-300" />
           <h3 className="font-bold text-sm text-[#13262A]">Belum Ada Arsip Absensi</h3>
           <p className="text-xs max-w-sm mx-auto">
-            Klik tombol &quot;Unggah Absen (PDF)&quot; di atas untuk menyimpan rekapitulasi kehadiran siswa.
+            {isOperator
+              ? 'Klik tombol "Unggah Absen (PDF)" di atas untuk menyimpan rekapitulasi kehadiran siswa.'
+              : 'Belum ada berkas arsip absensi yang tersedia saat ini.'}
           </p>
         </div>
       ) : (
@@ -406,19 +419,21 @@ export const ArsipAbsen: React.FC<ArsipAbsenProps> = ({ role, config, onToast })
                               <Download className="w-4 h-4" />
                             </button>
                           )}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditing(row);
-                              setSelectedFile(null);
-                              setFileError(null);
-                              setIsModalOpen(true);
-                            }}
-                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition cursor-pointer"
-                            title="Ubah data"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </button>
+                          {isOperator && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditing(row);
+                                setSelectedFile(null);
+                                setFileError(null);
+                                setIsModalOpen(true);
+                              }}
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition cursor-pointer"
+                              title="Ubah data"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                          )}
                           {isOperator && (
                             <button
                               type="button"
@@ -441,7 +456,7 @@ export const ArsipAbsen: React.FC<ArsipAbsenProps> = ({ role, config, onToast })
       )}
 
       {/* UPLOAD MODAL */}
-      {isModalOpen && (
+      {isOperator && isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
           <form
             key={editing?.id || 'baru'}

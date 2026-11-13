@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 
 interface DashboardProps {
+  role?: 'operator' | 'guru';
   config: SchoolConfig;
   siswa: Siswa[];
   guru: Guru[];
@@ -32,6 +33,7 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
+  role = 'operator',
   config,
   siswa,
   guru,
@@ -132,7 +134,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             onClick={() => onNavigate('suratkeluar')}
             className="px-4 py-2 bg-white text-[#0B6B58] text-xs font-bold rounded-xl shadow-xs hover:bg-[#DAEEE7] transition cursor-pointer"
           >
-            + Buat Surat Keluar
+            {role === 'operator' ? '+ Buat Surat Keluar' : 'Surat Keluar'}
           </button>
           <button
             type="button"
@@ -301,7 +303,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* Ringkasan riwayat pengerjaan */}
-      <RiwayatPengerjaan />
+      <RiwayatPengerjaan role={role} />
     </div>
   );
 };

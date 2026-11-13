@@ -6,6 +6,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { StikerBmd } from './StikerBmd';
 import { SchoolConfig, Aset } from '../types';
+import { printDomElement } from '../lib/print';
 import {
   getAsets,
   saveAset,
@@ -52,6 +53,8 @@ export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, on
   const isOperator = role === 'operator';
   const [activeTab, setActiveTab] = useState<'daftar' | 'kir' | 'label' | 'bmd'>('daftar');
   const [asets, setAsets] = useState<Aset[]>(getAsets());
+  const kirPrintRef = useRef<HTMLDivElement>(null);
+  const labelPrintRef = useRef<HTMLDivElement>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterKategori, setFilterKategori] = useState('');
@@ -494,14 +497,17 @@ export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, on
 
             <button
               type="button"
-              onClick={() => window.print()}
+              onClick={() => printDomElement(kirPrintRef.current, { paper: 'A4', margin: '12mm 16mm' })}
               className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 cursor-pointer"
             >
-              <Printer className="w-4 h-4" /> Cetak Lembar KIR
+              <Printer className="w-4 h-4" /> Cetak KIR (Preview Google)
             </button>
           </div>
 
-          <div className="bg-white border border-[#D3DDD9] rounded-xl p-8 shadow-xs select-text print-sheet">
+          <div
+            ref={kirPrintRef}
+            className="bg-white border border-[#D3DDD9] rounded-xl p-8 shadow-xs select-text print-sheet"
+          >
             <div className="text-center pb-4 border-b-2 border-black mb-6">
               <h2 className="text-lg font-bold font-serif uppercase tracking-wider">
                 KARTU INVENTARIS RUANGAN (KIR)
@@ -573,14 +579,14 @@ export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, on
             </p>
             <button
               type="button"
-              onClick={() => window.print()}
+              onClick={() => printDomElement(labelPrintRef.current, { paper: 'A4', margin: '10mm' })}
               className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 cursor-pointer"
             >
-              <Printer className="w-4 h-4" /> Cetak Label Stiker
+              <Printer className="w-4 h-4" /> Cetak Label (Preview Google)
             </button>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 print:grid-cols-3">
+          <div ref={labelPrintRef} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 print:grid-cols-3 print-sheet">
             {asets.map((a) => (
               <div
                 key={a.id}

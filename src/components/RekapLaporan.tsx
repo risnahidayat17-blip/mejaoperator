@@ -3,8 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { SchoolConfig, Siswa, Guru, Aset } from '../types';
+import { printDomElement } from '../lib/print';
 import { KopSuratHD } from './KopSuratHD';
 import {
   Users,
@@ -31,6 +32,7 @@ export const RekapLaporan: React.FC<RekapLaporanProps> = ({
   onToast,
 }) => {
   const [tab, setTab] = useState<'siswa' | 'guru' | 'aset' | 'lengkap'>('siswa');
+  const printSheetRef = useRef<HTMLDivElement>(null);
 
   const activeSiswa = siswa.filter((s) => s.status === 'Aktif');
   const activeGuru = guru.filter((g) => g.status !== 'Nonaktif');
@@ -111,10 +113,10 @@ export const RekapLaporan: React.FC<RekapLaporanProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => window.print()}
+            onClick={() => printDomElement(printSheetRef.current, { paper: 'A4', margin: '12mm 16mm' })}
             className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 cursor-pointer"
           >
-            <Printer className="w-4 h-4" /> Cetak Laporan
+            <Printer className="w-4 h-4" /> Cetak (Preview Google)
           </button>
         </div>
       </div>
@@ -195,7 +197,10 @@ export const RekapLaporan: React.FC<RekapLaporanProps> = ({
       </div>
 
       {/* Sheet Content */}
-      <div className="bg-white border border-[#D3DDD9] rounded-xl p-8 shadow-xs select-text print-sheet">
+      <div
+        ref={printSheetRef}
+        className="bg-white border border-[#D3DDD9] rounded-xl p-8 shadow-xs select-text print-sheet"
+      >
         <KopSuratHD config={config} />
 
         <div className="text-center pb-4 border-b border-black mb-5">

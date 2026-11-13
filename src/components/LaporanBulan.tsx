@@ -7,6 +7,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { SchoolConfig, Siswa, Guru, LaporanBulan as ILaporanBulan } from '../types';
 import { getFromStorage, setToStorage, KEYS } from '../lib/storage';
+import { triggerGooglePrint } from '../lib/print';
 import { Daftar1Pages, hitungTotalBulanMasaKerja, parseTmtDate } from './Daftar1Sheet';
 import { EditDaftar1Modal } from './EditDaftar1Modal';
 import { Printer, Pencil, X } from 'lucide-react';
@@ -72,17 +73,11 @@ export const LaporanBulan: React.FC<LaporanBulanProps> = ({
   }, []);
 
   const handlePrint = () => {
-    const styleEl = document.createElement('style');
-    styleEl.textContent = '@page{size:330mm 216mm;margin:0}';
-    document.head.appendChild(styleEl);
-    document.body.classList.add('printing-laporan');
-    const cleanUp = () => {
-      document.body.classList.remove('printing-laporan');
-      styleEl.remove();
-      window.removeEventListener('afterprint', cleanUp);
-    };
-    window.addEventListener('afterprint', cleanUp);
-    setTimeout(() => window.print(), 60);
+    triggerGooglePrint({
+      pageCss: '@page{size:330mm 216mm;margin:0}',
+      bodyClass: 'printing-laporan',
+      targetRoot: document.getElementById('lb-print-root') || document.body,
+    });
   };
 
   const handleSaveAbsen = (e: React.FormEvent<HTMLFormElement>) => {

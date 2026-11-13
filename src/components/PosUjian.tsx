@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { printDomElement } from '../lib/print';
 import {
   SchoolConfig,
   PosUjianConfig,
@@ -166,6 +167,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
   const [printRuang, setPrintRuang] = useState<string>('Ruang 01');
   const [selectedHariHadir, setSelectedHariHadir] = useState<number>(1);
   const [printAllHari, setPrintAllHari] = useState<boolean>(false);
+  const posPrintRef = useRef<HTMLDivElement>(null);
 
   const reloadAll = () => {
     setPosConfig(getPosUjianConfig());
@@ -3445,11 +3447,14 @@ export const PosUjian: React.FC<PosUjianProps> = ({
                   type="button"
                   onClick={() => {
                     recordActivity('POS Ujian', `Cetak dokumen POS Ujian: ${printDoc}`, false, 'update');
-                    window.print();
+                    printDomElement(posPrintRef.current, {
+                      paper: printDoc === 'pengawas_rekap' ? 'A4-landscape' : 'A4',
+                      margin: printDoc === 'pengawas_rekap' ? '10mm 14mm' : '12mm 16mm',
+                    });
                   }}
                   className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
-                  <Printer className="w-4 h-4" /> Cetak Lembar Ini
+                  <Printer className="w-4 h-4" /> Cetak (Preview Google)
                 </button>
                 <button
                   type="button"
@@ -3508,7 +3513,10 @@ export const PosUjian: React.FC<PosUjianProps> = ({
             )}
 
             {/* PRINT CONTAINER WITH KOP HD */}
-            <div className="overflow-x-auto bg-white p-8 rounded-xl border border-gray-300 shadow-sm print-sheet text-black font-serif">
+            <div
+              ref={posPrintRef}
+              className="overflow-x-auto bg-white p-8 rounded-xl border border-gray-300 shadow-sm print-sheet text-black font-serif"
+            >
               {/* COVER & PENGESAHAN POS */}
               {printDoc === 'pos_cover' && (
                 <div className="space-y-8 p-4 text-center">
@@ -3755,14 +3763,6 @@ export const PosUjian: React.FC<PosUjianProps> = ({
               {/* JADWAL & ROTASI PENGAWAS RUANG CETAK RESMI (FORMAT LANDSCAPE, ROTASI NAMA GURU DI RUANG 01-03, TANPA KOLOM TTD) */}
               {printDoc === 'pengawas_rekap' && (
                 <div className="landscape-print">
-                  <style>{`
-                    @media print {
-                      @page {
-                        size: landscape !important;
-                        margin: 10mm 15mm !important;
-                      }
-                    }
-                  `}</style>
                   <KopSuratHD config={config} />
                   <div className="text-center pb-4 space-y-1">
                     <div className="text-sm font-bold tracking-wider uppercase underline">

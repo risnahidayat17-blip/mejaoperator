@@ -6,6 +6,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { SchoolConfig, BmdItem, StikerConfig } from '../types';
 import { getBmdItems, saveBmdItems, getStikerConfig, saveStikerConfig } from '../lib/storage';
+import { printDomElement } from '../lib/print';
 import { LOGO_PEMDA_STIKER } from '../data/stikerLogo';
 import { parseSikatonFile, convertToBmdItems } from '../lib/sikatonImport';
 import { Printer, Plus, Pencil, Trash2, Search, X, ClipboardPaste, FileUp, FileSpreadsheet } from 'lucide-react';
@@ -93,6 +94,7 @@ export const StikerBmd: React.FC<StikerBmdProps> = ({ role, config, onToast }) =
   const [items, setItems] = useState<BmdItem[]>(getBmdItems());
   const [selected, setSelected] = useState<Set<string>>(() => new Set(getBmdItems().map((b) => b.id)));
   const [cfg, setCfg] = useState<StikerConfig>(getStikerConfig());
+  const stikerPrintRef = useRef<HTMLDivElement>(null);
   const [startPos, setStartPos] = useState(1);
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<BmdItem | null>(null);
@@ -162,13 +164,10 @@ export const StikerBmd: React.FC<StikerBmdProps> = ({ role, config, onToast }) =
       onToast('Pilih minimal satu barang untuk dicetak.', true);
       return;
     }
-    document.body.classList.add('printing-stiker');
-    const cleanup = () => {
-      document.body.classList.remove('printing-stiker');
-      window.removeEventListener('afterprint', cleanup);
-    };
-    window.addEventListener('afterprint', cleanup);
-    setTimeout(() => window.print(), 50);
+    printDomElement(stikerPrintRef.current, {
+      pageCss: '@page { size: A4 portrait; margin: 6mm; }',
+      extraPortalClass: 'printing-stiker-portal',
+    });
   };
 
   const handleSaveForm = (e: React.FormEvent<HTMLFormElement>) => {
@@ -316,15 +315,10 @@ export const StikerBmd: React.FC<StikerBmdProps> = ({ role, config, onToast }) =
           .stk-page { box-shadow: 0 1px 4px rgba(0,0,0,.2); margin: 0 auto 12px; padding: 6mm; width: 210mm; height: 297mm; }
         }
         @media print {
-          @page stiker { size: A4 portrait; margin: 6mm; }
-          .stiker-print { page: stiker; }
-          .stk-page { break-after: page; page-break-after: always; padding: 0; width: 198mm; height: 285mm; margin: 0; }
-          .stk-page:last-child { break-after: auto; page-break-after: auto; }
-          .stk-sheet-wrap { zoom: 1; }
-          body.printing-stiker :not(.stiker-print):not(:has(.stiker-print)):not(.stiker-print *) { display: none !important; }
-          body.printing-stiker :has(.stiker-print) { display: block !important; padding: 0 !important; margin: 0 !important; width: auto !important;
-            max-width: none !important; height: auto !important; min-height: 0 !important; overflow: visible !important; position: static !important; border: 0 !important; }
-          body.printing-stiker .stk-empty { border: 0; }
+          #app-print-portal.printing-stiker-portal .stk-page { break-after: page; page-break-after: always; padding: 0; width: 198mm; height: 285mm; margin: 0; }
+          #app-print-portal.printing-stiker-portal .stk-page:last-child { break-after: auto; page-break-after: auto; }
+          #app-print-portal.printing-stiker-portal .stk-sheet-wrap { zoom: 1; }
+          #app-print-portal.printing-stiker-portal .stk-empty { border: 0; }
         }
       `}</style>
 
@@ -446,7 +440,7 @@ export const StikerBmd: React.FC<StikerBmdProps> = ({ role, config, onToast }) =
 
       {/* Pratinjau & area cetak */}
       <div className="no-print text-xs font-semibold text-[#566A6E]">Pratinjau cetak ({pages.length} lembar A4)</div>
-      <div className="stiker-print stk-sheet-wrap">
+      <div ref={stikerPrintRef} className="stiker-print stk-sheet-wrap">
         {pages.map((slots, pi) => (
           <div className="stk-page" key={pi}>
             {slots.map((b, si) => (b ? <div key={b.id + si}>{renderSticker(b)}</div> : <div className="stk-empty" key={'e' + si} />))}

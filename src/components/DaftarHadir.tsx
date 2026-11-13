@@ -8,6 +8,7 @@ import { createPortal } from 'react-dom';
 import { Printer, ClipboardList } from 'lucide-react';
 import { Guru, SchoolConfig, Siswa } from '../types';
 import { getRombels, recordActivity } from '../lib/storage';
+import { triggerGooglePrint } from '../lib/print';
 import { KopSuratHD } from './KopSuratHD';
 
 interface Props {
@@ -415,23 +416,17 @@ export const DaftarHadir: React.FC<Props> = ({ config, siswa, guru, onToast }) =
       onToast('Tidak ada siswa pada pilihan ini.', true);
       return;
     }
-    const styleEl = document.createElement('style');
-    styleEl.textContent = '@page{size:297mm 210mm;margin:0}';
-    document.head.appendChild(styleEl);
-    document.body.classList.add('printing-hadir');
-    const cleanUp = () => {
-      document.body.classList.remove('printing-hadir');
-      styleEl.remove();
-      window.removeEventListener('afterprint', cleanUp);
-    };
-    window.addEventListener('afterprint', cleanUp);
     recordActivity(
       'Daftar Hadir',
       `Cetak/Simpan PDF ${JENIS[jenis].label} - ${scopeLabel} (Periode ${ym})`,
       false,
       'update'
     );
-    setTimeout(() => window.print(), 60);
+    triggerGooglePrint({
+      pageCss: '@page{size:297mm 210mm;margin:0}',
+      bodyClass: 'printing-hadir',
+      targetRoot: document.getElementById('dh-print-root') || document.body,
+    });
   };
 
   const sel = 'w-full px-3 py-2 text-sm border border-[#D3DDD9] rounded-lg bg-white focus:outline-hidden focus:border-[#0B6B58]';

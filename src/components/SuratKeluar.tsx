@@ -18,6 +18,7 @@ import {
   subscribeToCloudChanges,
 } from '../lib/storage';
 import { docxToHtml, sanitizeLetterHtml, htmlToPlainText, MAX_DOCX_BYTES } from '../lib/docx';
+import { printDomElement } from '../lib/print';
 import { KopSuratHD } from './KopSuratHD';
 import {
   Send,
@@ -156,10 +157,29 @@ export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditorOpen, mode, editorKey]);
 
-  // Preview Modal
+  // Preview Modal & Direct Google Print
   const [previewSurat, setPreviewSurat] = useState<ISuratKeluar | null>(null);
+  const [quickPrintSurat, setQuickPrintSurat] = useState<ISuratKeluar | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const modalPreviewRef = useRef<HTMLDivElement>(null);
+  const directPrintRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!quickPrintSurat) return;
+    const raf = requestAnimationFrame(() => {
+      if (!directPrintRef.current) {
+        setQuickPrintSurat(null);
+        return;
+      }
+      const pSize = quickPrintSurat.ukuranKertas === 'Legal' ? 'Legal' : 'A4';
+      printDomElement(directPrintRef.current, {
+        paper: pSize,
+        margin: '14mm 18mm',
+        onCleanup: () => setQuickPrintSurat(null),
+      });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [quickPrintSurat]);
 
   const reloadData = () => {
     setSuratList(getSuratKeluar());
@@ -351,17 +371,18 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
     return tglStr;
   };
 
-  const handlePrint = (pSize?: 'A4' | 'Legal') => {
+  const handlePrint = (pSize?: 'A4' | 'Legal', targetEl?: HTMLElement | null) => {
     const size = pSize || paperSize;
-    document.body.setAttribute('data-paper-size', size.toLowerCase());
+    const target = targetEl || modalPreviewRef.current || previewRef.current;
+    if (!target) return;
     const current = previewSurat || editingSurat;
     if (current) {
       recordActivity('Surat Keluar', `Cetak surat keluar: ${current.perihal || current.noSurat || 'Surat'}`, false, 'update');
     }
-    window.print();
-    setTimeout(() => {
-      document.body.removeAttribute('data-paper-size');
-    }, 1200);
+    printDomElement(target, {
+      paper: size === 'Legal' ? 'Legal' : 'A4',
+      margin: '14mm 18mm',
+    });
   };
 
   // ---------- Surat kustom ----------
@@ -773,9 +794,20 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
                     <div className="flex items-center justify-end gap-1.5">
                       <button
                         type="button"
+                        onClick={() => {
+                          recordActivity('Surat Keluar', `Cetak surat keluar: ${s.perihal || s.noSurat || 'Surat'}`, false, 'update');
+                          setQuickPrintSurat(s);
+                        }}
+                        className="p-1.5 text-[#0B6B58] hover:bg-[#DAEEE7] rounded transition cursor-pointer"
+                        title="Cetak Langsung (Preview Google)"
+                      >
+                        <Printer className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => setPreviewSurat(s)}
                         className="p-1.5 text-[#0B6B58] hover:bg-[#DAEEE7] rounded transition cursor-pointer"
-                        title="Pratinjau Tampilan Surat & Cetak"
+                        title="Lihat Tampilan Surat"
                       >
                         <Eye className="w-4 h-4" />
                       </button>
@@ -1251,10 +1283,10 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
                   </button>
                   <button
                     type="button"
-                    onClick={() => handlePrint(paperSize)}
+                    onClick={() => handlePrint(paperSize, previewRef.current)}
                     className="px-3.5 py-2.5 bg-[#E8EFEC] hover:bg-[#D3DDD9] text-[#13262A] text-xs font-semibold rounded-lg flex items-center gap-1.5 cursor-pointer"
                   >
-                    <Printer className="w-4 h-4" /> Cetak
+                    <Printer className="w-4 h-4" /> Cetak (Preview Google)
                   </button>
                 </div>
               </div>
@@ -1320,10 +1352,10 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => handlePrint(previewSurat.ukuranKertas || paperSize)}
+                  onClick={() => handlePrint(previewSurat.ukuranKertas || paperSize, modalPreviewRef.current)}
                   className="px-3 py-1.5 text-xs bg-[#0B6B58] hover:bg-[#095747] text-white font-semibold rounded-lg flex items-center gap-1.5 transition cursor-pointer"
                 >
-                  <Printer className="w-3.5 h-3.5" /> Cetak
+                  <Printer className="w-3.5 h-3.5" /> Cetak (Preview Google)
                 </button>
                 <button
                   type="button"
@@ -1341,6 +1373,23 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Off-screen render target for 1-click Google Print Preview from table rows */}
+      {quickPrintSurat && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'fixed',
+            left: '-99999px',
+            top: 0,
+            width: '780px',
+            pointerEvents: 'none',
+            opacity: 0,
+          }}
+        >
+          <div ref={directPrintRef}>{renderSuratContent(quickPrintSurat)}</div>
         </div>
       )}
     </div>

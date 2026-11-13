@@ -3,9 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { SchoolConfig } from '../types';
 import { getSiswas, getNilaiRecords, recordActivity } from '../lib/storage';
+import { printDomElement } from '../lib/print';
 import { KopSuratHD } from './KopSuratHD';
 import { BookOpen, Search, Printer, FileSpreadsheet } from 'lucide-react';
 import { ImportDapodikSiswaModal } from './ImportDapodikSiswaModal';
@@ -24,6 +25,7 @@ export const BukuInduk: React.FC<BukuIndukProps> = ({ config, role = 'operator',
   const [searchTerm, setSearchTerm] = useState('');
   const [filterKelas, setFilterKelas] = useState('');
   const [selectedSiswaId, setSelectedSiswaId] = useState<string>(siswaList[0]?.id || '');
+  const printSheetRef = useRef<HTMLDivElement>(null);
 
   const kelasList = (config.kelas || '1, 2, 3, 4, 5, 6')
     .split(',')
@@ -79,11 +81,11 @@ export const BukuInduk: React.FC<BukuIndukProps> = ({ config, role = 'operator',
               type="button"
               onClick={() => {
                 recordActivity('Buku Induk', `Cetak lembar buku induk: ${currentSiswa.nama} (Kelas ${currentSiswa.kelas})`, false, 'update');
-                window.print();
+                printDomElement(printSheetRef.current, { paper: 'A4', margin: '12mm 16mm' });
               }}
               className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 cursor-pointer"
             >
-              <Printer className="w-4 h-4" /> Cetak Lembar Buku Induk
+              <Printer className="w-4 h-4" /> Cetak (Preview Google)
             </button>
           )}
         </div>
@@ -152,7 +154,10 @@ export const BukuInduk: React.FC<BukuIndukProps> = ({ config, role = 'operator',
         </div>
 
         {/* Right Printable Folio */}
-        <div className="lg:col-span-8 bg-white border border-[#D3DDD9] rounded-xl p-8 shadow-xs select-text print-sheet">
+        <div
+          ref={printSheetRef}
+          className="lg:col-span-8 bg-white border border-[#D3DDD9] rounded-xl p-8 shadow-xs select-text print-sheet"
+        >
           {currentSiswa ? (
             <div className="space-y-6">
               <KopSuratHD config={config} />

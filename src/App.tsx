@@ -216,7 +216,7 @@ export default function App() {
       />
 
       {/* Main Container */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden app-shell-body">
         {/* Navigation Sidebar */}
         <Sidebar
           currentTab={currentTab}
@@ -227,7 +227,7 @@ export default function App() {
         />
 
         {/* Content Area */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 app-main-scroll">
           <div className="max-w-7xl mx-auto">
             {isRestrictedForGuru ? (
               /* Access Denied Card */

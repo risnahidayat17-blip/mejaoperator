@@ -81,24 +81,35 @@ h1, h2, h3, h4 {
   -webkit-print-color-adjust: exact;
 }
 
+#app-print-portal {
+  display: none;
+}
+
 @media print {
   @page {
-    margin: 15mm 20mm 15mm 20mm;
+    size: A4 portrait;
+    margin: 14mm 16mm;
   }
 
-  body[data-paper-size="legal"] {
-    @page {
-      size: legal portrait;
-      margin: 15mm 20mm 15mm 20mm;
-    }
-  }
-
-  body[data-paper-size="a4"],
-  body:not([data-paper-size]) {
-    @page {
-      size: A4 portrait;
-      margin: 15mm 20mm 15mm 20mm;
-    }
+  html,
+  body,
+  #root,
+  .app-workspace-bg,
+  .login-canvas-bg,
+  .app-shell-body,
+  .app-main-scroll {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    display: block !important;
+    position: static !important;
+    background: #ffffff !important;
+    background-image: none !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
   }
 
   header,
@@ -112,29 +123,46 @@ h1, h2, h3, h4 {
     display: none !important;
   }
 
-  body,
-  .app-workspace-bg,
-  .login-canvas-bg {
-    background: #ffffff !important;
-    background-image: none !important;
-    color: #000000 !important;
-    padding: 0 !important;
-    margin: 0 !important;
+  body.printing-portal #root {
+    display: none !important;
+  }
+
+  body.printing-portal #app-print-portal {
+    display: block !important;
     width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  body.printing-portal #app-print-portal * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 
   .print-sheet {
     box-shadow: none !important;
     border: none !important;
+    border-radius: 0 !important;
     padding: 0 !important;
     margin: 0 auto !important;
     width: 100% !important;
     max-width: 100% !important;
-    page-break-inside: avoid !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    page-break-inside: auto !important;
   }
 
-  .print-sheet.surat-kustom-sheet {
-    page-break-inside: auto !important;
+  .print-sheet table thead {
+    display: table-header-group;
+  }
+
+  .print-sheet table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 }
 
