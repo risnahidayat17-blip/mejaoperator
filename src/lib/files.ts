@@ -424,16 +424,13 @@ export function dataUrlToBlobUrl(dataUrl: string): string | null {
 }
 
 function openUrlSafely(url: string): void {
-  const win = window.open(url, '_blank', 'noopener,noreferrer');
-  if (!win) {
-    const a = document.createElement('a');
-    a.href = url;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  }
+  const a = document.createElement('a');
+  a.href = url;
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 /** Buka berkas di tab baru. Mengembalikan false bila berkas tidak ditemukan. */

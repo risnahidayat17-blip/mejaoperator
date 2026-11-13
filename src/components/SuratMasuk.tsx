@@ -60,27 +60,22 @@ const openPdf = (url: string) => {
   const resolved = resolveImageKitUrl(url);
   if (resolved.startsWith('data:')) {
     const u = URL.createObjectURL(dataUrlToBlob(resolved));
-    const w = window.open(u, '_blank');
-    if (!w) {
-      const a = document.createElement('a');
-      a.href = u;
-      a.target = '_blank';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    }
+    const a = document.createElement('a');
+    a.href = u;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
     setTimeout(() => URL.revokeObjectURL(u), 60000);
   } else {
-    const w = window.open(resolved, '_blank', 'noopener,noreferrer');
-    if (!w) {
-      const a = document.createElement('a');
-      a.href = resolved;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    }
+    const a = document.createElement('a');
+    a.href = resolved;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   }
 };
 
