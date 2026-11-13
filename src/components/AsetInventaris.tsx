@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { StikerBmd } from './StikerBmd';
 import { SchoolConfig, Aset } from '../types';
 import {
@@ -15,6 +15,8 @@ import {
   saveBmdItems,
   getStikerConfig,
   saveStikerConfig,
+  subscribeToStorage,
+  subscribeToCloudChanges,
 } from '../lib/storage';
 import {
   Package,
@@ -80,6 +82,15 @@ export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, on
   const reloadData = () => {
     setAsets(getAsets());
   };
+
+  useEffect(() => {
+    const u1 = subscribeToStorage(reloadData);
+    const u2 = subscribeToCloudChanges(reloadData);
+    return () => {
+      u1();
+      u2();
+    };
+  }, []);
 
   const kibCategories = [
     'KIB A - Tanah',

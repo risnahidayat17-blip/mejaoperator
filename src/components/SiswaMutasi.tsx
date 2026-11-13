@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SchoolConfig, Siswa, Mutasi, Rombel, Guru } from '../types';
 import {
   getSiswas,
@@ -17,6 +17,8 @@ import {
   deleteRombelRecord,
   syncRombelsFromSiswa,
   getGurus,
+  subscribeToStorage,
+  subscribeToCloudChanges,
 } from '../lib/storage';
 import { KopSuratHD } from './KopSuratHD';
 import { ImportDapodikSiswaModal } from './ImportDapodikSiswaModal';
@@ -94,6 +96,15 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
     setRombelList(getRombels());
     setGuruList(getGurus());
   };
+
+  useEffect(() => {
+    const u1 = subscribeToStorage(reloadData);
+    const u2 = subscribeToCloudChanges(reloadData);
+    return () => {
+      u1();
+      u2();
+    };
+  }, []);
 
   const getStudentRombel = (s: Siswa): string => {
     if (s.rombel) return s.rombel;

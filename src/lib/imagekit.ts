@@ -53,7 +53,20 @@ export function getImageKitConfig(): ImageKitConfig {
         localStorage.removeItem(STORAGE_KEY);
         return normalize({});
       }
-      return normalize(parsed);
+      const norm = normalize(parsed);
+      // Jika masih menyimpan urlEndpoint akar akun lama (mis. tanpa /OPS) untuk akun bawaan yang sama, selaraskan dengan bawaan
+      if (
+        norm.publicKey === DEFAULT_IMAGEKIT_CONFIG.publicKey &&
+        DEFAULT_IMAGEKIT_CONFIG.urlEndpoint &&
+        (!norm.urlEndpoint || DEFAULT_IMAGEKIT_CONFIG.urlEndpoint.startsWith(norm.urlEndpoint + '/'))
+      ) {
+        return {
+          ...norm,
+          urlEndpoint: DEFAULT_IMAGEKIT_CONFIG.urlEndpoint,
+          folder: norm.folder || DEFAULT_IMAGEKIT_CONFIG.folder,
+        };
+      }
+      return norm;
     }
   } catch {}
   return normalize({});
@@ -110,11 +123,23 @@ function withQuery(url: string, query: string): string {
 }
 
 async function fetchAuth(cfg: ImageKitConfig): Promise<AuthParams> {
-  let res: Response;
-  try {
-    res = await fetch(withQuery(cfg.authEndpoint, 'action=auth'), { method: 'GET', cache: 'no-store' });
-  } catch {
-    throw new Error('Auth endpoint ImageKit tidak dapat dihubungi. Periksa internet dan alamat Auth Endpoint.');
+  let res: Response | null = null;
+  let lastErr: unknown = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      res = await fetch(withQuery(cfg.authEndpoint, 'action=auth'), { method: 'GET', cache: 'no-store' });
+      if (res.ok || res.status < 500) break;
+    } catch (e) {
+      lastErr = e;
+    }
+    if (attempt === 0) await new Promise((r) => setTimeout(r, 600));
+  }
+  if (!res) {
+    throw new Error(
+      lastErr instanceof Error && lastErr.message
+        ? `Auth endpoint ImageKit tidak dapat dihubungi (${lastErr.message}).`
+        : 'Auth endpoint ImageKit tidak dapat dihubungi. Periksa internet dan alamat Auth Endpoint.'
+    );
   }
   if (!res.ok) throw new Error(`Auth endpoint ImageKit membalas HTTP ${res.status}.`);
   let body: Partial<AuthParams> & { error?: string };
@@ -189,10 +214,13 @@ export async function uploadToImageKit(
   if (!res.ok || !body.url || !body.fileId) {
     throw new Error(`Unggah ke ImageKit gagal${body.message ? `: ${body.message}` : ` (HTTP ${res.status})`}`);
   }
+  const fp = body.filePath ? (body.filePath.startsWith('/') ? body.filePath : '/' + body.filePath) : '';
+  const rawUrl = fp && cfg.urlEndpoint ? `${cfg.urlEndpoint.replace(/\/+$/, '')}${fp}` : body.url;
+  const finalUrl = resolveImageKitUrl(rawUrl, fp);
   return {
-    url: body.url,
+    url: finalUrl,
     fileId: body.fileId,
-    filePath: body.filePath || '',
+    filePath: fp || body.filePath || '',
     name: body.name || fileName,
     size: body.size ?? blob.size,
   };
@@ -266,6 +294,64 @@ export async function testImageKitConnection(override?: Partial<ImageKitConfig>)
   }
 }
 
+/**
+ * Menyelaraskan URL berkas ImageKit dengan URL Endpoint saat ini.
+ * Jika URL Endpoint memiliki akhiran folder (mis. https://ik.imagekit.io/xvfbvpj3a/OPS)
+ * dan filePath juga diawali akhiran tersebut (/OPS/...), ImageKit mengembalikan body.url
+ * dengan satu /OPS sehingga saat diakses membalas 404. Fungsi ini memastikan URL selalu memakai
+ * endpoint lengkap + filePath (/OPS/OPS/...) agar bisa dibuka dari perangkat/akun mana pun.
+ */
+export function resolveImageKitUrl(url: string | undefined, path?: string): string {
+  if (!url) return '';
+  if (url.startsWith('data:') || url.startsWith('blob:')) return url;
+
+  const qIdx = url.indexOf('?');
+  const base = qIdx >= 0 ? url.slice(0, qIdx) : url;
+  const query = qIdx >= 0 ? url.slice(qIdx) : '';
+
+  const candidates = Array.from(
+    new Set(
+      [getImageKitConfig().urlEndpoint, DEFAULT_IMAGEKIT_CONFIG.urlEndpoint]
+        .map((ep) => String(ep || '').trim().replace(/\/+$/, ''))
+        .filter(Boolean)
+    )
+  );
+
+  for (const ep of candidates) {
+    try {
+      const parsed = new URL(ep);
+      const parts = parsed.pathname.replace(/\/+$/, '').split('/').filter(Boolean);
+      if (parts.length < 2) continue;
+
+      const accountBase = `${parsed.origin}/${parts[0]}`;
+      const epSuffix = `/${parts.slice(1).join('/')}`;
+      const fullEp = `${parsed.origin}/${parts.join('/')}`;
+
+      if (base.startsWith(`${fullEp}${epSuffix}/`)) {
+        return url;
+      }
+
+      if (path) {
+        const cleanPath = path.startsWith('/') ? path : `/${path}`;
+        if (cleanPath.startsWith(`${epSuffix}/`) && base.startsWith(`${accountBase}/`)) {
+          return `${fullEp}${cleanPath}${query}`;
+        }
+      }
+
+      if (
+        base.startsWith(`${fullEp}/`) &&
+        !base.startsWith(`${fullEp}${epSuffix}/`) &&
+        !base.startsWith(`${fullEp}/meja-operator/`)
+      ) {
+        const rest = base.slice(fullEp.length);
+        return `${fullEp}${epSuffix}${rest}${query}`;
+      }
+    } catch {}
+  }
+
+  return url;
+}
+
 /** Apakah URL ini milik ImageKit (domain imagekit.io atau URL endpoint sendiri). */
 function isImageKitUrl(url: string): boolean {
   if (/^https?:\/\/[^/]*imagekit\.io\//i.test(url)) return true;
@@ -279,12 +365,14 @@ function isImageKitUrl(url: string): boolean {
  * URL non-ImageKit, data URL, SVG, dan PDF dikembalikan apa adanya.
  */
 export function ikResize(url: string | undefined, width: number): string {
-  if (!url || url.startsWith('data:') || !isImageKitUrl(url)) return url || '';
-  if (/\.(svg|pdf)(\?|$)/i.test(url) || /[?&]tr=/.test(url)) return url;
-  return url + (url.includes('?') ? '&' : '?') + `tr=w-${Math.round(width)},q-75,f-auto`;
+  const resolved = resolveImageKitUrl(url);
+  if (!resolved || resolved.startsWith('data:') || !isImageKitUrl(resolved)) return resolved || '';
+  if (/\.(svg|pdf)(\?|$)/i.test(resolved) || /[?&]tr=/.test(resolved)) return resolved;
+  return resolved + (resolved.includes('?') ? '&' : '?') + `tr=w-${Math.round(width)},q-75,f-auto`;
 }
 
 /** URL unduh langsung: ImageKit membalas dengan header "attachment" sehingga browser langsung menyimpan berkas. */
 export function ikDownloadUrl(url: string): string {
-  return isImageKitUrl(url) ? url + (url.includes('?') ? '&' : '?') + 'ik-attachment=true' : url;
+  const resolved = resolveImageKitUrl(url);
+  return isImageKitUrl(resolved) ? resolved + (resolved.includes('?') ? '&' : '?') + 'ik-attachment=true' : resolved;
 }

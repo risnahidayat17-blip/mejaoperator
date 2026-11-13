@@ -132,6 +132,7 @@ const replaceKeys = new Set<string>(); // modul yang harus MENGGANTI isi cloud (
 const lastSeen: Record<string, string> = {};
 let pushTimer: any = null;
 let pushing = false;
+let pushPromise: Promise<void> | null = null;
 
 type Tombs = Record<string, number>;
 type AnyItem = { id: string; updatedAt?: number } & Record<string, unknown>;
@@ -360,33 +361,42 @@ async function pushOneKey(key: string): Promise<boolean> {
 
 async function flushCloudPush(): Promise<void> {
   pushTimer = null;
-  if (pushing || pendingPushKeys.size === 0) return;
-  pushing = true;
-  const keys = Array.from(pendingPushKeys);
-  let failed = false;
-  try {
-    for (const k of keys) {
-      pendingPushKeys.delete(k); // perubahan baru saat proses berjalan akan masuk lagi lewat scheduleCloudPush
-      let ok = false;
-      try {
-        ok = await pushOneKey(k);
-      } catch {
-        ok = false;
-      }
-      if (!ok) {
-        pendingPushKeys.add(k);
-        failed = true;
-      }
-    }
-  } finally {
-    pushing = false;
-    if (failed) {
-      console.warn('Auto-sync Supabase gagal, akan dicoba lagi.');
-      pushTimer = setTimeout(flushCloudPush, 10000);
-    } else if (pendingPushKeys.size > 0) {
-      pushTimer = setTimeout(flushCloudPush, 1200);
-    }
+  if (pushing) {
+    if (pushPromise) await pushPromise;
+    if (pendingPushKeys.size === 0) return;
   }
+  if (pendingPushKeys.size === 0) return;
+  pushing = true;
+  const run = (async () => {
+    const keys = Array.from(pendingPushKeys);
+    let failed = false;
+    try {
+      for (const k of keys) {
+        pendingPushKeys.delete(k); // perubahan baru saat proses berjalan akan masuk lagi lewat scheduleCloudPush
+        let ok = false;
+        try {
+          ok = await pushOneKey(k);
+        } catch {
+          ok = false;
+        }
+        if (!ok) {
+          pendingPushKeys.add(k);
+          failed = true;
+        }
+      }
+    } finally {
+      pushing = false;
+      pushPromise = null;
+      if (failed) {
+        console.warn('Auto-sync Supabase gagal, akan dicoba lagi.');
+        pushTimer = setTimeout(flushCloudPush, 10000);
+      } else if (pendingPushKeys.size > 0) {
+        pushTimer = setTimeout(flushCloudPush, 1200);
+      }
+    }
+  })();
+  pushPromise = run;
+  await run;
 }
 
 /** Dorong semua perubahan antrean ke Supabase Cloud sekarang juga tanpa menunggu timer debounce. */
@@ -401,16 +411,19 @@ export async function flushCloudPushNow(): Promise<boolean> {
 
 let pulling = false;
 /** Ambil perubahan dari cloud dan GABUNGKAN dengan data lokal. Mengembalikan jumlah modul yang berubah. */
-export async function syncFromCloud(): Promise<number> {
+export async function syncFromCloud(force = false): Promise<number> {
   const cfg = getSupabaseConfig();
-  if (pulling || !cfg.autoSync || !cfg.apiKey || !cfg.projectUrl) return 0;
+  if (pulling || (!force && !cfg.autoSync) || !cfg.apiKey || !cfg.projectUrl) return 0;
   pulling = true;
   try {
     const meta = await fetchRemoteMeta();
     if (!meta) return 0;
     const validKeys = new Set<string>(Object.values(KEYS));
     const changedKeys = Object.keys(meta).filter(
-      (id) => validKeys.has(id) && !SYNC_SKIP_KEYS.has(id) && (lastSeen[id] !== meta[id] || lastSeen[TOMB_PREFIX + id] !== meta[TOMB_PREFIX + id])
+      (id) =>
+        validKeys.has(id) &&
+        !SYNC_SKIP_KEYS.has(id) &&
+        (force || lastSeen[id] !== meta[id] || lastSeen[TOMB_PREFIX + id] !== meta[TOMB_PREFIX + id])
     );
     if (changedKeys.length === 0) return 0;
     const ids = changedKeys.flatMap((k) => (meta[TOMB_PREFIX + k] ? [k, TOMB_PREFIX + k] : [k]));
@@ -1945,6 +1958,7 @@ interface FileRefLike {
 
 /** Saat berkas tertunda akhirnya terunggah, perbarui referensinya di data teks (dokumen GTK & arsip absen). */
 function patchFileRef(fileId: string, patch: RefPatch): void {
+  let anyDirty = false;
   const apply = <T extends { id: string; file?: FileRefLike }>(key: string, list: T[]): void => {
     let dirty = false;
     const out = list.map((it) => {
@@ -1954,11 +1968,17 @@ function patchFileRef(fileId: string, patch: RefPatch): void {
       }
       return it;
     });
-    if (dirty) setToStorage(key, out);
+    if (dirty) {
+      anyDirty = true;
+      setToStorage(key, out);
+    }
   };
   apply(KEYS.DOKGTK, getDokumenGtks() as any[]);
   apply(KEYS.ARSIPABSEN, getArsipAbsen() as any[]);
   apply(KEYS.BERKAS, getFromStorage<any[]>(KEYS.BERKAS, []));
+  if (anyDirty) {
+    flushCloudPushNow().catch(() => {});
+  }
 }
 setFileUploadedHandler(patchFileRef);
 

@@ -14,6 +14,8 @@ import {
   saveTemplate,
   deleteTemplate,
   recordActivity,
+  subscribeToStorage,
+  subscribeToCloudChanges,
 } from '../lib/storage';
 import { docxToHtml, sanitizeLetterHtml, htmlToPlainText, MAX_DOCX_BYTES } from '../lib/docx';
 import { KopSuratHD } from './KopSuratHD';
@@ -89,8 +91,22 @@ function cleanNip(nip?: string): string {
 export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast }) => {
   const isOperator = role === 'operator';
   const [suratList, setSuratList] = useState<ISuratKeluar[]>(getSuratKeluar());
-  const [siswaList] = useState<Siswa[]>(getSiswas());
+  const [siswaList, setSiswaList] = useState<Siswa[]>(getSiswas());
   const [templateList, setTemplateList] = useState<LetterTemplate[]>(getTemplates());
+
+  useEffect(() => {
+    const reload = () => {
+      setSuratList(getSuratKeluar());
+      setSiswaList(getSiswas());
+      setTemplateList(getTemplates());
+    };
+    const u1 = subscribeToStorage(reload);
+    const u2 = subscribeToCloudChanges(reload);
+    return () => {
+      u1();
+      u2();
+    };
+  }, []);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterJenis, setFilterJenis] = useState('');

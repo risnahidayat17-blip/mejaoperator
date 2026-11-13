@@ -43,6 +43,8 @@ import {
   generateJadwalPengawasOtomatis,
   replacePengawasGlobally,
   recordActivity,
+  subscribeToStorage,
+  subscribeToCloudChanges,
 } from '../lib/storage';
 import { KopSuratHD } from './KopSuratHD';
 import {
@@ -178,6 +180,12 @@ export const PosUjian: React.FC<PosUjianProps> = ({
 
   useEffect(() => {
     reloadAll();
+    const u1 = subscribeToStorage(reloadAll);
+    const u2 = subscribeToCloudChanges(reloadAll);
+    return () => {
+      u1();
+      u2();
+    };
   }, []);
 
   // List of available rooms

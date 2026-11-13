@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SchoolConfig, Siswa, NilaiRecord, BerkasPenilaian } from '../types';
 import {
   getSiswas,
@@ -13,6 +13,8 @@ import {
   getFromStorage,
   setToStorage,
   KEYS,
+  subscribeToStorage,
+  subscribeToCloudChanges,
 } from '../lib/storage';
 import {
   Award,
@@ -50,7 +52,7 @@ export const Penilaian: React.FC<PenilaianProps> = ({ role, config, onToast }) =
   const [selectedTA, setSelectedTA] = useState(config.tahunAjaran || '2026/2027');
   const [selectedMapel, setSelectedMapel] = useState(mapelOptions[0] || 'Matematika');
 
-  const [siswaList] = useState<Siswa[]>(getSiswas());
+  const [siswaList, setSiswaList] = useState<Siswa[]>(getSiswas());
   const [nilaiList, setNilaiList] = useState<NilaiRecord[]>(getNilaiRecords());
   const [berkasList, setBerkasList] = useState<BerkasPenilaian[]>(getFromStorage(KEYS.BERKAS, []));
 
@@ -60,9 +62,19 @@ export const Penilaian: React.FC<PenilaianProps> = ({ role, config, onToast }) =
   const [sortByRank, setSortByRank] = useState(false);
 
   const reloadData = () => {
+    setSiswaList(getSiswas());
     setNilaiList(getNilaiRecords());
     setBerkasList(getFromStorage(KEYS.BERKAS, []));
   };
+
+  useEffect(() => {
+    const u1 = subscribeToStorage(reloadData);
+    const u2 = subscribeToCloudChanges(reloadData);
+    return () => {
+      u1();
+      u2();
+    };
+  }, []);
 
   const activeStudentsInClass = siswaList
     .filter((s) => s.status === 'Aktif' && s.kelas === selectedKelas)

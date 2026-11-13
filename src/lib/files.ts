@@ -23,6 +23,7 @@ import {
   dataUrlToBlob,
   subscribeImageKitConfig,
   ikDownloadUrl,
+  resolveImageKitUrl,
 } from './imagekit';
 import { compressCanvas, loadImageToCanvas, TARGET_BYTES } from './compress';
 import type { FileRef } from '../types';
@@ -371,9 +372,10 @@ export async function getFileDataUrl(ref: FileRef): Promise<string | null> {
   if (ref.dataUrl) return ref.dataUrl; // data lama yang belum dimigrasi
   const local = await idbGet(ref.id);
   if (local) return local.dataUrl;
-  if (ref.url) {
+  const resolvedUrl = resolveImageKitUrl(ref.url, ref.path);
+  if (resolvedUrl) {
     try {
-      const res = await fetch(ref.url);
+      const res = await fetch(resolvedUrl);
       if (res.ok) {
         const blob = await res.blob();
         const typed = blob.type && blob.type !== 'application/octet-stream' ? blob : new Blob([blob], { type: ref.type || blob.type });
@@ -385,7 +387,7 @@ export async function getFileDataUrl(ref: FileRef): Promise<string | null> {
           size: ref.size,
           dataUrl,
           pending: false,
-          url: ref.url,
+          url: resolvedUrl,
           ikId: ref.ikId,
           path: ref.path,
         });
@@ -421,17 +423,31 @@ export function dataUrlToBlobUrl(dataUrl: string): string | null {
   }
 }
 
+function openUrlSafely(url: string): void {
+  const win = window.open(url, '_blank', 'noopener,noreferrer');
+  if (!win) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+}
+
 /** Buka berkas di tab baru. Mengembalikan false bila berkas tidak ditemukan. */
 export async function openFile(ref: FileRef): Promise<boolean> {
-  if (ref.url) {
-    window.open(ref.url, '_blank', 'noopener');
+  const resolvedUrl = resolveImageKitUrl(ref.url, ref.path);
+  if (resolvedUrl) {
+    openUrlSafely(resolvedUrl);
     return true;
   }
   const du = await getFileDataUrl(ref);
   if (!du) return false;
   const url = dataUrlToBlobUrl(du);
   if (!url) return false;
-  window.open(url, '_blank');
+  openUrlSafely(url);
   setTimeout(() => URL.revokeObjectURL(url), 120000);
   return true;
 }
@@ -447,9 +463,10 @@ export async function hasLocalCopy(ref: FileRef): Promise<boolean> {
  */
 export async function downloadFile(ref: FileRef): Promise<boolean> {
   const local = ref.dataUrl ? { dataUrl: ref.dataUrl } : await idbGet(ref.id);
-  if (!local && ref.url) {
+  const resolvedUrl = resolveImageKitUrl(ref.url, ref.path);
+  if (!local && resolvedUrl) {
     const a = document.createElement('a');
-    a.href = ikDownloadUrl(ref.url);
+    a.href = ikDownloadUrl(resolvedUrl);
     a.download = ref.name || 'berkas';
     a.rel = 'noopener';
     document.body.appendChild(a);

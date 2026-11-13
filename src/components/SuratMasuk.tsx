@@ -3,12 +3,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { SchoolConfig, SuratMasuk as ISuratMasuk } from '../types';
 import {
   getSuratMasuk,
   saveSuratMasuk,
   deleteSuratMasuk,
+  subscribeToStorage,
+  subscribeToCloudChanges,
+  flushCloudPushNow,
+  syncFromCloud,
 } from '../lib/storage';
 import {
   isImageKitReady,
@@ -17,6 +21,7 @@ import {
   dataUrlToBlob,
   ikResize,
   ikDownloadUrl,
+  resolveImageKitUrl,
 } from '../lib/imagekit';
 import { compressImageFileToDataUrl, TARGET_BYTES } from '../lib/compress';
 import { ScanSuratModal, ScanResult } from './ScanSuratModal';
@@ -52,23 +57,42 @@ const blobToDataUrl = (blob: Blob): Promise<string> =>
 
 /** Buka PDF di tab baru (data URL diubah ke blob karena browser memblokir data: di tab baru). */
 const openPdf = (url: string) => {
-  if (url.startsWith('data:')) {
-    const u = URL.createObjectURL(dataUrlToBlob(url));
-    window.open(u, '_blank');
+  const resolved = resolveImageKitUrl(url);
+  if (resolved.startsWith('data:')) {
+    const u = URL.createObjectURL(dataUrlToBlob(resolved));
+    const w = window.open(u, '_blank');
+    if (!w) {
+      const a = document.createElement('a');
+      a.href = u;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
     setTimeout(() => URL.revokeObjectURL(u), 60000);
   } else {
-    window.open(url, '_blank', 'noopener');
+    const w = window.open(resolved, '_blank', 'noopener,noreferrer');
+    if (!w) {
+      const a = document.createElement('a');
+      a.href = resolved;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
   }
 };
 
 const downloadPdf = (url: string, name: string) => {
+  const resolved = resolveImageKitUrl(url);
   const a = document.createElement('a');
   a.download = name || 'surat-masuk.pdf';
-  if (url.startsWith('data:')) {
-    a.href = URL.createObjectURL(dataUrlToBlob(url));
+  if (resolved.startsWith('data:')) {
+    a.href = URL.createObjectURL(dataUrlToBlob(resolved));
     setTimeout(() => URL.revokeObjectURL(a.href), 60000);
   } else {
-    a.href = ikDownloadUrl(url);
+    a.href = ikDownloadUrl(resolved);
   }
   document.body.appendChild(a);
   a.click();
@@ -110,6 +134,16 @@ export const SuratMasuk: React.FC<SuratMasukProps> = ({ role, onToast }) => {
   const reloadData = () => {
     setList(getSuratMasuk());
   };
+
+  useEffect(() => {
+    const unsub1 = subscribeToStorage(reloadData);
+    const unsub2 = subscribeToCloudChanges(reloadData);
+    syncFromCloud().catch(() => {});
+    return () => {
+      unsub1();
+      unsub2();
+    };
+  }, []);
 
   const filtered = list.filter((item) => {
     const term = searchTerm.toLowerCase().trim();
@@ -245,6 +279,7 @@ export const SuratMasuk: React.FC<SuratMasukProps> = ({ role, onToast }) => {
     };
 
     saveSuratMasuk(record);
+    flushCloudPushNow().catch(() => {});
     reloadData();
     setIsModalOpen(false);
     setEditingItem(null);
@@ -260,6 +295,7 @@ export const SuratMasuk: React.FC<SuratMasukProps> = ({ role, onToast }) => {
     }
     if (window.confirm(`Hapus agenda surat masuk "${subject}"?`)) {
       deleteSuratMasuk(id);
+      flushCloudPushNow().catch(() => {});
       reloadData();
       onToast(`Surat masuk "${subject}" dihapus.`);
     }

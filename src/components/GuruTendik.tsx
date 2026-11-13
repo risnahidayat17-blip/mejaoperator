@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { SchoolConfig, Guru, DokumenGtk, FileRef } from '../types';
 import { ikResize } from '../lib/imagekit';
 import { MIN_GURU_PASSWORD_LENGTH } from '../lib/auth';
@@ -28,6 +28,9 @@ import {
   deleteDokumenGtk,
   getCurrentUser,
   flushCloudPushNow,
+  subscribeToStorage,
+  subscribeToCloudChanges,
+  syncFromCloud,
 } from '../lib/storage';
 import {
   GraduationCap,
@@ -134,9 +137,35 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
 
 
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   const reloadData = () => {
     setGurus(getGurus());
     setDokList(getDokumenGtks());
+  };
+
+  useEffect(() => {
+    const unsubStorage = subscribeToStorage(reloadData);
+    const unsubCloud = subscribeToCloudChanges(reloadData);
+    syncFromCloud().catch(() => {});
+    return () => {
+      unsubStorage();
+      unsubCloud();
+    };
+  }, []);
+
+  const handleRefreshCloud = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await syncFromCloud(true);
+      reloadData();
+      onToast('Data GTK dan dokumen berhasil diperbarui.');
+    } catch {
+      onToast('Gagal mengambil pembaruan dari server. Periksa koneksi internet.', true);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const selectedGuru = gurus.find((g) => g.id === selectedGuruId);
@@ -219,6 +248,7 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
     };
 
     saveGuru(record);
+    flushCloudPushNow().catch(() => {});
     reloadData();
     setIsModalGuruOpen(false);
     setEditingGuru(null);
@@ -276,14 +306,26 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
       if (editingDok?.file?.id && editingDok.file.id !== fileRef?.id) {
         deleteFile(editingDok.file).catch(() => {});
       }
-      // Dorong langsung perubahan ke Database Cloud Supabase
-      flushCloudPushNow().catch(() => {});
+      // Dorong langsung perubahan ke Database Cloud Supabase sebelum menampilkan sukses
+      const pushed = await flushCloudPushNow().catch(() => false);
       reloadData();
       setIsModalDokOpen(false);
       setEditingDok(null);
       setUploadedFile(null);
       setFileError(null);
-      onToast(`Dokumen "${record.judul}" berhasil disimpan.`);
+      if (uploadedFile?.dataUrl && !cloud) {
+        onToast(
+          `Dokumen "${record.judul}" tersimpan di perangkat ini, namun unggah berkas ke ImageKit gagal. Periksa koneksi internet agar bisa dilihat di laptop operator.`,
+          true
+        );
+      } else if (!pushed) {
+        onToast(
+          `Dokumen "${record.judul}" tersimpan sementara dan akan dikirim ulang otomatis ke database saat koneksi stabil.`,
+          true
+        );
+      } else {
+        onToast(`Dokumen "${record.judul}" berhasil disimpan.`);
+      }
     } catch (err) {
       if (newlySaved) deleteFile(newlySaved).catch(() => {});
       const msg = err instanceof Error ? err.message : 'Gagal menyimpan dokumen.';
@@ -357,8 +399,17 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
               </div>
             </div>
 
-            {canEditCurrentFolder ? (
-              <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleRefreshCloud}
+                disabled={isRefreshing}
+                className="px-3 py-2 text-xs font-semibold bg-white hover:bg-[#E8EFEC] text-[#13262A] border border-[#D3DDD9] rounded-lg flex items-center gap-1.5 transition cursor-pointer disabled:opacity-60"
+                title="Ambil pembaruan dokumen terbaru"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} /> Segarkan
+              </button>
+              {canEditCurrentFolder ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -371,14 +422,12 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
                 >
                   <Plus className="w-4 h-4" /> Tambah Dokumen
                 </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#F1F4F2] text-[#566A6E] border border-[#D3DDD9]">
+              ) : (
+                <span className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-[#F1F4F2] text-[#566A6E] border border-[#D3DDD9]">
                   Mode Lihat Saja
                 </span>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* Category Tabs */}
@@ -474,17 +523,19 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
                 <p className="text-xs max-w-sm mx-auto">
                   Tambahkan arsip SK, SKP e-Kinerja, sertifikat, atau dokumen pribadi GTK.
                 </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingDok(null);
-                    setUploadedFile(null);
-                    setIsModalDokOpen(true);
-                  }}
-                  className="mt-2 px-3 py-1.5 text-xs bg-[#0B6B58] text-white font-semibold rounded-lg shadow-xs cursor-pointer"
-                >
-                  + Tambah Dokumen Sekarang
-                </button>
+                {canEditCurrentFolder && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingDok(null);
+                      setUploadedFile(null);
+                      setIsModalDokOpen(true);
+                    }}
+                    className="mt-2 px-3 py-1.5 text-xs bg-[#0B6B58] text-white font-semibold rounded-lg shadow-xs cursor-pointer"
+                  >
+                    + Tambah Dokumen Sekarang
+                  </button>
+                )}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -622,32 +673,43 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
               </p>
             </div>
 
-            {isOperator && (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingGuru(null);
-                    setGuruType('Tendik');
-                    setIsModalGuruOpen(true);
-                  }}
-                  className="px-4 py-2 bg-[#DAEEE7] hover:bg-[#c6e6db] text-[#0B6B58] border border-[#0B6B58]/30 text-xs font-semibold rounded-lg flex items-center gap-2 transition cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" /> Tambah Tendik
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingGuru(null);
-                    setGuruType('Guru');
-                    setIsModalGuruOpen(true);
-                  }}
-                  className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 transition cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" /> Tambah Guru
-                </button>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleRefreshCloud}
+                disabled={isRefreshing}
+                className="px-3.5 py-2 bg-white hover:bg-[#E8EFEC] text-[#13262A] border border-[#D3DDD9] text-xs font-semibold rounded-lg flex items-center gap-1.5 transition cursor-pointer disabled:opacity-60"
+                title="Ambil pembaruan data GTK dan dokumen"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} /> Segarkan
+              </button>
+              {isOperator && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingGuru(null);
+                      setGuruType('Tendik');
+                      setIsModalGuruOpen(true);
+                    }}
+                    className="px-4 py-2 bg-[#DAEEE7] hover:bg-[#c6e6db] text-[#0B6B58] border border-[#0B6B58]/30 text-xs font-semibold rounded-lg flex items-center gap-2 transition cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" /> Tambah Tendik
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingGuru(null);
+                      setGuruType('Guru');
+                      setIsModalGuruOpen(true);
+                    }}
+                    className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 transition cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" /> Tambah Guru
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           <div className="bg-white p-3.5 rounded-xl border border-[#D3DDD9] flex flex-wrap items-center gap-3 shadow-xs">

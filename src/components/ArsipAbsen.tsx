@@ -10,7 +10,10 @@ import {
   saveArsipAbsenList,
   getCurrentUser,
   subscribeToStorage,
+  subscribeToCloudChanges,
   recordActivity,
+  flushCloudPushNow,
+  syncFromCloud,
 } from '../lib/storage';
 import {
   prepareFile,
@@ -86,9 +89,14 @@ export const ArsipAbsen: React.FC<ArsipAbsenProps> = ({ role, config, onToast })
   useEffect(() => subscribeFileSync(() => setPendingFiles(getPendingFileCount())), []);
 
   useEffect(() => {
-    return subscribeToStorage(() => {
-      setItems(getArsipAbsen());
-    });
+    const reload = () => setItems(getArsipAbsen());
+    const unsub1 = subscribeToStorage(reload);
+    const unsub2 = subscribeToCloudChanges(reload);
+    syncFromCloud().catch(() => {});
+    return () => {
+      unsub1();
+      unsub2();
+    };
   }, []);
 
   const taOptions = Array.from(new Set([currentTa, ...items.map((i) => i.tahunAjaran)])).sort().reverse();
@@ -176,6 +184,7 @@ export const ArsipAbsen: React.FC<ArsipAbsenProps> = ({ role, config, onToast })
           'update',
           user?.name
         );
+        await flushCloudPushNow().catch(() => false);
         setItems(getArsipAbsen());
         setIsModalOpen(false);
         setEditing(null);
@@ -205,6 +214,7 @@ export const ArsipAbsen: React.FC<ArsipAbsenProps> = ({ role, config, onToast })
         'create',
         user?.name
       );
+      await flushCloudPushNow().catch(() => false);
       setItems(getArsipAbsen());
       setIsModalOpen(false);
       setSelectedFile(null);
@@ -245,6 +255,7 @@ export const ArsipAbsen: React.FC<ArsipAbsenProps> = ({ role, config, onToast })
           'delete',
           getCurrentUser()?.name
         );
+        flushCloudPushNow().catch(() => {});
         setItems(getArsipAbsen());
         onToast('Arsip absen berhasil dihapus.');
       }
