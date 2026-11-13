@@ -166,13 +166,22 @@ export default function App() {
     };
   }, []);
 
+  const GURU_ALLOWED_TABS = new Set([
+    'dasbor',
+    'guru',
+    'bukuinduk',
+    'posujian',
+    'suratkeluar',
+    'arsipabsen',
+    'daftarhadir',
+    'penilaian',
+    'profil',
+  ]);
+
   // Ensure Guru doesn't remain on an operator-only tab
   useEffect(() => {
-    if (currentUser?.role === 'guru') {
-      const allowed = ['dasbor', 'guru', 'bukuinduk', 'posujian', 'suratkeluar', 'arsipabsen', 'daftarhadir', 'penilaian', 'profil'];
-      if (!allowed.includes(currentTab)) {
-        setCurrentTab('guru');
-      }
+    if (currentUser?.role === 'guru' && !GURU_ALLOWED_TABS.has(currentTab)) {
+      setCurrentTab('dasbor');
     }
   }, [currentUser?.role, currentTab]);
 
@@ -181,7 +190,7 @@ export default function App() {
     showToast(
       role === 'operator'
         ? 'Berhasil masuk sebagai Operator (Akses Penuh).'
-        : 'Berhasil masuk sebagai Guru / Tendik (Akses GTK, Buku Induk Siswa, POS Ujian, Surat & Absensi).'
+        : 'Berhasil masuk sebagai Guru / Tendik (Menu Operator dikunci).'
     );
   };
 
@@ -193,7 +202,15 @@ export default function App() {
 
   const role = currentUser?.role || 'guru';
   const isOperator = role === 'operator';
-  const isRestrictedForGuru = !isOperator && !['dasbor', 'guru', 'bukuinduk', 'posujian', 'suratkeluar', 'arsipabsen', 'daftarhadir', 'penilaian', 'profil'].includes(currentTab);
+  const isRestrictedForGuru = !isOperator && !GURU_ALLOWED_TABS.has(currentTab);
+
+  const handleSelectTab = (tab: string) => {
+    if (!isOperator && !GURU_ALLOWED_TABS.has(tab)) {
+      showToast('Menu ini dikunci dan hanya dapat diakses oleh Operator Sekolah.', true);
+      return;
+    }
+    setCurrentTab(tab);
+  };
 
   const counts = useMemo(
     () => ({
@@ -243,7 +260,7 @@ export default function App() {
         {/* Navigation Sidebar */}
         <Sidebar
           currentTab={currentTab}
-          onSelectTab={(tab) => setCurrentTab(tab)}
+          onSelectTab={handleSelectTab}
           role={role}
           counts={counts}
           onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
@@ -296,20 +313,14 @@ export default function App() {
               >
                 {currentTab === 'dasbor' && (
                   <Dashboard
+                    role={role}
                     config={config}
                     siswa={siswaList}
                     guru={guruList}
                     aset={asetList}
                     suratmasuk={suratMasukList}
                     suratkeluar={suratKeluarList}
-                    onNavigate={(tab) => {
-                      // Guru diizinkan membuka Guru, Buku Induk, POS Ujian, Surat Keluar, Arsip Absen, Penilaian, Profil (Data Siswa & Laporan khusus Operator)
-                      if (!isOperator && !['dasbor', 'guru', 'bukuinduk', 'posujian', 'suratkeluar', 'arsipabsen', 'daftarhadir', 'penilaian', 'profil'].includes(tab)) {
-                        showToast('Bagian ini khusus Operator Sekolah.', true);
-                        return;
-                      }
-                      setCurrentTab(tab);
-                    }}
+                    onNavigate={handleSelectTab}
                     onOpenSupabaseModal={isOperator ? () => setIsSupabaseModalOpen(true) : undefined}
                   />
                 )}

@@ -131,11 +131,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ config, onLoggedIn }) 
             <ul className="mt-4 space-y-1.5 text-xs text-[#566A6E] flex-1">
               <li className="flex gap-2">
                 <span className="text-[#1D7A3A] font-bold">&#10003;</span>
-                <span>Dapat membuka dan melihat seluruh data administrasi sekolah (mode lihat saja).</span>
+                <span>Dapat mengunggah dan mengedit berkas dokumen pada folder GTK milik sendiri.</span>
               </li>
               <li className="flex gap-2">
                 <span className="text-[#1D7A3A] font-bold">&#10003;</span>
-                <span>Tidak dapat menambah/mengubah data maupun melihat pengaturan koneksi database.</span>
+                <span>Menu khusus Operator (Siswa, Surat Masuk, Aset, Keuangan, Pengaturan) dikunci.</span>
               </li>
             </ul>
 

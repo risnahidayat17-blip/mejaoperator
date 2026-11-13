@@ -25,6 +25,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   FolderArchive,
+  Lock,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -54,12 +55,21 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
   const isOperator = role === 'operator';
   const projectId = isOperator ? getSupabaseConfig().projectId : '';
 
-  const sections = [
+  interface SidebarItem {
+    id: string;
+    label: string;
+    icon: React.ReactNode;
+    count?: number;
+    badge?: string;
+    operatorOnly?: boolean;
+  }
+
+  const sections: { title: string; items: SidebarItem[] }[] = [
     {
       title: 'Data Pokok',
       items: [
         { id: 'dasbor', label: 'Dasbor Ringkasan', icon: <LayoutDashboard className="w-4 h-4" /> },
-        { id: 'siswa', label: 'Data Siswa & Mutasi', icon: <Users className="w-4 h-4" />, count: counts.siswa, badge: 'Operator' },
+        { id: 'siswa', label: 'Data Siswa & Mutasi', icon: <Users className="w-4 h-4" />, count: counts.siswa, badge: 'Operator', operatorOnly: true },
         { id: 'guru', label: 'Guru dan Tendik', icon: <GraduationCap className="w-4 h-4" />, count: counts.guru },
         { id: 'bukuinduk', label: 'Buku Induk Siswa', icon: <BookOpen className="w-4 h-4" /> },
       ],
@@ -68,7 +78,7 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
       title: 'Arsip & Surat',
       items: [
         { id: 'suratkeluar', label: 'Surat Keluar (Kop HD)', icon: <Send className="w-4 h-4" />, count: counts.suratkeluar },
-        { id: 'suratmasuk', label: 'Surat Masuk', icon: <Inbox className="w-4 h-4" />, count: counts.suratmasuk },
+        { id: 'suratmasuk', label: 'Surat Masuk', icon: <Inbox className="w-4 h-4" />, count: counts.suratmasuk, badge: 'Operator', operatorOnly: true },
         { id: 'penilaian', label: 'Penilaian & Rapor', icon: <Award className="w-4 h-4" />, count: counts.berkas },
         { id: 'posujian', label: 'POS Ujian Sekolah', icon: <ClipboardCheck className="w-4 h-4" /> },
         { id: 'daftarhadir', label: 'Daftar Hadir Siswa', icon: <ClipboardList className="w-4 h-4" /> },
@@ -78,18 +88,18 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
     {
       title: 'Sarana & Pelaporan',
       items: [
-        { id: 'aset', label: 'Aset & Inventaris', icon: <Package className="w-4 h-4" />, count: counts.aset },
-        { id: 'laporanbulan', label: 'Laporan Bulan (Daftar 1)', icon: <Calendar className="w-4 h-4" /> },
-        { id: 'laporan', label: 'Rekap Laporan', icon: <FileText className="w-4 h-4" /> },
-        { id: 'arsiplaporan', label: 'Arsip Laporan Sekolah', icon: <FolderArchive className="w-4 h-4" />, count: counts.arsiplaporan, badge: 'Operator' },
-        { id: 'keuangan', label: 'Laporan Keuangan', icon: <BadgeDollarSign className="w-4 h-4" />, badge: 'Operator' },
+        { id: 'aset', label: 'Aset & Inventaris', icon: <Package className="w-4 h-4" />, count: counts.aset, badge: 'Operator', operatorOnly: true },
+        { id: 'laporanbulan', label: 'Laporan Bulan (Daftar 1)', icon: <Calendar className="w-4 h-4" />, badge: 'Operator', operatorOnly: true },
+        { id: 'laporan', label: 'Rekap Laporan', icon: <FileText className="w-4 h-4" />, badge: 'Operator', operatorOnly: true },
+        { id: 'arsiplaporan', label: 'Arsip Laporan Sekolah', icon: <FolderArchive className="w-4 h-4" />, count: counts.arsiplaporan, badge: 'Operator', operatorOnly: true },
+        { id: 'keuangan', label: 'Laporan Keuangan', icon: <BadgeDollarSign className="w-4 h-4" />, badge: 'Operator', operatorOnly: true },
       ],
     },
     {
       title: isOperator ? 'Pengaturan & Cloud' : 'Profil & Pengaturan',
       items: [
         { id: 'profil', label: 'Profil Pengguna', icon: <UserCheck className="w-4 h-4" /> },
-        { id: 'pengaturan', label: 'Pengaturan & Kop', icon: <Settings className="w-4 h-4" />, badge: 'Admin' },
+        { id: 'pengaturan', label: 'Pengaturan & Kop', icon: <Settings className="w-4 h-4" />, badge: 'Admin', operatorOnly: true },
       ],
     },
   ];
@@ -105,13 +115,13 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
             <UserCheck className="w-4 h-4 text-[#8FE8A8]" />
           )}
           <span className="font-bold text-white font-display">
-            {isOperator ? 'Mode Operator Penuh' : 'Mode Guru (Lihat Saja)'}
+            {isOperator ? 'Mode Operator Penuh' : 'Mode Guru / Tendik'}
           </span>
         </div>
         <p className="text-[11px] text-[#CFE6DF] leading-relaxed">
           {isOperator
             ? 'Full akses seluruh administrasi, siswa, GTK, aset, surat, kop logo, dan Supabase Cloud.'
-            : 'Anda dapat membuka dan melihat seluruh menu data administrasi sekolah (hanya lihat, tidak dapat menambah atau mengubah data).'}
+            : 'Menu bertanda gembok dikunci khusus Operator. Anda dapat mengakses GTK, Buku Induk, Penilaian, POS Ujian, Absensi, Surat Keluar & Profil.'}
         </p>
       </div>
 
@@ -124,40 +134,56 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
             </div>
             <div className="space-y-0.5">
               {section.items.map((item) => {
-                const isActive = currentTab === item.id;
+                const isLocked = !isOperator && Boolean(item.operatorOnly);
+                const isActive = !isLocked && currentTab === item.id;
 
                 return (
                   <button
                     key={item.id}
                     type="button"
+                    aria-disabled={isLocked}
+                    title={isLocked ? `${item.label} dikunci — khusus akun Operator Sekolah` : item.label}
                     onClick={() => onSelectTab(item.id)}
                     className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition ${
-                      isActive
-                        ? 'bg-gradient-to-r from-[#0F8B72] to-[#0E7490] text-white font-bold shadow-sm cursor-pointer'
-                        : 'text-[#E4F1ED] hover:bg-white/10 hover:text-white cursor-pointer'
+                      isLocked
+                        ? 'text-[#9BC7BC]/70 bg-white/[0.03] hover:bg-white/[0.07] cursor-not-allowed'
+                        : isActive
+                          ? 'bg-gradient-to-r from-[#0F8B72] to-[#0E7490] text-white font-bold shadow-sm cursor-pointer'
+                          : 'text-[#E4F1ED] hover:bg-white/10 hover:text-white cursor-pointer'
                     }`}
                   >
-                    <div className="flex items-center gap-2.5 truncate">
-                      <span className={isActive ? 'text-white' : 'text-[#8FD1C1]'}>
+                    <div className={`flex items-center gap-2.5 truncate ${isLocked ? 'opacity-70' : ''}`}>
+                      <span className={isLocked ? 'text-[#8FD1C1]/55' : isActive ? 'text-white' : 'text-[#8FD1C1]'}>
                         {item.icon}
                       </span>
                       <span className="truncate">{item.label}</span>
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {isOperator && item.badge && (
-                        <span className="text-[9px] font-bold uppercase px-1.5 py-0.2 rounded bg-amber-400/20 text-amber-200 border border-amber-300/25">
-                          {item.badge}
-                        </span>
-                      )}
-                      {item.count !== undefined && item.count > 0 && (
+                      {isLocked ? (
                         <span
-                          className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
-                            isActive ? 'bg-white text-[#0B6B58] font-bold' : 'bg-white/15 text-[#E4F1ED]'
-                          }`}
+                          className="inline-flex items-center gap-1 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-400/15 text-amber-200/90 border border-amber-300/20"
+                          title="Dikunci khusus Operator"
                         >
-                          {item.count}
+                          <Lock className="w-2.5 h-2.5" />
                         </span>
+                      ) : (
+                        <>
+                          {isOperator && item.badge && (
+                            <span className="text-[9px] font-bold uppercase px-1.5 py-0.2 rounded bg-amber-400/20 text-amber-200 border border-amber-300/25">
+                              {item.badge}
+                            </span>
+                          )}
+                          {item.count !== undefined && item.count > 0 && (
+                            <span
+                              className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                                isActive ? 'bg-white text-[#0B6B58] font-bold' : 'bg-white/15 text-[#E4F1ED]'
+                              }`}
+                            >
+                              {item.count}
+                            </span>
+                          )}
+                        </>
                       )}
                     </div>
                   </button>

@@ -370,6 +370,16 @@ export const ArsipLaporanSekolah: React.FC<ArsipLaporanSekolahProps> = ({ role, 
 
   const totalBytes = items.reduce((acc, i) => acc + (i.file?.size || 0), 0);
 
+  if (!isOperator) {
+    return (
+      <div className="bg-white p-8 rounded-xl border border-[#D3DDD9] text-center">
+        <p className="text-xs text-rose-700 font-semibold">
+          Akses dikunci. Modul Arsip Laporan Sekolah hanya dapat dibuka oleh Operator Sekolah.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       {/* Header */}

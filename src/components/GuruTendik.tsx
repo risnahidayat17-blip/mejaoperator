@@ -70,13 +70,18 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
   const [filterJabatan, setFilterJabatan] = useState('');
   const [filterStatusPeg, setFilterStatusPeg] = useState('');
 
+  const matchesGuruUser = (g?: Guru | null): boolean => {
+    if (!g || !currentUser) return false;
+    if (currentUser.guruId && g.id === currentUser.guruId) return true;
+    const cleanCurNip = (currentUser.nip || '').replace(/\D/g, '');
+    const cleanGNip = (g.nip || '').replace(/\D/g, '');
+    if (cleanCurNip.length >= 5 && cleanGNip.length >= 5 && cleanCurNip === cleanGNip) return true;
+    if (currentUser.name && g.nama && g.nama.toLowerCase().trim() === currentUser.name.toLowerCase().trim()) return true;
+    return false;
+  };
+
   // Selected Guru for Folder View: Otomatis buka folder guru yang sedang login
-  const myGuru = gurus.find(
-    (g) =>
-      (currentUser?.guruId && g.id === currentUser.guruId) ||
-      (currentUser?.nip && g.nip === currentUser.nip) ||
-      (currentUser?.name && g.nama.toLowerCase() === currentUser.name.toLowerCase())
-  );
+  const myGuru = gurus.find((g) => matchesGuruUser(g));
   const [selectedGuruId, setSelectedGuruId] = useState<string | null>(
     role === 'guru' && myGuru ? myGuru.id : null
   );
@@ -172,14 +177,9 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
   const isOwnerOfGuru = (g?: Guru | null): boolean => {
     if (!g) return false;
     if (isOperator) return true;
-    if (currentUser?.guruId && g.id === currentUser.guruId) return true;
-    const cleanCurNip = (currentUser?.nip || '').replace(/\D/g, '');
-    const cleanGNip = (g.nip || '').replace(/\D/g, '');
-    if (cleanCurNip && cleanGNip && cleanCurNip === cleanGNip) return true;
-    if (currentUser?.name && g.nama && g.nama.toLowerCase().trim() === currentUser.name.toLowerCase().trim()) return true;
-    return false;
+    return matchesGuruUser(g);
   };
-  const canEditCurrentFolder = isOperator;
+  const canEditCurrentFolder = isOperator || isOwnerOfGuru(selectedGuru);
 
   const katUmumList = (config.katUmum || 'SK, SKP e-Kinerja, Surat Tugas, Sertifikat dan pelatihan')
     .split(',')
@@ -254,7 +254,7 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
 
   const handleSaveDok = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!isOperator || !selectedGuru || savingDok) return;
+    if (!canEditCurrentFolder || !selectedGuru || savingDok) return;
     const form = new FormData(e.currentTarget);
     const kategori = String(form.get('kategori') || '').trim();
     const isPribadi = katPribadiList.includes(kategori);
@@ -330,7 +330,7 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!isOperator) return;
+    if (!canEditCurrentFolder) return;
     const input = e.target;
     const file = input.files?.[0];
     if (!file) return;
@@ -406,18 +406,25 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
                 <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} /> Segarkan
               </button>
               {canEditCurrentFolder ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingDok(null);
-                    setUploadedFile(null);
-                    setFileError(null);
-                    setIsModalDokOpen(true);
-                  }}
-                  className="px-3.5 py-2 text-xs font-semibold bg-[#0B6B58] hover:bg-[#095747] text-white rounded-lg shadow-sm flex items-center gap-1.5 transition cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" /> Tambah Dokumen
-                </button>
+                <>
+                  {!isOperator && (
+                    <span className="hidden sm:inline-flex px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-[#DDF1E3] text-[#1D7A3A] border border-[#1D7A3A]/20">
+                      Akun Anda &middot; Bisa Upload &amp; Edit Berkas
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingDok(null);
+                      setUploadedFile(null);
+                      setFileError(null);
+                      setIsModalDokOpen(true);
+                    }}
+                    className="px-3.5 py-2 text-xs font-semibold bg-[#0B6B58] hover:bg-[#095747] text-white rounded-lg shadow-sm flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" /> Tambah Dokumen
+                  </button>
+                </>
               ) : (
                 <span className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-[#F1F4F2] text-[#566A6E] border border-[#D3DDD9]">
                   Mode Lihat Saja
@@ -621,12 +628,13 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
                                 onClick={() => {
                                   setEditingDok(doc);
                                   setUploadedFile(doc.file || null);
+                                  setFileError(null);
                                   setIsModalDokOpen(true);
                                 }}
-                                className="p-1.5 text-[#566A6E] hover:text-[#0B6B58] hover:bg-[#E8EFEC] rounded transition cursor-pointer"
-                                title="Ubah Dokumen"
+                                className="px-2.5 py-1 text-xs font-semibold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg transition flex items-center gap-1 cursor-pointer"
+                                title="Edit / Ganti Berkas Dokumen"
                               >
-                                <Pencil className="w-3.5 h-3.5" />
+                                <Pencil className="w-3.5 h-3.5" /> Edit
                               </button>
                             )}
                             {isOperator && (
@@ -771,8 +779,15 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
                         onClick={() => setSelectedGuruId(g.id)}
                       >
                         <td className="py-3 px-4">
-                          <div className="font-bold text-[#13262A] text-sm hover:text-[#0B6B58] transition">
-                            {g.nama}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-[#13262A] text-sm hover:text-[#0B6B58] transition">
+                              {g.nama}
+                            </span>
+                            {!isOperator && matchesGuruUser(g) && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#DDF1E3] text-[#1D7A3A] border border-[#1D7A3A]/20">
+                                Akun Anda
+                              </span>
+                            )}
                           </div>
                           <div className="text-[11px] font-mono text-[#566A6E] mt-0.5">
                             {g.nip ? `NIP ${g.nip}` : g.nuptk ? `NUPTK ${g.nuptk}` : 'Belum ber-NIP'}
@@ -814,10 +829,16 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
                               e.stopPropagation();
                               setSelectedGuruId(g.id);
                             }}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#E8EFEC] hover:bg-[#DAEEE7] text-[#0B6B58] font-semibold rounded-lg text-xs transition cursor-pointer"
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 font-semibold rounded-lg text-xs transition cursor-pointer ${
+                              !isOperator && matchesGuruUser(g)
+                                ? 'bg-[#0B6B58] hover:bg-[#095747] text-white shadow-xs'
+                                : 'bg-[#E8EFEC] hover:bg-[#DAEEE7] text-[#0B6B58]'
+                            }`}
                           >
                             <FolderOpen className="w-3.5 h-3.5" />
-                            <span>{docCount} berkas</span>
+                            <span>
+                              {!isOperator && matchesGuruUser(g) ? `Kelola (${docCount})` : `${docCount} berkas`}
+                            </span>
                           </button>
                         </td>
                         {isOperator && (
@@ -1127,23 +1148,23 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
       )}
 
       {/* MODAL: ADD / EDIT DOKUMEN GTK */}
-      {isOperator && isModalDokOpen && selectedGuru && (
+      {canEditCurrentFolder && isModalDokOpen && selectedGuru && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-xl shadow-xl border border-[#D3DDD9] max-w-lg w-full p-6 space-y-4 my-6">
             <h3 className="text-base font-bold text-[#13262A] font-display">
-              {editingDok ? 'Ubah Dokumen GTK' : `Tambah Dokumen untuk ${selectedGuru.nama}`}
+              {editingDok ? 'Ubah / Perbaiki Dokumen GTK' : `Tambah Dokumen untuk ${selectedGuru.nama}`}
             </h3>
 
             <form onSubmit={handleSaveDok} className="space-y-3 text-xs">
               <div>
                 <label className="block font-semibold text-[#566A6E] mb-1">Kategori Dokumen *</label>
-                {selectedCategory ? (
+                {!editingDok && selectedCategory ? (
                   <>
-                    <input type="hidden" name="kategori" value={editingDok?.kategori || selectedCategory} />
+                    <input type="hidden" name="kategori" value={selectedCategory} />
                     <div className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg bg-[#F1F5F3] text-[#13262A] font-semibold flex items-center gap-2 cursor-not-allowed">
                       <Lock className="w-3.5 h-3.5 text-[#566A6E]" />
-                      {editingDok?.kategori || selectedCategory}{' '}
-                      {katPribadiList.includes(editingDok?.kategori || selectedCategory) ? '(Pribadi)' : ''}
+                      {selectedCategory}{' '}
+                      {katPribadiList.includes(selectedCategory) ? '(Pribadi)' : ''}
                     </div>
                   </>
                 ) : (
@@ -1226,13 +1247,23 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
                         </div>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setUploadedFile(null)}
-                      className="p-1 text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-2 py-1 text-[11px] font-semibold bg-[#E8EFEC] hover:bg-[#DAEEE7] text-[#0B6B58] rounded cursor-pointer"
+                      >
+                        Ganti
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setUploadedFile(null)}
+                        className="p-1 text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                        title="Hapus lampiran ini"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div
