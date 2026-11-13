@@ -34,7 +34,8 @@ function formatFullDate(ts: number): string {
   });
 }
 
-export const RiwayatPengerjaan: React.FC = () => {
+export const RiwayatPengerjaan: React.FC<{ role?: 'operator' | 'guru' }> = ({ role = 'operator' }) => {
+  const isOperator = role === 'operator';
   const [range, setRange] = useState<7 | 14 | 30>(14);
   const [showTable, setShowTable] = useState(false);
   const [tableTab, setTableTab] = useState<'log' | 'rekap'>('log');
@@ -98,6 +99,7 @@ export const RiwayatPengerjaan: React.FC = () => {
   const recent = all.slice(0, 8);
 
   const handleClear = () => {
+    if (!isOperator) return;
     clearActivities();
     setActivities([]);
     setShowConfirmClear(false);
@@ -139,38 +141,40 @@ export const RiwayatPengerjaan: React.FC = () => {
             <button
               type="button"
               onClick={handleManualRefresh}
-              title="Segarkan riwayat aktivitas dari cloud"
+              title={isOperator ? 'Segarkan riwayat aktivitas dari cloud' : 'Segarkan daftar riwayat'}
               className="p-1.5 text-[#566A6E] hover:text-[#0B6B58] hover:bg-[#E8EFEC] rounded-lg transition cursor-pointer text-xs flex items-center gap-1"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-[#0B6B58]' : ''}`} />
             </button>
-            {!showConfirmClear ? (
-              <button
-                type="button"
-                onClick={() => setShowConfirmClear(true)}
-                title="Bersihkan riwayat pengerjaan"
-                className="p-1.5 text-[#566A6E] hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer text-xs flex items-center gap-1"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            ) : (
-              <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 px-2 py-1 rounded-lg text-[11px]">
-                <span className="text-rose-800 font-medium">Hapus riwayat?</span>
+            {isOperator && (
+              !showConfirmClear ? (
                 <button
                   type="button"
-                  onClick={handleClear}
-                  className="px-1.5 py-0.5 bg-rose-600 text-white rounded font-bold hover:bg-rose-700 cursor-pointer"
+                  onClick={() => setShowConfirmClear(true)}
+                  title="Bersihkan riwayat pengerjaan"
+                  className="p-1.5 text-[#566A6E] hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer text-xs flex items-center gap-1"
                 >
-                  Ya
+                  <Trash2 className="w-3.5 h-3.5" />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmClear(false)}
-                  className="px-1.5 py-0.5 text-[#566A6E] hover:text-[#13262A] cursor-pointer"
-                >
-                  Batal
-                </button>
-              </div>
+              ) : (
+                <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 px-2 py-1 rounded-lg text-[11px]">
+                  <span className="text-rose-800 font-medium">Hapus riwayat?</span>
+                  <button
+                    type="button"
+                    onClick={handleClear}
+                    className="px-1.5 py-0.5 bg-rose-600 text-white rounded font-bold hover:bg-rose-700 cursor-pointer"
+                  >
+                    Ya
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmClear(false)}
+                    className="px-1.5 py-0.5 text-[#566A6E] hover:text-[#13262A] cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                </div>
+              )
             )}
           </div>
         )}

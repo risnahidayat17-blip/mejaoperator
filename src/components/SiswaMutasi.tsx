@@ -151,6 +151,7 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
 
   const handleSaveRombel = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!isOperator) return;
     const form = new FormData(e.currentTarget);
     const nama = String(form.get('nama') || '').replace(/\s+/g, ' ').trim().toUpperCase();
     if (!nama) {
@@ -185,6 +186,7 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
   };
 
   const handleDeleteRombel = (id: string, nama: string) => {
+    if (!isOperator) return;
     if (!window.confirm(`Yakin ingin menghapus rombel belajar "${nama}"?`)) return;
     const res = deleteRombelRecord(id);
     onToast(res.message, !res.ok);
@@ -192,6 +194,7 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
   };
 
   const handleSyncRombels = () => {
+    if (!isOperator) return;
     const res = syncRombelsFromSiswa();
     reloadData();
     if (res.added > 0) {
@@ -203,6 +206,7 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
 
   const handleSaveSiswa = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!isOperator) return;
     const form = new FormData(e.currentTarget);
     const nama = String(form.get('nama') || '').trim();
     if (!nama) {
@@ -279,6 +283,7 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
   };
 
   const handleDeleteSiswa = (id: string, nama: string) => {
+    if (!isOperator) return;
     if (window.confirm(`Hapus data siswa "${nama}"?`)) {
       deleteSiswa(id);
       reloadData();
@@ -313,7 +318,7 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
 
   const handleSaveMutasiKeluar = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!mutatingSiswa) return;
+    if (!isOperator || !mutatingSiswa) return;
     const form = new FormData(e.currentTarget);
     const jenis = (form.get('jenis') as any) || 'Keluar (pindah)';
     const tanggal = String(form.get('tanggal') || '').trim() || new Date().toISOString().split('T')[0];
@@ -357,6 +362,7 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
 
   const handleSaveMutasiMasuk = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!isOperator) return;
     const form = new FormData(e.currentTarget);
     const nama = String(form.get('nama') || '').trim();
     if (!nama) {
@@ -440,14 +446,16 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
         <div className="flex items-center gap-2">
           {activeTab === 'daftar' && (
             <>
-              <button
-                type="button"
-                onClick={() => setIsImportDapodikOpen(true)}
-                className="px-3.5 py-2 text-xs font-semibold bg-[#E6F2EE] hover:bg-[#d8e9e4] text-[#0B6B58] border border-[#B8D7CD] rounded-lg transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                title="Impor profil peserta didik dari berkas Dapodik (.xlsx, .xls, .csv)"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-[#0B6B58]" /> Impor Data PD Dapodik
-              </button>
+              {isOperator && (
+                <button
+                  type="button"
+                  onClick={() => setIsImportDapodikOpen(true)}
+                  className="px-3.5 py-2 text-xs font-semibold bg-[#E6F2EE] hover:bg-[#d8e9e4] text-[#0B6B58] border border-[#B8D7CD] rounded-lg transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  title="Impor profil peserta didik dari berkas Dapodik (.xlsx, .xls, .csv)"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-[#0B6B58]" /> Impor Data PD Dapodik
+                </button>
+              )}
               <button
                 type="button"
                 onClick={exportSiswaCSV}
@@ -455,20 +463,22 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
               >
                 <Download className="w-3.5 h-3.5" /> Unduh CSV
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingSiswa(null);
-                  setIsModalSiswaOpen(true);
-                }}
-                className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 transition cursor-pointer"
-              >
-                <UserPlus className="w-4 h-4" /> Tambah Siswa Baru
-              </button>
+              {isOperator && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingSiswa(null);
+                    setIsModalSiswaOpen(true);
+                  }}
+                  className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 transition cursor-pointer"
+                >
+                  <UserPlus className="w-4 h-4" /> Tambah Siswa Baru
+                </button>
+              )}
             </>
           )}
 
-          {activeTab === 'rombel' && (
+          {activeTab === 'rombel' && isOperator && (
             <>
               <button
                 type="button"
@@ -500,13 +510,15 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
               >
                 <Printer className="w-3.5 h-3.5" /> Cetak Rekap Mutasi
               </button>
-              <button
-                type="button"
-                onClick={() => setIsModalMutasiMasukOpen(true)}
-                className="px-3.5 py-2 text-xs font-semibold bg-[#DAEEE7] hover:bg-[#c6e6db] text-[#0B6B58] border border-[#0B6B58]/30 rounded-lg transition flex items-center gap-1.5 cursor-pointer"
-              >
-                <UserPlus className="w-3.5 h-3.5" /> Catat Mutasi Masuk
-              </button>
+              {isOperator && (
+                <button
+                  type="button"
+                  onClick={() => setIsModalMutasiMasukOpen(true)}
+                  className="px-3.5 py-2 text-xs font-semibold bg-[#DAEEE7] hover:bg-[#c6e6db] text-[#0B6B58] border border-[#0B6B58]/30 rounded-lg transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <UserPlus className="w-3.5 h-3.5" /> Catat Mutasi Masuk
+                </button>
+              )}
             </>
           )}
         </div>
@@ -614,7 +626,9 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
                     <th className="py-2.5 px-4 border-b border-[#D3DDD9] text-center">Rombel / Kelas</th>
                     <th className="py-2.5 px-4 border-b border-[#D3DDD9]">Orang Tua / Wali</th>
                     <th className="py-2.5 px-4 border-b border-[#D3DDD9]">Alamat</th>
-                    <th className="py-2.5 px-4 border-b border-[#D3DDD9] text-right">Aksi</th>
+                    {isOperator && (
+                      <th className="py-2.5 px-4 border-b border-[#D3DDD9] text-right">Aksi</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#D3DDD9]">
@@ -648,9 +662,9 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
                         {s.telpOrtu && <div className="text-[10px] font-mono text-gray-500">{s.telpOrtu}</div>}
                       </td>
                       <td className="py-3 px-4 text-[#566A6E] max-w-xs truncate">{s.alamat || '-'}</td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {isOperator && (
+                      {isOperator && (
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
                             <button
                               type="button"
                               onClick={() => {
@@ -662,19 +676,17 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
                             >
                               <ArrowRightLeft className="w-3.5 h-3.5" /> Mutasikan
                             </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingSiswa(s);
-                              setIsModalSiswaOpen(true);
-                            }}
-                            className="p-1.5 text-[#566A6E] hover:text-[#0B6B58] hover:bg-[#E8EFEC] rounded transition cursor-pointer"
-                            title="Ubah Data Siswa"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          {isOperator && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingSiswa(s);
+                                setIsModalSiswaOpen(true);
+                              }}
+                              className="p-1.5 text-[#566A6E] hover:text-[#0B6B58] hover:bg-[#E8EFEC] rounded transition cursor-pointer"
+                              title="Ubah Data Siswa"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
                             <button
                               type="button"
                               onClick={() => handleDeleteSiswa(s.id, s.nama)}
@@ -683,14 +695,14 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
-                          )}
-                        </div>
-                      </td>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                   {filteredSiswa.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-[#566A6E]">
+                      <td colSpan={isOperator ? 6 : 5} className="py-12 text-center text-[#566A6E]">
                         <div className="max-w-sm mx-auto space-y-3">
                           <div className="w-12 h-12 rounded-full bg-[#E6F2EE] flex items-center justify-center text-[#0B6B58] mx-auto">
                             <FileSpreadsheet className="w-6 h-6" />
@@ -703,9 +715,11 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
                           <p className="text-xs text-[#566A6E]">
                             {searchSiswa || filterKelas || filterJk
                               ? 'Coba ubah kata kunci atau bersihkan filter kelas/jenis kelamin.'
-                              : 'Mulai kelola kesiswaan dengan mengimpor langsung dari berkas profil Dapodik (.xlsx, .xls, .csv).'}
+                              : isOperator
+                              ? 'Mulai kelola kesiswaan dengan mengimpor langsung dari berkas profil Dapodik (.xlsx, .xls, .csv).'
+                              : 'Belum ada data peserta didik yang tercatat saat ini.'}
                           </p>
-                          {!searchSiswa && !filterKelas && !filterJk && (
+                          {isOperator && !searchSiswa && !filterKelas && !filterJk && (
                             <button
                               type="button"
                               onClick={() => setIsImportDapodikOpen(true)}
@@ -801,26 +815,28 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
               </select>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleSyncRombels}
-                className="px-3 py-1.5 text-xs font-semibold bg-[#E8EFEC] hover:bg-[#D3DDD9] text-[#13262A] rounded-lg transition flex items-center gap-1.5 cursor-pointer"
-                title="Deteksi rombel otomatis dari biodata siswa / Dapodik"
-              >
-                <RefreshCw className="w-3.5 h-3.5 text-[#0B6B58]" /> Sinkronkan Rombel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingRombel(null);
-                  setIsModalRombelOpen(true);
-                }}
-                className="px-3.5 py-1.5 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-1.5 transition cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" /> Tambah Rombel Baru
-              </button>
-            </div>
+            {isOperator && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSyncRombels}
+                  className="px-3 py-1.5 text-xs font-semibold bg-[#E8EFEC] hover:bg-[#D3DDD9] text-[#13262A] rounded-lg transition flex items-center gap-1.5 cursor-pointer"
+                  title="Deteksi rombel otomatis dari biodata siswa / Dapodik"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-[#0B6B58]" /> Sinkronkan Rombel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingRombel(null);
+                    setIsModalRombelOpen(true);
+                  }}
+                  className="px-3.5 py-1.5 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Tambah Rombel Baru
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Grid Cards of Rombels */}
@@ -899,19 +915,19 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
                       Lihat {studentsInThisRombel.length} Siswa
                     </button>
 
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingRombel(r);
-                          setIsModalRombelOpen(true);
-                        }}
-                        className="p-1.5 text-[#566A6E] hover:text-[#0B6B58] hover:bg-[#E8EFEC] rounded transition cursor-pointer"
-                        title="Ubah data rombel"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      {isOperator && (
+                    {isOperator && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingRombel(r);
+                            setIsModalRombelOpen(true);
+                          }}
+                          className="p-1.5 text-[#566A6E] hover:text-[#0B6B58] hover:bg-[#E8EFEC] rounded transition cursor-pointer"
+                          title="Ubah data rombel"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleDeleteRombel(r.id, r.nama)}
@@ -920,8 +936,8 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -937,27 +953,31 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
                 Tidak ada rombel belajar yang sesuai
               </div>
               <p className="text-xs max-w-sm mx-auto">
-                Tambahkan rombel kelas baru atau klik sinkronkan untuk mendeteksi rombel otomatis dari data siswa Dapodik.
+                {isOperator
+                  ? 'Tambahkan rombel kelas baru atau klik sinkronkan untuk mendeteksi rombel otomatis dari data siswa Dapodik.'
+                  : 'Belum ada rombel belajar yang sesuai pencarian.'}
               </p>
-              <div className="flex items-center justify-center gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={handleSyncRombels}
-                  className="px-3.5 py-2 text-xs font-semibold bg-[#E8EFEC] hover:bg-[#D3DDD9] text-[#13262A] rounded-lg transition flex items-center gap-1.5 cursor-pointer"
-                >
-                  <RefreshCw className="w-3.5 h-3.5 text-[#0B6B58]" /> Sinkronkan dari Siswa
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingRombel(null);
-                    setIsModalRombelOpen(true);
-                  }}
-                  className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-1.5 transition cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" /> Tambah Rombel Baru
-                </button>
-              </div>
+              {isOperator && (
+                <div className="flex items-center justify-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={handleSyncRombels}
+                    className="px-3.5 py-2 text-xs font-semibold bg-[#E8EFEC] hover:bg-[#D3DDD9] text-[#13262A] rounded-lg transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 text-[#0B6B58]" /> Sinkronkan dari Siswa
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingRombel(null);
+                      setIsModalRombelOpen(true);
+                    }}
+                    className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" /> Tambah Rombel Baru
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1002,7 +1022,9 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
                     <th className="py-2.5 px-4 border-b border-[#D3DDD9]">Sekolah Asal / Tujuan</th>
                     <th className="py-2.5 px-4 border-b border-[#D3DDD9]">No. Surat</th>
                     <th className="py-2.5 px-4 border-b border-[#D3DDD9]">Alasan</th>
-                    <th className="py-2.5 px-4 border-b border-[#D3DDD9] text-right">Aksi</th>
+                    {isOperator && (
+                      <th className="py-2.5 px-4 border-b border-[#D3DDD9] text-right">Aksi</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#D3DDD9]">
@@ -1033,19 +1055,19 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
                       <td className="py-3 px-4 text-[#566A6E] max-w-xs truncate" title={m.alasan}>
                         {m.alasan || '-'}
                       </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {m.jenis === 'Keluar (pindah)' && onNavigateToSurat && m.siswaId && (
-                            <button
-                              type="button"
-                              onClick={() => onNavigateToSurat(m.siswaId)}
-                              className="px-2.5 py-1 text-xs font-semibold bg-[#DAEEE7] hover:bg-[#0B6B58] text-[#0B6B58] hover:text-white rounded-lg transition cursor-pointer"
-                              title="Buat Surat Keterangan Pindah Resmi"
-                            >
-                              Buat Surat Pindah
-                            </button>
-                          )}
-                          {isOperator && (
+                      {isOperator && (
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {m.jenis === 'Keluar (pindah)' && onNavigateToSurat && m.siswaId && (
+                              <button
+                                type="button"
+                                onClick={() => onNavigateToSurat(m.siswaId)}
+                                className="px-2.5 py-1 text-xs font-semibold bg-[#DAEEE7] hover:bg-[#0B6B58] text-[#0B6B58] hover:text-white rounded-lg transition cursor-pointer"
+                                title="Buat Surat Keterangan Pindah Resmi"
+                              >
+                                Buat Surat Pindah
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => {
@@ -1060,9 +1082,9 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
-                          )}
-                        </div>
-                      </td>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -1073,7 +1095,7 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
       )}
 
       {/* MODAL 1: ADD / EDIT SISWA */}
-      {isModalSiswaOpen && (
+      {isOperator && isModalSiswaOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-xl border border-[#D3DDD9] max-w-xl w-full p-6 space-y-4 my-6">
             <div className="flex items-center justify-between pb-3 border-b border-[#D3DDD9]">
@@ -1282,7 +1304,7 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
       )}
 
       {/* MODAL 2: MUTASIKAN SISWA */}
-      {isModalMutasiKeluarOpen && mutatingSiswa && (
+      {isOperator && isModalMutasiKeluarOpen && mutatingSiswa && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-xl border border-[#D3DDD9] max-w-lg w-full p-6 space-y-4 my-6">
             <div className="flex items-center justify-between pb-3 border-b border-[#D3DDD9]">
@@ -1366,7 +1388,7 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
       )}
 
       {/* MODAL 3: MUTASI MASUK */}
-      {isModalMutasiMasukOpen && (
+      {isOperator && isModalMutasiMasukOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-xl border border-[#D3DDD9] max-w-lg w-full p-6 space-y-4 my-6">
             <div className="flex items-center justify-between pb-3 border-b border-[#D3DDD9]">
@@ -1530,7 +1552,7 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
       )}
 
       {/* MODAL 5: TAMBAH / UBAH ROMBEL BELAJAR */}
-      {isModalRombelOpen && (
+      {isOperator && isModalRombelOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-xl border border-[#D3DDD9] max-w-lg w-full p-6 space-y-4 my-6">
             <div className="flex items-center justify-between pb-3 border-b border-[#D3DDD9]">
@@ -1654,20 +1676,22 @@ export const SiswaMutasi: React.FC<SiswaMutasiProps> = ({
       )}
 
       {/* MODAL IMPOR DATA PD DAPODIK */}
-      <ImportDapodikSiswaModal
-        role={role}
-        config={config}
-        isOpen={isImportDapodikOpen}
-        onClose={() => setIsImportDapodikOpen(false)}
-        onToast={onToast}
-        onSuccess={(res, count) => {
-          reloadData();
-          let msg = `Berhasil mengimpor ${count} data Dapodik: ${res.added} siswa baru ditambahkan`;
-          if (res.updated > 0) msg += `, ${res.updated} data diperbarui`;
-          if (res.skipped > 0) msg += `, ${res.skipped} dilewati`;
-          onToast(msg + '.');
-        }}
-      />
+      {isOperator && (
+        <ImportDapodikSiswaModal
+          role={role}
+          config={config}
+          isOpen={isImportDapodikOpen}
+          onClose={() => setIsImportDapodikOpen(false)}
+          onToast={onToast}
+          onSuccess={(res, count) => {
+            reloadData();
+            let msg = `Berhasil mengimpor ${count} data Dapodik: ${res.added} siswa baru ditambahkan`;
+            if (res.updated > 0) msg += `, ${res.updated} data diperbarui`;
+            if (res.skipped > 0) msg += `, ${res.skipped} dilewati`;
+            onToast(msg + '.');
+          }}
+        />
+      )}
     </div>
   );
 };

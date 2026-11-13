@@ -11,6 +11,7 @@ import { getRombels, recordActivity } from '../lib/storage';
 import { KopSuratHD } from './KopSuratHD';
 
 interface Props {
+  role?: 'operator' | 'guru';
   config: SchoolConfig;
   siswa: Siswa[];
   guru: Guru[];
@@ -296,7 +297,7 @@ const DaftarHadirPages: React.FC<SheetProps> = ({ config, jenis, rows, year, mon
   );
 };
 
-export const DaftarHadir: React.FC<Props> = ({ config, siswa, guru, onToast }) => {
+export const DaftarHadir: React.FC<Props> = ({ role = 'operator', config, siswa, guru, onToast }) => {
   const now = new Date();
   const [jenis, setJenis] = useState<Jenis>('kelas');
   const [semester, setSemester] = useState<1 | 2>(/2|genap/i.test(String(config.semester || '')) ? 2 : 1);
@@ -425,12 +426,14 @@ export const DaftarHadir: React.FC<Props> = ({ config, siswa, guru, onToast }) =
       window.removeEventListener('afterprint', cleanUp);
     };
     window.addEventListener('afterprint', cleanUp);
-    recordActivity(
-      'Daftar Hadir',
-      `Cetak/Simpan PDF ${JENIS[jenis].label} - ${scopeLabel} (Periode ${ym})`,
-      false,
-      'update'
-    );
+    if (role === 'operator') {
+      recordActivity(
+        'Daftar Hadir',
+        `Cetak/Simpan PDF ${JENIS[jenis].label} - ${scopeLabel} (Periode ${ym})`,
+        false,
+        'update'
+      );
+    }
     setTimeout(() => window.print(), 60);
   };
 

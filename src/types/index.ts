@@ -404,6 +404,22 @@ export interface ArsipAbsen {
   updatedAt?: number;
 }
 
+export interface ArsipLaporan {
+  id: string;
+  judul: string;
+  kategori: string;
+  periode: string;
+  tanggal: string;
+  tahunAjaran: string;
+  nomor?: string;
+  keterangan?: string;
+  file: FileRef;
+  uploadedBy?: string;
+  uploadedById?: string;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
 export interface KeuanganState {
   settings: {
     bendaharaNama: string;
@@ -411,6 +427,10 @@ export interface KeuanganState {
     sumberDana: string;
     kota: string;
     prefix: string;
+    ukuranKwitansi?: 'kecil' | 'sedang';
+    warnaKwitansi?: 'biru' | 'hijau' | 'kuning' | 'merah' | 'ungu' | 'abu';
+    previewGambar?: boolean;
+    printGambar?: boolean;
   };
   bku: Array<{
     id: string;

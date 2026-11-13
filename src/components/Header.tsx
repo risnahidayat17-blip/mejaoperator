@@ -32,15 +32,18 @@ export const Header: React.FC<HeaderProps> = ({
   const logo = ikResize(config.logoSekolah || config.logoPemda || config.logo || '', 240);
 
   return (
-    <header className="bg-white border-b border-[#D3DDD9] sticky top-0 z-40 shadow-xs">
+    <header className="bg-white/90 backdrop-blur-md border-b border-[#C5DBD4] sticky top-0 z-40 shadow-xs">
+      <div className="h-1 bg-gradient-to-r from-[#0B6B58] via-[#0E7490] to-[#1D7A3A]" />
       <div className="px-4 md:px-6 py-2.5 flex items-center justify-between gap-4">
         {/* Left: School Identity */}
         <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
             onClick={onOpenSettingsKop}
-            title="Klik untuk mengatur logo sekolah & kop surat"
-            className="w-10 h-10 rounded-lg bg-[#DAEEE7] border border-[#0B6B58]/20 flex items-center justify-center shrink-0 overflow-hidden text-[#0B6B58] hover:ring-2 hover:ring-[#0B6B58] transition cursor-pointer"
+            title={onOpenSettingsKop ? 'Klik untuk mengatur logo sekolah & kop surat' : (config.namaSekolah || 'Meja Operator Sekolah')}
+            className={`w-10 h-10 rounded-lg bg-[#DAEEE7] border border-[#0B6B58]/20 flex items-center justify-center shrink-0 overflow-hidden text-[#0B6B58] transition ${
+              onOpenSettingsKop ? 'hover:ring-2 hover:ring-[#0B6B58] cursor-pointer' : 'cursor-default'
+            }`}
           >
             {logo ? (
               <img src={logo} alt="Logo Sekolah" className="w-8 h-8 object-contain logo-hd" />
@@ -75,7 +78,7 @@ export const Header: React.FC<HeaderProps> = ({
                   {isOperator ? (
                     <span className="text-[#0B6B58] font-semibold">Operator (Full Akses)</span>
                   ) : (
-                    <span className="text-[#1D7A3A] font-semibold">Guru / Tendik</span>
+                    <span className="text-[#1D7A3A] font-semibold">Guru / Tendik (Lihat Saja)</span>
                   )}
                 </div>
               </div>

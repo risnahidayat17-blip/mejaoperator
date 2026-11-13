@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { SchoolConfig, KeuanganState } from '../types';
 import { getKeuangan, saveKeuangan, subscribeToStorage } from '../lib/storage';
@@ -11,6 +11,9 @@ import {
   Upload,
   Printer,
   Search,
+  Eye,
+  EyeOff,
+  Palette,
 } from 'lucide-react';
 
 interface LaporanKeuanganProps {
@@ -419,53 +422,176 @@ const rosette = (
     />
   ));
 
-const KW_BODY_W = 139.5;
-const KW_STUB_W = 32;
-const KW_H = 70;
+type KwitansiSizeKey = 'kecil' | 'sedang';
+type KwitansiColorKey = 'biru' | 'hijau' | 'kuning' | 'merah' | 'ungu' | 'abu';
 
-const KwitansiBodyArt: React.FC = () => {
-  const W = KW_BODY_W;
-  const H = KW_H;
+interface KwitansiPalette {
+  id: KwitansiColorKey;
+  label: string;
+  swatch: string;
+  ink: string;
+  bgOuter: string;
+  bgInner: string;
+  accent: string;
+  accentSoft: string;
+  accentDeep: string;
+  medallion: string;
+  stubBorder: string;
+}
+
+const KWITANSI_SIZES: Record<
+  KwitansiSizeKey,
+  { id: KwitansiSizeKey; label: string; mmLabel: string; widthMm: number; heightMm: number; stubMm: number }
+> = {
+  kecil: {
+    id: 'kecil',
+    label: 'Kecil (7,5 × 21,5 cm)',
+    mmLabel: '75 × 215 mm',
+    widthMm: 215,
+    heightMm: 75,
+    stubMm: 34,
+  },
+  sedang: {
+    id: 'sedang',
+    label: 'Sedang (7,6 × 18 cm)',
+    mmLabel: '76 × 180 mm',
+    widthMm: 180,
+    heightMm: 76,
+    stubMm: 32,
+  },
+};
+
+const KWITANSI_COLORS: Record<KwitansiColorKey, KwitansiPalette> = {
+  biru: {
+    id: 'biru',
+    label: 'Biru Klasik',
+    swatch: '#5aa9d4',
+    ink: '#0b2a4a',
+    bgOuter: '#8ccbec',
+    bgInner: '#bfe5f6',
+    accent: '#5aa9d4',
+    accentSoft: '#6db4da',
+    accentDeep: '#4f9fcf',
+    medallion: '#d6f0fb',
+    stubBorder: '#3b5775',
+  },
+  hijau: {
+    id: 'hijau',
+    label: 'Hijau Zamrud',
+    swatch: '#3da57e',
+    ink: '#0c3b2e',
+    bgOuter: '#86d3b4',
+    bgInner: '#c3eedb',
+    accent: '#3da57e',
+    accentSoft: '#52b891',
+    accentDeep: '#2f8e6a',
+    medallion: '#dcf7ea',
+    stubBorder: '#1d5947',
+  },
+  kuning: {
+    id: 'kuning',
+    label: 'Kuning Krem',
+    swatch: '#d4a83b',
+    ink: '#4a3208',
+    bgOuter: '#ecd38a',
+    bgInner: '#faedc2',
+    accent: '#c49b36',
+    accentSoft: '#d1aa47',
+    accentDeep: '#ab8324',
+    medallion: '#fdf6dc',
+    stubBorder: '#6b4d16',
+  },
+  merah: {
+    id: 'merah',
+    label: 'Merah Rose',
+    swatch: '#cf617d',
+    ink: '#521327',
+    bgOuter: '#eb9eb0',
+    bgInner: '#fbd4de',
+    accent: '#c95d79',
+    accentSoft: '#d6748e',
+    accentDeep: '#b34763',
+    medallion: '#fde6ec',
+    stubBorder: '#6e2239',
+  },
+  ungu: {
+    id: 'ungu',
+    label: 'Ungu Elegan',
+    swatch: '#8368d1',
+    ink: '#2b1754',
+    bgOuter: '#b7a4ea',
+    bgInner: '#dfd5fb',
+    accent: '#7c63c9',
+    accentSoft: '#9078d9',
+    accentDeep: '#664db3',
+    medallion: '#eee9fd',
+    stubBorder: '#432b7a',
+  },
+  abu: {
+    id: 'abu',
+    label: 'Abu Netral',
+    swatch: '#78889b',
+    ink: '#1e293b',
+    bgOuter: '#cbd5e1',
+    bgInner: '#e9eef5',
+    accent: '#7a8ba0',
+    accentSoft: '#94a3b8',
+    accentDeep: '#64748b',
+    medallion: '#f1f5f9',
+    stubBorder: '#334155',
+  },
+};
+
+const MM_TO_PX_96DPI = 96 / 25.4;
+
+const KwitansiBodyArt: React.FC<{
+  width: number;
+  height: number;
+  palette: KwitansiPalette;
+}> = ({ width: W, height: H, palette }) => {
+  const uid = useId().replace(/:/g, '');
+  const bgId = `kwBg-${uid}`;
+  const diamondId = `kwDiamond-${uid}`;
   const cx = W / 2;
   const cy = H / 2;
   return (
     <svg className="kw-art" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
       <defs>
-        <linearGradient id="kwBg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#8ccbec" />
-          <stop offset="0.5" stopColor="#bfe5f6" />
-          <stop offset="1" stopColor="#8ccbec" />
+        <linearGradient id={bgId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={palette.bgOuter} />
+          <stop offset="0.5" stopColor={palette.bgInner} />
+          <stop offset="1" stopColor={palette.bgOuter} />
         </linearGradient>
-        <pattern id="kwDiamond" width="1.6" height="1.6" patternUnits="userSpaceOnUse">
+        <pattern id={diamondId} width="1.6" height="1.6" patternUnits="userSpaceOnUse">
           <path d="M0.8 0 L1.6 0.8 L0.8 1.6 L0 0.8 Z" fill="none" stroke="#ffffff" strokeWidth="0.18" />
-          <circle cx="0.8" cy="0.8" r="0.2" fill="#5aa9d4" />
+          <circle cx="0.8" cy="0.8" r="0.2" fill={palette.accent} />
         </pattern>
       </defs>
-      <rect width={W} height={H} fill="url(#kwBg)" />
-      <rect x="0" y="0" width={W} height="2.4" fill="url(#kwDiamond)" />
-      <rect x="0" y={H - 2.4} width={W} height="2.4" fill="url(#kwDiamond)" />
-      <rect x="0" y="0" width="2.4" height={H} fill="url(#kwDiamond)" />
-      <rect x={W - 2.4} y="0" width="2.4" height={H} fill="url(#kwDiamond)" />
-      <rect x="2.4" y="2.4" width={W - 4.8} height={H - 4.8} fill="none" stroke="#5aa9d4" strokeWidth="0.15" />
+      <rect width={W} height={H} fill={`url(#${bgId})`} />
+      <rect x="0" y="0" width={W} height="2.4" fill={`url(#${diamondId})`} />
+      <rect x="0" y={H - 2.4} width={W} height="2.4" fill={`url(#${diamondId})`} />
+      <rect x="0" y="0" width="2.4" height={H} fill={`url(#${diamondId})`} />
+      <rect x={W - 2.4} y="0" width="2.4" height={H} fill={`url(#${diamondId})`} />
+      <rect x="2.4" y="2.4" width={W - 4.8} height={H - 4.8} fill="none" stroke={palette.accent} strokeWidth="0.15" />
 
       <g opacity="0.85">
-        {rosette('a', cx, cy, 52, 13, 36, '#ffffff', 0.11)}
-        {rosette('b', cx, cy, 40, 19, 30, '#6db4da', 0.08)}
+        {rosette('a', cx, cy, Math.min(58, W * 0.36), 13, 36, '#ffffff', 0.11)}
+        {rosette('b', cx, cy, Math.min(44, W * 0.28), 19, 30, palette.accentSoft, 0.08)}
         {rosette('c', cx, cy, 21, 21, 24, '#ffffff', 0.11)}
-        {rosette('d', cx, cy, 11, 11, 18, '#4f9fcf', 0.09)}
-        <circle cx={cx} cy={cy} r="4.5" fill="#d6f0fb" stroke="#4f9fcf" strokeWidth="0.15" />
+        {rosette('d', cx, cy, 11, 11, 18, palette.accentDeep, 0.09)}
+        <circle cx={cx} cy={cy} r="4.5" fill={palette.medallion} stroke={palette.accentDeep} strokeWidth="0.15" />
       </g>
       {[W * 0.14, W * 0.86].map((x) => (
         <g key={x} opacity="0.8">
           {rosette(`s${x}a`, x, cy + 2, 12, 12, 22, '#ffffff', 0.11)}
-          {rosette(`s${x}b`, x, cy + 2, 8, 8, 16, '#5aa9d4', 0.09)}
-          <circle cx={x} cy={cy + 2} r="2.6" fill="#d6f0fb" stroke="#4f9fcf" strokeWidth="0.15" />
+          {rosette(`s${x}b`, x, cy + 2, 8, 8, 16, palette.accent, 0.09)}
+          <circle cx={x} cy={cy + 2} r="2.6" fill={palette.medallion} stroke={palette.accentDeep} strokeWidth="0.15" />
         </g>
       ))}
       {Array.from({ length: 8 }, (_, i) => (
         <path
           key={`w${i}`}
-          d={`M2.4 ${14 + i * 0.7} C 35 ${10 + i}, 105 ${18 + i}, ${W - 2.4} ${14 + i * 0.7}`}
+          d={`M2.4 ${14 + i * 0.7} C ${W * 0.25} ${10 + i}, ${W * 0.75} ${18 + i}, ${W - 2.4} ${14 + i * 0.7}`}
           fill="none"
           stroke="#ffffff"
           strokeWidth="0.08"
@@ -476,53 +602,67 @@ const KwitansiBodyArt: React.FC = () => {
   );
 };
 
-const KwitansiStubArt: React.FC = () => {
-  const W = KW_STUB_W;
-  const H = KW_H;
+const KwitansiStubArt: React.FC<{
+  width: number;
+  height: number;
+  palette: KwitansiPalette;
+}> = ({ width: W, height: H, palette }) => {
+  const uid = useId().replace(/:/g, '');
+  const stubBgId = `kwStubBg-${uid}`;
   return (
     <svg className="kw-art" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
       <defs>
-        <linearGradient id="kwStubBg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#8ccbec" />
-          <stop offset="0.5" stopColor="#bfe5f6" />
-          <stop offset="1" stopColor="#8ccbec" />
+        <linearGradient id={stubBgId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={palette.bgOuter} />
+          <stop offset="0.5" stopColor={palette.bgInner} />
+          <stop offset="1" stopColor={palette.bgOuter} />
         </linearGradient>
       </defs>
-      <rect width={W} height={H} fill="url(#kwStubBg)" />
-      <rect x="0.8" y="0.8" width={W - 1.6} height={H - 1.6} fill="none" stroke="#5a2f3a" strokeWidth="0.6" />
-      <rect x="2" y="2" width={W - 4} height={H - 4} fill="none" stroke="#5a2f3a" strokeWidth="0.2" strokeDasharray="0.5 0.5" />
+      <rect width={W} height={H} fill={`url(#${stubBgId})`} />
+      <rect x="0.8" y="0.8" width={W - 1.6} height={H - 1.6} fill="none" stroke={palette.stubBorder} strokeWidth="0.6" />
+      <rect x="2" y="2" width={W - 4} height={H - 4} fill="none" stroke={palette.stubBorder} strokeWidth="0.2" strokeDasharray="0.5 0.5" />
       <path
         d={`M4 8 Q${W / 2} 2 ${W - 4} 8 Q${W - 8} 16 ${W - 4} 24 L${W - 4} ${H - 24} Q${W - 8} ${H - 16} ${W - 4} ${H - 8} Q${W / 2} ${H - 2} 4 ${H - 8} Q8 ${H - 16} 4 ${H - 24} L4 24 Q8 16 4 8 Z`}
-        fill="#d6f0fb"
+        fill={palette.medallion}
         fillOpacity="0.55"
         stroke="#ffffff"
         strokeWidth="0.4"
       />
       <g opacity="0.85">
         {rosette('m', W / 2, 12, 6.5, 6.5, 20, '#ffffff', 0.11)}
-        {rosette('n', W / 2, 12, 4.3, 4.3, 14, '#4f9fcf', 0.09)}
-        <circle cx={W / 2} cy="12" r="1.8" fill="#8ccbec" stroke="#4f9fcf" strokeWidth="0.15" />
+        {rosette('n', W / 2, 12, 4.3, 4.3, 14, palette.accentDeep, 0.09)}
+        <circle cx={W / 2} cy="12" r="1.8" fill={palette.bgOuter} stroke={palette.accentDeep} strokeWidth="0.15" />
       </g>
     </svg>
   );
 };
 
-// Single Kwitansi Preview Component
+// Single Kwitansi Preview & Print Component
 const KwitansiView: React.FC<{
   config: SchoolConfig;
   settings: KeuanganState['settings'];
   row: KeuanganState['bku'][0];
   v: { noKw: string; tgl: string; penerima: string; untuk: string; kodeRek: string };
-}> = ({ config, settings, row, v }) => {
+  sizeKey: KwitansiSizeKey;
+  colorKey: KwitansiColorKey;
+  showArt: boolean;
+}> = ({ config, settings, row, v, sizeKey, colorKey, showArt }) => {
   const formattedAmt = Math.round(row.pengeluaran).toLocaleString('id-ID');
   const needsMaterai = row.pengeluaran >= 5000000;
+  const sizeSpec = KWITANSI_SIZES[sizeKey];
+  const palette = KWITANSI_COLORS[colorKey] || KWITANSI_COLORS.biru;
+  const innerH = sizeSpec.heightMm - 6; // minus 3mm top & 3mm bottom padding
+  const bodyW = sizeSpec.widthMm - 6 - 2.5 - sizeSpec.stubMm;
 
   return (
-    <div className="kw-sheet">
+    <div
+      className={`kw-sheet kw-sheet--${sizeKey} ${!showArt ? 'kw-sheet--no-art' : ''}`}
+      style={{ '--kw-ink': palette.ink } as React.CSSProperties}
+    >
       <div className="kw-paper">
         {/* Left box (matsir) with Kepala Sekolah signature */}
         <div className="kw-stub">
-          <KwitansiStubArt />
+          {showArt && <KwitansiStubArt width={sizeSpec.stubMm} height={innerH} palette={palette} />}
           <div className="kw-stub-sign">
             <div>Mengetahui,</div>
             <div>Kepala Sekolah</div>
@@ -534,7 +674,7 @@ const KwitansiView: React.FC<{
 
         {/* Main body */}
         <div className="kw-body">
-          <KwitansiBodyArt />
+          {showArt && <KwitansiBodyArt width={bodyW} height={innerH} palette={palette} />}
           <div className="kw-content">
             <div className="kw-head">
               <div className="kw-noline">
@@ -588,7 +728,7 @@ const KwitansiView: React.FC<{
                 <div className="kw-gap">
                   {needsMaterai && <div className="kw-materai">Meterai Rp10.000</div>}
                 </div>
-                <div className="kw-name">{v.penerima || ' '}</div>
+                <div className="kw-name">{v.penerima || ' '}</div>
                 <div className="kw-nip">&nbsp;</div>
               </div>
             </div>
@@ -600,16 +740,7 @@ const KwitansiView: React.FC<{
 };
 
 export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, onToast }) => {
-  if (role !== 'operator') {
-    return (
-      <div className="bg-white p-8 rounded-xl border border-[#D3DDD9] text-center">
-        <p className="text-xs text-rose-700 font-semibold">
-          Akses ditolak. Modul Laporan Keuangan hanya dapat dibuka oleh Operator.
-        </p>
-      </div>
-    );
-  }
-
+  const isOperator = role === 'operator';
   const [state, setState] = useState<KeuanganState>(getKeuangan());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
@@ -626,6 +757,7 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
   }, []);
 
   const saveState = (newState: KeuanganState) => {
+    if (!isOperator) return;
     setState(newState);
     saveKeuangan(newState);
   };
@@ -640,21 +772,33 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
     }
   }, [bku, selectedRow]);
 
-  // Adjust preview scaling
+  const sizeKey: KwitansiSizeKey =
+    state.settings.ukuranKwitansi === 'sedang' ? 'sedang' : 'kecil';
+  const colorKey: KwitansiColorKey =
+    state.settings.warnaKwitansi && state.settings.warnaKwitansi in KWITANSI_COLORS
+      ? state.settings.warnaKwitansi
+      : 'biru';
+  const showPreviewArt = state.settings.previewGambar !== false;
+  const showPrintArt = state.settings.printGambar === true;
+
+  const activeSize = KWITANSI_SIZES[sizeKey];
+  const naturalWidth = activeSize.widthMm * MM_TO_PX_96DPI;
+  const naturalHeight = activeSize.heightMm * MM_TO_PX_96DPI;
+
+  // Adjust preview scaling dynamically to active sheet dimensions
   useEffect(() => {
     const el = previewContainerRef.current;
     if (!el) return;
     const update = () => {
-      const containerWidth = el.clientWidth;
-      const naturalWidth = 680.3; // 180mm in px at 96dpi
-      setPreviewScale(Math.min(1, Math.max(0.3, containerWidth / naturalWidth)));
+      const containerWidth = Math.max(120, el.clientWidth - 16);
+      setPreviewScale(Math.min(1, Math.max(0.28, containerWidth / naturalWidth)));
     };
     update();
     if (typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [hasData]);
+  }, [hasData, naturalWidth]);
 
   const getComputedRowValues = (row: KeuanganState['bku'][0], index: number) => {
     const edit = state.edits[row.id] || {};
@@ -668,6 +812,7 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
   };
 
   const updateRowEdit = (rowId: string, patch: Partial<{ noKw: string; tgl: string; penerima: string; untuk: string; kodeRek: string }>) => {
+    if (!isOperator) return;
     saveState({
       ...state,
       edits: {
@@ -681,6 +826,7 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
   };
 
   const updateSettings = (patch: Partial<KeuanganState['settings']>) => {
+    if (!isOperator) return;
     saveState({
       ...state,
       settings: {
@@ -691,7 +837,7 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
   };
 
   const handleFileUpload = async (file?: File) => {
-    if (!file) return;
+    if (!isOperator || !file) return;
     try {
       const records = await parseBkuFile(file);
       saveState({
@@ -708,6 +854,7 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
   };
 
   const handleClearData = () => {
+    if (!isOperator) return;
     if (!confirmClear) {
       setConfirmClear(true);
       setTimeout(() => setConfirmClear(false), 4000);
@@ -759,7 +906,7 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
       return;
     }
     const styleEl = document.createElement('style');
-    styleEl.textContent = '@page{size:180mm 76mm;margin:0}';
+    styleEl.textContent = `@page{size:${activeSize.widthMm}mm ${activeSize.heightMm}mm;margin:0}`;
     document.head.appendChild(styleEl);
     document.body.classList.add('printing-kwitansi');
 
@@ -791,60 +938,75 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
             <span className="text-[11px] text-[#566A6E]">
               {state.fileName} &middot; {bku.length} kwitansi
             </span>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-[#D3DDD9] text-[#13262A] cursor-pointer hover:bg-gray-50"
-            >
-              Ganti BKU
-            </button>
-            <button
-              type="button"
-              onClick={handleClearData}
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-[#D3DDD9] text-rose-700 cursor-pointer hover:bg-rose-50"
-            >
-              {confirmClear ? 'Klik lagi untuk hapus' : 'Hapus'}
-            </button>
+            {isOperator && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-[#D3DDD9] text-[#13262A] cursor-pointer hover:bg-gray-50"
+                >
+                  Ganti BKU
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClearData}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-[#D3DDD9] text-rose-700 cursor-pointer hover:bg-rose-50"
+                >
+                  {confirmClear ? 'Klik lagi untuk hapus' : 'Hapus'}
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".xlsx,.xlsm,.csv,.tsv,.txt"
-        className="hidden"
-        onChange={(e) => {
-          handleFileUpload(e.target.files?.[0]);
-          e.target.value = '';
-        }}
-      />
+      {isOperator && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,.xlsm,.csv,.tsv,.txt"
+          className="hidden"
+          onChange={(e) => {
+            handleFileUpload(e.target.files?.[0]);
+            e.target.value = '';
+          }}
+        />
+      )}
 
       {/* Upload Box if Empty */}
       {!hasData && (
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setIsDragging(true);
-          }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setIsDragging(false);
-            handleFileUpload(e.dataTransfer.files?.[0]);
-          }}
-          onClick={() => fileInputRef.current?.click()}
-          className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition ${
-            isDragging ? 'border-[#0B6B58] bg-[#E8EFEC]' : 'border-[#D3DDD9] bg-white hover:border-[#0B6B58]'
-          }`}
-        >
-          <Upload className="w-10 h-10 mx-auto text-[#0B6B58]" />
-          <h3 className="font-bold text-sm text-[#13262A] mt-2">Import Buku Kas Umum (BKU)</h3>
-          <p className="text-xs text-[#566A6E] mt-1">Klik atau seret file .xlsx / .csv ke sini</p>
-          <p className="text-[11px] text-[#566A6E] mt-3">
-            Kolom yang otomatis dibaca: <b>Tanggal</b> &middot; <b>No. Bukti</b> &middot; <b>Uraian</b> &middot; <b>Pengeluaran</b>
-          </p>
-        </div>
+        isOperator ? (
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragging(true);
+            }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDragging(false);
+              handleFileUpload(e.dataTransfer.files?.[0]);
+            }}
+            onClick={() => fileInputRef.current?.click()}
+            className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition ${
+              isDragging ? 'border-[#0B6B58] bg-[#E8EFEC]' : 'border-[#D3DDD9] bg-white hover:border-[#0B6B58]'
+            }`}
+          >
+            <Upload className="w-10 h-10 mx-auto text-[#0B6B58]" />
+            <h3 className="font-bold text-sm text-[#13262A] mt-2">Import Buku Kas Umum (BKU)</h3>
+            <p className="text-xs text-[#566A6E] mt-1">Klik atau seret file .xlsx / .csv ke sini</p>
+            <p className="text-[11px] text-[#566A6E] mt-3">
+              Kolom yang otomatis dibaca: <b>Tanggal</b> &middot; <b>No. Bukti</b> &middot; <b>Uraian</b> &middot; <b>Pengeluaran</b>
+            </p>
+          </div>
+        ) : (
+          <div className="bg-white border border-dashed border-[#D3DDD9] rounded-xl p-12 text-center space-y-2">
+            <h3 className="font-bold text-sm text-[#13262A]">Belum Ada Data Laporan Keuangan / BKU</h3>
+            <p className="text-xs text-[#566A6E] max-w-md mx-auto">
+              Data BKU dan kwitansi belum diunggah oleh Operator Sekolah (Mode Lihat Saja).
+            </p>
+          </div>
+        )
       )}
 
       {/* Main Content Layout */}
@@ -913,24 +1075,139 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
           {/* Right: Live Preview & Editor */}
           <div className="bg-white border border-[#D3DDD9] rounded-xl p-4 min-w-0">
             <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-              <span className="font-bold text-sm text-[#13262A]">
-                Preview Kwitansi &middot; {selectedIndex + 1} dari {bku.length}
-              </span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold text-sm text-[#13262A]">
+                  Preview Kwitansi &middot; {selectedIndex + 1} dari {bku.length}
+                </span>
+                <span className="text-[11px] font-medium text-[#566A6E] bg-[#F1F4F2] px-2 py-0.5 rounded-md whitespace-nowrap">
+                  {activeSize.mmLabel}
+                </span>
+              </div>
               <button
                 type="button"
                 onClick={handlePrint}
-                className="px-4 py-2 text-xs font-semibold rounded-lg bg-[#0B6B58] hover:bg-[#095747] text-white cursor-pointer shadow-xs flex items-center gap-1.5"
+                className="px-4 py-2 text-xs font-semibold rounded-lg bg-[#0B6B58] hover:bg-[#095747] text-white cursor-pointer shadow-xs flex items-center gap-1.5 whitespace-nowrap"
               >
                 <Printer className="w-3.5 h-3.5" />
                 {checkedIds.size > 0 ? `Cetak ${checkedIds.size} terpilih` : 'Cetak Kwitansi Ini'}
               </button>
             </div>
 
+            {/* Pengaturan Ukuran, Warna & Gambar Preview / Print (hanya bisa diubah Operator) */}
+            {isOperator && (
+              <div className="mb-3 p-3 rounded-xl bg-[#F8FAF9] border border-[#D3DDD9] flex flex-wrap items-center justify-between gap-3 text-xs">
+                {/* Pilihan Ukuran */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] font-semibold text-[#566A6E]">Ukuran:</span>
+                  <div className="inline-flex rounded-lg border border-[#D3DDD9] bg-white p-0.5">
+                    {(Object.keys(KWITANSI_SIZES) as KwitansiSizeKey[]).map((key) => {
+                      const spec = KWITANSI_SIZES[key];
+                      const active = sizeKey === key;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => updateSettings({ ukuranKwitansi: key })}
+                          className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition cursor-pointer whitespace-nowrap ${
+                            active
+                              ? 'bg-[#0B6B58] text-white shadow-xs'
+                              : 'text-[#566A6E] hover:text-[#13262A]'
+                          }`}
+                        >
+                          {spec.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Pilihan Warna Kwitansi */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] font-semibold text-[#566A6E] flex items-center gap-1">
+                    <Palette className="w-3.5 h-3.5 text-[#0B6B58]" />
+                    Warna:
+                  </span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {(Object.keys(KWITANSI_COLORS) as KwitansiColorKey[]).map((key) => {
+                      const p = KWITANSI_COLORS[key];
+                      const active = colorKey === key;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          title={p.label}
+                          onClick={() => updateSettings({ warnaKwitansi: key })}
+                          className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[11px] font-medium transition cursor-pointer whitespace-nowrap ${
+                            active
+                              ? 'bg-white border-[#0B6B58] text-[#13262A] ring-1 ring-[#0B6B58]/30 shadow-xs'
+                              : 'bg-white/70 border-[#D3DDD9] text-[#566A6E] hover:bg-white'
+                          }`}
+                        >
+                          <span
+                            className="w-3 h-3 rounded-full border border-black/15 shrink-0"
+                            style={{ backgroundColor: p.swatch }}
+                          />
+                          <span>{p.label.split(' ')[0]}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Toggle Gambar di Preview & Saat Print */}
+                <div className="flex items-center gap-2 flex-wrap w-full pt-2 border-t border-[#E4EBE8]">
+                  <span className="text-[11px] font-semibold text-[#566A6E]">Gambar Kwitansi:</span>
+                  <button
+                    type="button"
+                    onClick={() => updateSettings({ previewGambar: !showPreviewArt })}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition cursor-pointer whitespace-nowrap ${
+                      showPreviewArt
+                        ? 'bg-emerald-50 border-[#0B6B58]/40 text-[#0B6B58]'
+                        : 'bg-white border-[#D3DDD9] text-[#566A6E]'
+                    }`}
+                  >
+                    {showPreviewArt ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                    Preview: {showPreviewArt ? 'Dengan Gambar' : 'Tanpa Gambar'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => updateSettings({ printGambar: !showPrintArt })}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition cursor-pointer whitespace-nowrap ${
+                      showPrintArt
+                        ? 'bg-emerald-50 border-[#0B6B58]/40 text-[#0B6B58]'
+                        : 'bg-white border-[#D3DDD9] text-[#566A6E]'
+                    }`}
+                  >
+                    {showPrintArt ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                    Saat Print: {showPrintArt ? 'Ikut Gambar' : 'Tanpa Gambar (Blangko)'}
+                  </button>
+
+                  <span className="text-[11px] text-[#566A6E] ml-auto">
+                    {showPrintArt
+                      ? 'Cetak penuh dengan gambar & warna latar (kertas polos).'
+                      : 'Print hanya mencetak teks & kolom (gambar hanya tampil di preview).'}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Scaled Sheet Container */}
-            <div ref={previewContainerRef} className="w-full bg-[#F1F4F2] rounded-lg overflow-hidden p-2">
-              <div style={{ width: 680.3 * previewScale, height: 287.3 * previewScale, margin: '0 auto' }}>
-                <div style={{ transform: `scale(${previewScale})`, transformOrigin: 'top left', width: 680.3 }}>
-                  <KwitansiView config={config} settings={state.settings} row={selectedRow} v={computedSelected} />
+            <div ref={previewContainerRef} className="w-full bg-[#F1F4F2] rounded-lg overflow-hidden p-2 border border-[#E2E8E5]">
+              <div
+                className="shadow-sm"
+                style={{ width: naturalWidth * previewScale, height: naturalHeight * previewScale, margin: '0 auto' }}
+              >
+                <div style={{ transform: `scale(${previewScale})`, transformOrigin: 'top left', width: naturalWidth }}>
+                  <KwitansiView
+                    config={config}
+                    settings={state.settings}
+                    row={selectedRow}
+                    v={computedSelected}
+                    sizeKey={sizeKey}
+                    colorKey={colorKey}
+                    showArt={showPreviewArt}
+                  />
                 </div>
               </div>
             </div>
@@ -942,7 +1219,8 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
                 <input
                   value={computedSelected.noKw}
                   onChange={(e) => updateRowEdit(selectedRow.id, { noKw: e.target.value })}
-                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                  disabled={!isOperator}
+                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
                 />
               </div>
               <div>
@@ -951,7 +1229,8 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
                   type="date"
                   value={computedSelected.tgl}
                   onChange={(e) => updateRowEdit(selectedRow.id, { tgl: e.target.value })}
-                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                  disabled={!isOperator}
+                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
                 />
               </div>
               <div>
@@ -959,8 +1238,9 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
                 <input
                   value={computedSelected.kodeRek}
                   onChange={(e) => updateRowEdit(selectedRow.id, { kodeRek: e.target.value })}
+                  disabled={!isOperator}
                   placeholder="mis. 5.1.02.01.01.0026"
-                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white font-mono"
+                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white font-mono disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
                 />
               </div>
               <div>
@@ -968,8 +1248,9 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
                 <input
                   value={computedSelected.penerima}
                   onChange={(e) => updateRowEdit(selectedRow.id, { penerima: e.target.value })}
+                  disabled={!isOperator}
                   placeholder="Nama toko / penerima uang"
-                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
                 />
               </div>
               <div className="md:col-span-4">
@@ -977,8 +1258,9 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
                 <textarea
                   value={computedSelected.untuk}
                   onChange={(e) => updateRowEdit(selectedRow.id, { untuk: e.target.value })}
+                  disabled={!isOperator}
                   rows={2}
-                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -994,7 +1276,8 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
                   <input
                     value={state.settings.bendaharaNama}
                     onChange={(e) => updateSettings({ bendaharaNama: e.target.value })}
-                    className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                    disabled={!isOperator}
+                    className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
                   />
                 </div>
                 <div>
@@ -1002,7 +1285,8 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
                   <input
                     value={state.settings.bendaharaNip}
                     onChange={(e) => updateSettings({ bendaharaNip: e.target.value })}
-                    className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white font-mono"
+                    disabled={!isOperator}
+                    className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white font-mono disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
                   />
                 </div>
                 <div>
@@ -1010,7 +1294,8 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
                   <input
                     value={state.settings.sumberDana}
                     onChange={(e) => updateSettings({ sumberDana: e.target.value })}
-                    className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                    disabled={!isOperator}
+                    className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
                   />
                 </div>
                 <div>
@@ -1018,7 +1303,8 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
                   <input
                     value={state.settings.kota}
                     onChange={(e) => updateSettings({ kota: e.target.value })}
-                    className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                    disabled={!isOperator}
+                    className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -1037,6 +1323,9 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
               settings={state.settings}
               row={r}
               v={getComputedRowValues(r, bku.findIndex((item) => item.id === r.id))}
+              sizeKey={sizeKey}
+              colorKey={colorKey}
+              showArt={showPrintArt}
             />
           ))}
         </div>,

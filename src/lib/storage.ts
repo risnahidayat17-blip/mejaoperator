@@ -20,6 +20,7 @@ import {
   LaporanBulan,
   LetterTemplate,
   ArsipAbsen,
+  ArsipLaporan,
   KeuanganState,
   WorkActivity,
   Rombel,
@@ -58,6 +59,7 @@ import {
 import { saveFile, deleteFile, newRecordId, getFileDataUrl, setFileUploadedHandler } from './files';
 import { hashPassword, verifyPassword } from './auth';
 import { isImageKitReady, uploadToImageKit, uploadDataUrlToImageKit, dataUrlToBlob } from './imagekit';
+import type { DapodikWsConfig } from './dapodikWebService';
 
 export const KEYS = {
   USERS: 'mo_users',
@@ -78,6 +80,7 @@ export const KEYS = {
   LAPORAN: 'mo_laporan',
   TEMPLATES: 'mo_letter_templates',
   ARSIPABSEN: 'mo_arsip_absen',
+  ARSIPLAPORAN: 'mo_arsip_laporan',
   KEUANGAN: 'mo_keuangan',
   ACTIVITIES: 'mo_activities',
   POS_UJIAN_CFG: 'mo_pos_ujian_cfg',
@@ -86,6 +89,7 @@ export const KEYS = {
   POS_UJIAN_PANITIA: 'mo_pos_ujian_panitia',
   POS_UJIAN_PENGAWAS: 'mo_pos_ujian_pengawas',
   POS_UJIAN_RAMBU: 'mo_pos_ujian_rambu',
+  DAPODIK_WS: 'mo_dapodik_ws',
 };
 
 const listeners = new Set<() => void>();
@@ -123,7 +127,7 @@ export function getFromStorage<T>(key: string, defaultValue: T): T {
 // - Perubahan dari perangkat lain diambil otomatis (saat dibuka, tiap 15 detik,
 //   dan saat jendela kembali aktif).
 // ---------------------------------------------------------------------------
-const SYNC_SKIP_KEYS = new Set<string>([KEYS.CURRENT_USER]);
+const SYNC_SKIP_KEYS = new Set<string>([KEYS.CURRENT_USER, KEYS.DAPODIK_WS]);
 const TOMB_PREFIX = 'del:';
 const TOMB_LS_KEY = 'mo_tombstones';
 const TOMB_TTL_MS = 120 * 24 * 3600 * 1000;
@@ -1453,6 +1457,157 @@ export function deleteGuru(id: string): void {
   recordActivity('Guru & Tendik', `Hapus data GTK: ${target?.nama || 'GTK'}`, false, 'delete');
 }
 
+export interface ImportBulkGuruResult {
+  added: number;
+  updated: number;
+  skipped: number;
+  total: number;
+}
+
+export function importBulkGurus(
+  incoming: Guru[],
+  mode: 'merge' | 'add_only' | 'replace' = 'merge'
+): ImportBulkGuruResult {
+  const currentList = getGurus();
+  const now = Date.now();
+  const normalizeStr = (v?: string) => (v || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const cleanNum = (v?: string) => (v || '').replace(/[^0-9]/g, '');
+
+  const preserveAuth = (existing: Guru | undefined, item: Guru): Guru => {
+    const base: Guru = {
+      ...item,
+      nama: (item.nama || '').toUpperCase().trim(),
+      status: item.status || 'Aktif',
+    };
+    if (!existing) return base;
+    return {
+      ...existing,
+      ...base,
+      id: existing.id,
+      createdAt: existing.createdAt || base.createdAt || now,
+      updatedAt: now,
+      nip: base.nip || existing.nip,
+      nuptk: base.nuptk || existing.nuptk,
+      tempatLahir: base.tempatLahir || existing.tempatLahir,
+      tglLahir: base.tglLahir || existing.tglLahir,
+      mengampu: base.mengampu || existing.mengampu,
+      pendidikan: base.pendidikan || existing.pendidikan,
+      tmt: base.tmt || existing.tmt,
+      skNomor: base.skNomor || existing.skNomor,
+      skTanggal: base.skTanggal || existing.skTanggal,
+      golongan: base.golongan || existing.golongan,
+      tmtGol: base.tmtGol || existing.tmtGol,
+      agama: base.agama || existing.agama,
+      telp: base.telp || existing.telp,
+      email: base.email || existing.email,
+      alamat: base.alamat || existing.alamat,
+      passwordHash: existing.passwordHash,
+      passwordSalt: existing.passwordSalt,
+      passwordUpdatedAt: existing.passwordUpdatedAt,
+    };
+  };
+
+  const findMatch = (list: Guru[], item: Guru): number => {
+    const itemNuptk = cleanNum(item.nuptk);
+    const itemNip = cleanNum(item.nip);
+    const itemNama = normalizeStr(item.nama);
+    let idx = -1;
+    if (itemNuptk.length >= 8) {
+      idx = list.findIndex((g) => cleanNum(g.nuptk) === itemNuptk);
+    }
+    if (idx < 0 && itemNip.length >= 8) {
+      idx = list.findIndex((g) => cleanNum(g.nip) === itemNip);
+    }
+    if (idx < 0 && itemNama) {
+      idx = list.findIndex((g) => normalizeStr(g.nama) === itemNama);
+    }
+    return idx;
+  };
+
+  if (mode === 'replace') {
+    const stamped = incoming.map((item, i) => {
+      const mIdx = findMatch(currentList, item);
+      const old = mIdx >= 0 ? currentList[mIdx] : undefined;
+      const merged = preserveAuth(old, item);
+      return {
+        ...merged,
+        id: old?.id || item.id || `g_${now}_${i}`,
+        createdAt: old?.createdAt || now,
+        updatedAt: now,
+      };
+    });
+    replaceKeys.add(KEYS.GURU);
+    setToStorage(KEYS.GURU, stamped);
+    recordActivity(
+      'Guru & Tendik',
+      `Tarik Web Service Dapodik (ganti total): ${stamped.length} GTK`,
+      true,
+      'create'
+    );
+    return { added: stamped.length, updated: 0, skipped: 0, total: stamped.length };
+  }
+
+  const resultList = [...currentList];
+  let added = 0;
+  let updated = 0;
+  let skipped = 0;
+
+  incoming.forEach((item, i) => {
+    const matchIdx = findMatch(resultList, item);
+    if (matchIdx >= 0) {
+      if (mode === 'merge') {
+        resultList[matchIdx] = preserveAuth(resultList[matchIdx], item);
+        updated++;
+      } else {
+        skipped++;
+      }
+    } else {
+      resultList.push({
+        ...item,
+        id: item.id || `g_${now}_${i}`,
+        nama: (item.nama || '').toUpperCase().trim(),
+        status: item.status || 'Aktif',
+        createdAt: item.createdAt || now,
+        updatedAt: now,
+      });
+      added++;
+    }
+  });
+
+  setToStorage(KEYS.GURU, resultList);
+  recordActivity(
+    'Guru & Tendik',
+    `Tarik Web Service Dapodik: ${added} GTK baru, ${updated} diperbarui${skipped ? `, ${skipped} dilewati` : ''}`,
+    added > 0,
+    added > 0 ? 'create' : 'update'
+  );
+  return { added, updated, skipped, total: resultList.length };
+}
+
+export function getDapodikWsConfig(): DapodikWsConfig {
+  const cfg = getSchoolConfig();
+  const saved = getFromStorage<Partial<DapodikWsConfig> | null>(KEYS.DAPODIK_WS, null);
+  return {
+    baseUrl: saved?.baseUrl || 'http://localhost:5774',
+    bridgeUrl: saved?.bridgeUrl || 'http://localhost:5775',
+    useBridge: saved?.useBridge ?? true,
+    npsn: saved?.npsn || cfg.npsn || '',
+    token: saved?.token || '',
+    lastSyncAt: saved?.lastSyncAt,
+    lastSchoolName: saved?.lastSchoolName,
+    lastGtkCount: saved?.lastGtkCount,
+    lastSiswaCount: saved?.lastSiswaCount,
+  };
+}
+
+export function saveDapodikWsConfig(patch: Partial<DapodikWsConfig>): DapodikWsConfig {
+  const next = { ...getDapodikWsConfig(), ...patch };
+  try {
+    localStorage.setItem(KEYS.DAPODIK_WS, JSON.stringify(next));
+  } catch {}
+  return next;
+}
+
 // Dokumen GTK
 export function getDokumenGtks(): DokumenGtk[] {
   return getFromStorage<DokumenGtk[]>(KEYS.DOKGTK, []);
@@ -1734,6 +1889,15 @@ export function saveArsipAbsenList(list: ArsipAbsen[]): boolean {
   return ok;
 }
 
+// Arsip Laporan Sekolah
+export function getArsipLaporan(): ArsipLaporan[] {
+  return getFromStorage<ArsipLaporan[]>(KEYS.ARSIPLAPORAN, []);
+}
+
+export function saveArsipLaporanList(list: ArsipLaporan[]): boolean {
+  return setToStorage(KEYS.ARSIPLAPORAN, list);
+}
+
 // Keuangan
 const defaultKeuangan: KeuanganState = {
   settings: {
@@ -1741,7 +1905,11 @@ const defaultKeuangan: KeuanganState = {
     bendaharaNip: "19690723 200501 2 008",
     sumberDana: "Dana BOSP Reguler",
     kota: "Cirebon",
-    prefix: "BOSP"
+    prefix: "BOSP",
+    ukuranKwitansi: "kecil",
+    warnaKwitansi: "biru",
+    previewGambar: true,
+    printGambar: false,
   },
   bku: [],
   edits: {},
@@ -1782,6 +1950,7 @@ export function getAllExportableData(): Record<string, unknown> {
     [KEYS.LAPORAN]: getFromStorage(KEYS.LAPORAN, []),
     [KEYS.TEMPLATES]: getTemplates(),
     [KEYS.ARSIPABSEN]: getArsipAbsen(),
+    [KEYS.ARSIPLAPORAN]: getArsipLaporan(),
     [KEYS.KEUANGAN]: getKeuangan(),
     [KEYS.ACTIVITIES]: getActivities(),
     [KEYS.ROMBEL]: getFromStorage(KEYS.ROMBEL, []),
@@ -1857,6 +2026,7 @@ export function resetToDefaults(): void {
   localStorage.removeItem(KEYS.BERKAS);
   localStorage.removeItem(KEYS.LAPORAN);
   localStorage.removeItem(KEYS.ARSIPABSEN);
+  localStorage.removeItem(KEYS.ARSIPLAPORAN);
   localStorage.removeItem(KEYS.KEUANGAN);
   notifyListeners();
 }
@@ -1927,6 +2097,7 @@ export async function migrateLegacyFiles(): Promise<number> {
     if (dirty) setToStorage(key, out);
   };
   await strip(KEYS.ARSIPABSEN, getArsipAbsen() as any[]);
+  await strip(KEYS.ARSIPLAPORAN, getArsipLaporan() as any[]);
   await strip(KEYS.DOKGTK, getDokumenGtks() as any[]);
   return moved;
 }
@@ -1975,6 +2146,7 @@ function patchFileRef(fileId: string, patch: RefPatch): void {
   };
   apply(KEYS.DOKGTK, getDokumenGtks() as any[]);
   apply(KEYS.ARSIPABSEN, getArsipAbsen() as any[]);
+  apply(KEYS.ARSIPLAPORAN, getArsipLaporan() as any[]);
   apply(KEYS.BERKAS, getFromStorage<any[]>(KEYS.BERKAS, []));
   if (anyDirty) {
     flushCloudPushNow().catch(() => {});
@@ -2002,8 +2174,9 @@ export async function migrateFilesToImageKit(onProgress?: (msg: string) => void)
   const fileJobs: Array<{ key: string; id: string; file: any; folder: string }> = [];
   for (const d of getDokumenGtks()) if (d.file && !d.file.url) fileJobs.push({ key: KEYS.DOKGTK, id: d.id, file: d.file, folder: `gtk/${d.guruId}` });
   for (const a of getArsipAbsen()) if (a.file && !a.file.url) fileJobs.push({ key: KEYS.ARSIPABSEN, id: a.id, file: a.file, folder: 'arsip-absen' });
+  for (const l of getArsipLaporan()) if (l.file && !l.file.url) fileJobs.push({ key: KEYS.ARSIPLAPORAN, id: l.id, file: l.file, folder: 'arsip-laporan' });
 
-  const patches: Record<string, Record<string, any>> = { [KEYS.DOKGTK]: {}, [KEYS.ARSIPABSEN]: {} };
+  const patches: Record<string, Record<string, any>> = { [KEYS.DOKGTK]: {}, [KEYS.ARSIPABSEN]: {}, [KEYS.ARSIPLAPORAN]: {} };
   let n = 0;
   for (const job of fileJobs) {
     n++;
@@ -2028,6 +2201,7 @@ export async function migrateFilesToImageKit(onProgress?: (msg: string) => void)
   };
   applyFilePatches(KEYS.DOKGTK, getDokumenGtks() as any[]);
   applyFilePatches(KEYS.ARSIPABSEN, getArsipAbsen() as any[]);
+  applyFilePatches(KEYS.ARSIPLAPORAN, getArsipLaporan() as any[]);
 
   // 2. Foto bukti surat masuk (base64 -> URL)
   const fotoPatch: Record<string, string> = {};

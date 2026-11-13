@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #F1F4F2;
+  --bg: #EBF3F1;
   --surface: #FFFFFF;
   --surface-2: #E8EFEC;
   --ink: #13262A;
@@ -30,6 +30,30 @@ body {
   line-height: 1.5;
   margin: 0;
   padding: 0;
+}
+
+/* Latar belakang ruang kerja profesional bernuansa teal zamrud, biru langit, dan aksen hangat halus */
+.app-workspace-bg {
+  background-color: #E8F2F0;
+  background-image:
+    radial-gradient(ellipse 75% 55% at 8% 0%, rgba(11, 107, 88, 0.14) 0%, transparent 62%),
+    radial-gradient(ellipse 65% 50% at 94% 6%, rgba(14, 116, 144, 0.13) 0%, transparent 60%),
+    radial-gradient(ellipse 55% 45% at 88% 96%, rgba(217, 119, 6, 0.08) 0%, transparent 58%),
+    radial-gradient(rgba(11, 107, 88, 0.06) 1px, transparent 1px),
+    linear-gradient(155deg, #E4F1ED 0%, #EAF3F8 50%, #F3F5F8 100%);
+  background-size: auto, auto, auto, 24px 24px, auto;
+}
+
+/* Latar belakang layar masuk institusional yang cerah, berwarna, dan elegan */
+.login-canvas-bg {
+  background-color: #E3F0EC;
+  background-image:
+    radial-gradient(ellipse 70% 55% at 15% 10%, rgba(11, 107, 88, 0.20) 0%, transparent 60%),
+    radial-gradient(ellipse 65% 50% at 88% 14%, rgba(14, 116, 144, 0.18) 0%, transparent 58%),
+    radial-gradient(ellipse 60% 45% at 50% 96%, rgba(217, 119, 6, 0.11) 0%, transparent 58%),
+    radial-gradient(rgba(11, 107, 88, 0.075) 1px, transparent 1px),
+    linear-gradient(140deg, #D9ECE6 0%, #E7F2F8 52%, #F5F1E8 100%);
+  background-size: auto, auto, auto, 26px 26px, auto;
 }
 
 h1, h2, h3, h4 {
@@ -88,8 +112,11 @@ h1, h2, h3, h4 {
     display: none !important;
   }
 
-  body {
+  body,
+  .app-workspace-bg,
+  .login-canvas-bg {
     background: #ffffff !important;
+    background-image: none !important;
     color: #000000 !important;
     padding: 0 !important;
     margin: 0 !important;
@@ -133,18 +160,27 @@ h1, h2, h3, h4 {
   color: #94a3a0;
 }
 
-/* Kwitansi BKU (180 x 76 mm, ukuran sedang, blue pre-printed receipt style) */
+/* Kwitansi BKU (Kecil 215 x 75 mm & Sedang 180 x 76 mm, mendukung pilih warna & mode tanpa gambar) */
 .kw-sheet {
-  width: 180mm;
-  height: 76mm;
+  --kw-ink: #0b2a4a;
+  width: 215mm;
+  height: 75mm;
   box-sizing: border-box;
   padding: 3mm;
   background: #fff;
-  color: #0b2a4a;
+  color: var(--kw-ink);
   font-family: Arial, Helvetica, sans-serif;
   overflow: hidden;
   print-color-adjust: exact;
   -webkit-print-color-adjust: exact;
+}
+.kw-sheet--kecil {
+  width: 215mm;
+  height: 75mm;
+}
+.kw-sheet--sedang {
+  width: 180mm;
+  height: 76mm;
 }
 .kw-paper {
   height: 100%;
@@ -153,8 +189,11 @@ h1, h2, h3, h4 {
 }
 .kw-stub {
   position: relative;
-  width: 32mm;
+  width: 34mm;
   flex: none;
+}
+.kw-sheet--sedang .kw-stub {
+  width: 32mm;
 }
 .kw-body {
   position: relative;
@@ -197,6 +236,9 @@ h1, h2, h3, h4 {
   display: flex;
   flex-direction: column;
 }
+.kw-sheet--kecil .kw-content {
+  padding: 3.3mm 6mm 2.5mm;
+}
 .kw-head {
   display: flex;
   align-items: flex-end;
@@ -210,10 +252,13 @@ h1, h2, h3, h4 {
   gap: 1mm;
   width: 46mm;
 }
+.kw-sheet--kecil .kw-noline {
+  width: 54mm;
+}
 .kw-noline .kw-fill {
   flex: 1;
   min-width: 0;
-  border-bottom: .5pt solid #0b2a4a;
+  border-bottom: .5pt solid var(--kw-ink);
   font-size: 8.5pt;
   font-weight: 700;
   padding-left: 1mm;
@@ -243,7 +288,7 @@ h1, h2, h3, h4 {
 .kw-v {
   flex: 1;
   min-width: 0;
-  border-bottom: .5pt solid #0b2a4a;
+  border-bottom: .5pt solid var(--kw-ink);
   font-size: 8pt;
   line-height: 1.3;
   padding-left: 1mm;
@@ -253,6 +298,9 @@ h1, h2, h3, h4 {
   font-weight: 700;
   font-style: italic;
   background: linear-gradient(100deg, transparent 0, rgba(255, 255, 255, .55) 4%, rgba(255, 255, 255, .55) 96%, transparent 100%);
+}
+.kw-sheet--no-art .kw-terbilang {
+  background: transparent;
 }
 .kw-ruled {
   flex: 1;
@@ -267,9 +315,12 @@ h1, h2, h3, h4 {
     to bottom,
     transparent 0,
     transparent calc(4.4mm - .5pt),
-    #0b2a4a calc(4.4mm - .5pt),
-    #0b2a4a 4.4mm
+    var(--kw-ink) calc(4.4mm - .5pt),
+    var(--kw-ink) 4.4mm
   );
+}
+.kw-sheet--kecil .kw-ruled {
+  height: 13.2mm;
 }
 .kw-mid {
   display: flex;
@@ -287,11 +338,14 @@ h1, h2, h3, h4 {
   display: inline-block;
   transform: skewX(-20deg);
   background: rgba(255, 255, 255, .6);
-  border: .7pt solid #0b2a4a;
+  border: .7pt solid var(--kw-ink);
   padding: .5mm 4mm;
   font-weight: 700;
   font-size: 10.5pt;
   min-width: 34mm;
+}
+.kw-sheet--no-art .kw-amtbox {
+  background: transparent;
 }
 .kw-amtbox > span {
   display: inline-block;
@@ -312,12 +366,18 @@ h1, h2, h3, h4 {
   align-items: center;
   justify-content: center;
 }
+.kw-sheet--kecil .kw-gap {
+  height: 7.5mm;
+}
 .kw-materai {
-  border: .5pt dashed #0b2a4a;
+  border: .5pt dashed var(--kw-ink);
   font-size: 5pt;
   padding: 1.5mm 2mm;
   line-height: 1.1;
   background: rgba(255, 255, 255, .5);
+}
+.kw-sheet--no-art .kw-materai {
+  background: transparent;
 }
 .kw-name {
   font-weight: 700;

@@ -12,6 +12,7 @@ import { EditDaftar1Modal } from './EditDaftar1Modal';
 import { Printer, Pencil, X } from 'lucide-react';
 
 interface LaporanBulanProps {
+  role?: 'operator' | 'guru';
   config: SchoolConfig;
   siswa: Siswa[];
   guru: Guru[];
@@ -19,11 +20,13 @@ interface LaporanBulanProps {
 }
 
 export const LaporanBulan: React.FC<LaporanBulanProps> = ({
+  role = 'operator',
   config,
   siswa,
   guru,
   onToast,
 }) => {
+  const isOperator = role === 'operator';
   const currentMonthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
   const [selectedMonth, setSelectedMonth] = useState(currentMonthKey);
   const [isModalAbsenOpen, setIsModalAbsenOpen] = useState(false);
@@ -87,6 +90,7 @@ export const LaporanBulan: React.FC<LaporanBulanProps> = ({
 
   const handleSaveAbsen = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!isOperator) return;
     const form = new FormData(e.currentTarget);
     const mSakit = Number(form.get('m_sakit')) || 0;
     const mIzin = Number(form.get('m_izin')) || 0;
@@ -122,6 +126,7 @@ export const LaporanBulan: React.FC<LaporanBulanProps> = ({
   };
 
   const handleSaveReport = (updatedReport: ILaporanBulan) => {
+    if (!isOperator) return;
     const currentList = getFromStorage<ILaporanBulan[]>(KEYS.LAPORAN, []);
     const idx = currentList.findIndex((l) => l.id === selectedMonth);
     if (idx >= 0) {
@@ -153,13 +158,15 @@ export const LaporanBulan: React.FC<LaporanBulanProps> = ({
             onChange={(e) => setSelectedMonth(e.target.value)}
             className="text-xs px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white font-bold"
           />
-          <button
-            type="button"
-            onClick={() => setIsEditModalOpen(true)}
-            className="px-3.5 py-1.5 text-xs font-semibold bg-[#0B6B58] hover:bg-[#095747] text-white rounded-lg shadow-sm transition flex items-center gap-1.5 cursor-pointer"
-          >
-            <Pencil className="w-3.5 h-3.5" /> Edit / Betulkan Data Daftar 1
-          </button>
+          {isOperator && (
+            <button
+              type="button"
+              onClick={() => setIsEditModalOpen(true)}
+              className="px-3.5 py-1.5 text-xs font-semibold bg-[#0B6B58] hover:bg-[#095747] text-white rounded-lg shadow-sm transition flex items-center gap-1.5 cursor-pointer"
+            >
+              <Pencil className="w-3.5 h-3.5" /> Edit / Betulkan Data Daftar 1
+            </button>
+          )}
           <button
             type="button"
             onClick={handlePrint}
@@ -204,7 +211,7 @@ export const LaporanBulan: React.FC<LaporanBulanProps> = ({
       )}
 
       {/* ABSEN INPUT MODAL */}
-      {isModalAbsenOpen && (
+      {isOperator && isModalAbsenOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-xl shadow-xl border border-[#D3DDD9] max-w-lg w-full p-6 space-y-4 my-6">
             <div className="flex items-center justify-between pb-2 border-b border-[#D3DDD9]">
@@ -314,16 +321,18 @@ export const LaporanBulan: React.FC<LaporanBulanProps> = ({
       )}
 
       {/* MODAL EDIT / BETULKAN DATA DAFTAR 1 */}
-      <EditDaftar1Modal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        month={selectedMonth}
-        config={config}
-        guruList={guru}
-        reportData={reportData}
-        onSave={handleSaveReport}
-        onToast={onToast}
-      />
+      {isOperator && (
+        <EditDaftar1Modal
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          month={selectedMonth}
+          config={config}
+          guruList={guru}
+          reportData={reportData}
+          onSave={handleSaveReport}
+          onToast={onToast}
+        />
+      )}
     </div>
   );
 };

@@ -91,11 +91,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ config, onLoggedIn }) 
   };
 
   return (
-    <div className="min-h-screen bg-[#F1F4F2] flex flex-col items-center justify-center px-4 py-10 font-sans text-[#13262A]">
+    <div className="min-h-screen login-canvas-bg flex flex-col items-center justify-center px-4 py-10 font-sans text-[#13262A]">
       <div className="w-full max-w-3xl">
         {/* Brand Header */}
         <div className="flex flex-col items-center text-center mb-8">
-          <div className="w-20 h-20 rounded-2xl bg-white border border-[#D3DDD9] shadow-sm flex items-center justify-center overflow-hidden mb-3 p-2">
+          <div className="w-20 h-20 rounded-2xl bg-white/95 backdrop-blur-sm border border-[#B8D7CE] shadow-[0_8px_24px_rgba(11,107,88,0.12)] flex items-center justify-center overflow-hidden mb-3 p-2">
             {logo ? (
               <img src={logo} alt="Logo Sekolah" className="w-full h-full object-contain logo-hd drop-shadow-xs" />
             ) : (
@@ -105,10 +105,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ config, onLoggedIn }) 
           <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#0B6B58]">
             Sistem Administrasi Sekolah Terpadu
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold font-display mt-1">
+          <h1 className="text-2xl md:text-3xl font-bold font-display mt-1 text-[#0F2A2E]">
             {config.namaSekolah || 'SD Negeri 2 Cempaka'}
           </h1>
-          <p className="text-xs text-[#566A6E] mt-1.5">
+          <p className="text-xs text-[#476065] mt-1.5">
             Kecamatan {config.kecamatan || 'Talun'} &middot; Kabupaten {config.kabupaten || 'Cirebon'}
           </p>
         </div>
@@ -116,7 +116,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ config, onLoggedIn }) 
         {/* Dual Login Options */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Card 1: Guru / Tendik */}
-          <section className="bg-white rounded-2xl border border-[#D3DDD9] shadow-sm p-6 flex flex-col">
+          <section className="bg-white/95 backdrop-blur-md rounded-2xl border border-[#C6DCD5] shadow-[0_12px_32px_rgba(11,107,88,0.09)] overflow-hidden flex flex-col">
+            <div className="h-1.5 bg-gradient-to-r from-[#1D7A3A] to-[#0E7490]" />
+            <div className="p-6 flex flex-col flex-1">
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-xl bg-[#DDF1E3] text-[#1D7A3A] flex items-center justify-center shrink-0">
                 <UserCheck className="w-6 h-6" />
@@ -130,11 +132,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ config, onLoggedIn }) 
             <ul className="mt-4 space-y-1.5 text-xs text-[#566A6E] flex-1">
               <li className="flex gap-2">
                 <span className="text-[#1D7A3A] font-bold">&#10003;</span>
-                <span>Dapat melihat & mengubah data GTK, Penilaian/Rapor, Surat Keluar, dan Absen.</span>
+                <span>Dapat membuka dan melihat seluruh data administrasi sekolah (mode lihat saja).</span>
               </li>
               <li className="flex gap-2">
                 <span className="text-[#1D7A3A] font-bold">&#10003;</span>
-                <span>Mengunggah dokumen dan mencetak surat ber-Kop resmi resolusi tinggi.</span>
+                <span>Tidak dapat menambah/mengubah data maupun melihat pengaturan koneksi database.</span>
               </li>
             </ul>
 
@@ -206,10 +208,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ config, onLoggedIn }) 
                 <LogIn className="w-4 h-4" /> {guruBusy ? 'Memeriksa...' : 'Masuk sebagai Guru / Tendik'}
               </button>
             </form>
+            </div>
           </section>
 
           {/* Card 2: Operator (Full Access) */}
-          <section className="bg-white rounded-2xl border border-[#D3DDD9] shadow-sm p-6 flex flex-col">
+          <section className="bg-white/95 backdrop-blur-md rounded-2xl border border-[#C6DCD5] shadow-[0_12px_32px_rgba(11,107,88,0.09)] overflow-hidden flex flex-col">
+            <div className="h-1.5 bg-gradient-to-r from-[#0B6B58] via-[#0E7490] to-[#13262A]" />
+            <div className="p-6 flex flex-col flex-1">
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-xl bg-[#DAEEE7] text-[#0B6B58] flex items-center justify-center shrink-0">
                 <ShieldCheck className="w-6 h-6" />
@@ -272,6 +277,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ config, onLoggedIn }) 
                 <LogIn className="w-4 h-4" /> Masuk sebagai Operator
               </button>
             </form>
+            </div>
           </section>
         </div>
 

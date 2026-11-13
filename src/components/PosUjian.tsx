@@ -239,6 +239,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
 
   const handleSaveConfig = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!isOperator) return;
     const form = new FormData(e.currentTarget);
     const updated: PosUjianConfig = {
       ...posConfig,
@@ -269,6 +270,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
   // Jadwal Ujian (Kolom ruang dihapus sesuai permintaan)
   const handleSaveJadwal = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!isOperator) return;
     const form = new FormData(e.currentTarget);
     const hariTanggal = String(form.get('hariTanggal') || '').trim();
     const tanggal = String(form.get('tanggal') || '').trim();
@@ -300,6 +302,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
   };
 
   const handleDeleteJadwal = (id: string, mapel: string) => {
+    if (!isOperator) return;
     if (!window.confirm(`Hapus jadwal ujian untuk mata pelajaran "${mapel}"?`)) return;
     deletePosUjianJadwal(id);
     reloadAll();
@@ -308,6 +311,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
 
   // Generate Peserta
   const handleGeneratePeserta = () => {
+    if (!isOperator) return;
     const tingkat = posConfig.tingkatKelas || '6';
     if (
       pesertaList.length > 0 &&
@@ -328,6 +332,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
 
   const handleSavePeserta = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!isOperator) return;
     const form = new FormData(e.currentTarget);
     const nama = String(form.get('nama') || '').trim();
     const nomorPeserta = String(form.get('nomorPeserta') || '').trim();
@@ -370,6 +375,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
   };
 
   const handleDeletePeserta = (id: string, nama: string) => {
+    if (!isOperator) return;
     if (!window.confirm(`Hapus peserta ujian "${nama}"?`)) return;
     deletePosUjianPeserta(id);
     reloadAll();
@@ -379,6 +385,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
   // Panitia Ujian
   const handleSavePanitia = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!isOperator) return;
     const form = new FormData(e.currentTarget);
     const nama = String(form.get('nama') || '').trim();
     const nip = String(form.get('nip') || '').trim();
@@ -410,6 +417,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
   };
 
   const handleDeletePanitia = (id: string, nama: string) => {
+    if (!isOperator) return;
     if (!window.confirm(`Hapus anggota panitia "${nama}"?`)) return;
     deletePosUjianPanitia(id);
     reloadAll();
@@ -419,6 +427,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
   // Pengawas Silang
   const handleSavePengawas = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!isOperator) return;
     const form = new FormData(e.currentTarget);
     const nama = String(form.get('nama') || '').trim();
     const nip = String(form.get('nip') || '').trim();
@@ -483,6 +492,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
   };
 
   const handleDeletePengawas = (id: string, nama: string) => {
+    if (!isOperator) return;
     if (!window.confirm(`Hapus data pengawas "${nama}"?`)) return;
     deletePosUjianPengawas(id);
     reloadAll();
@@ -490,6 +500,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
   };
 
   const handleShufflePengawas = () => {
+    if (!isOperator) return;
     const fresh = generateJadwalPengawasOtomatis(true);
     setPengawasList(fresh);
     onToast('Rotasi 12 guru pengawas sekolah berhasil diacak seimbang untuk 3 ruang selama 6 hari!');
@@ -498,6 +509,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
   // Rambu-Rambu Ujian (Bisa diedit dan ditambah)
   const handleSaveRambu = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!isOperator) return;
     const form = new FormData(e.currentTarget);
     const judul = String(form.get('judul') || '').trim().toUpperCase();
     const subjudul = String(form.get('subjudul') || '').trim().toUpperCase();
@@ -541,6 +553,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
   };
 
   const handleDeleteRambu = (id: string, judul: string) => {
+    if (!isOperator) return;
     if (!window.confirm(`Hapus rambu "${judul}"?`)) return;
     deletePosUjianRambu(id);
     reloadAll();
@@ -550,6 +563,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
   // Skema Duduk Configuration & Interactivity
   const handleSaveSkemaDuduk = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!isOperator) return;
     const form = new FormData(e.currentTarget);
     const format = (form.get('format') as any) || 'ular';
     const jumlahKolom = Number(form.get('jumlahKolom')) || 4;
@@ -576,6 +590,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
   };
 
   const handleDeskClick = (mejaNo: number, student: PesertaUjian | undefined) => {
+    if (!isOperator) return;
     if (isSwapMode) {
       if (!selectedMejaForSwap) {
         if (!student) {
@@ -615,7 +630,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
   };
 
   const handleAssignStudentToTargetMeja = (pesertaId: string) => {
-    if (!targetMejaToAssign) return;
+    if (!isOperator || !targetMejaToAssign) return;
     setPesertaMeja(pesertaId, targetMejaToAssign);
     reloadAll();
     setIsModalAssignMejaOpen(false);
@@ -1567,17 +1582,19 @@ export const PosUjian: React.FC<PosUjianProps> = ({
                                   </span>
                                   <span className="truncate" title={p.nama}>{p.nama}</span>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingPengawas(p);
-                                    setIsModalPengawasOpen(true);
-                                  }}
-                                  className="opacity-70 group-hover/p:opacity-100 p-1 text-[#0B6B58] hover:text-[#095747] hover:bg-white rounded cursor-pointer transition-all flex-none"
-                                  title={`Ganti pengawas ${p.nama}`}
-                                >
-                                  <Pencil className="w-3 h-3" />
-                                </button>
+                                {isOperator && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingPengawas(p);
+                                      setIsModalPengawasOpen(true);
+                                    }}
+                                    className="opacity-70 group-hover/p:opacity-100 p-1 text-[#0B6B58] hover:text-[#095747] hover:bg-white rounded cursor-pointer transition-all flex-none"
+                                    title={`Ganti pengawas ${p.nama}`}
+                                  >
+                                    <Pencil className="w-3 h-3" />
+                                  </button>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -1595,17 +1612,19 @@ export const PosUjian: React.FC<PosUjianProps> = ({
                                   </span>
                                   <span className="truncate" title={p.nama}>{p.nama}</span>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingPengawas(p);
-                                    setIsModalPengawasOpen(true);
-                                  }}
-                                  className="opacity-70 group-hover/p:opacity-100 p-1 text-sky-800 hover:text-sky-950 hover:bg-white rounded cursor-pointer transition-all flex-none"
-                                  title={`Ganti pengawas ${p.nama}`}
-                                >
-                                  <Pencil className="w-3 h-3" />
-                                </button>
+                                {isOperator && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingPengawas(p);
+                                      setIsModalPengawasOpen(true);
+                                    }}
+                                    className="opacity-70 group-hover/p:opacity-100 p-1 text-sky-800 hover:text-sky-950 hover:bg-white rounded cursor-pointer transition-all flex-none"
+                                    title={`Ganti pengawas ${p.nama}`}
+                                  >
+                                    <Pencil className="w-3 h-3" />
+                                  </button>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -1623,17 +1642,19 @@ export const PosUjian: React.FC<PosUjianProps> = ({
                                   </span>
                                   <span className="truncate" title={p.nama}>{p.nama}</span>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingPengawas(p);
-                                    setIsModalPengawasOpen(true);
-                                  }}
-                                  className="opacity-70 group-hover/p:opacity-100 p-1 text-amber-800 hover:text-amber-950 hover:bg-white rounded cursor-pointer transition-all flex-none"
-                                  title={`Ganti pengawas ${p.nama}`}
-                                >
-                                  <Pencil className="w-3 h-3" />
-                                </button>
+                                {isOperator && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingPengawas(p);
+                                      setIsModalPengawasOpen(true);
+                                    }}
+                                    className="opacity-70 group-hover/p:opacity-100 p-1 text-amber-800 hover:text-amber-950 hover:bg-white rounded cursor-pointer transition-all flex-none"
+                                    title={`Ganti pengawas ${p.nama}`}
+                                  >
+                                    <Pencil className="w-3 h-3" />
+                                  </button>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -1653,7 +1674,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
                 Rekap Beban Tugas Pengawas (12 Guru SDN 2 Cempaka)
               </span>
               <span className="text-[11px] text-[#0B6B58] font-bold">
-                Total 36 Slot Tugas &middot; Masing-masing Guru 3 Kali Mengawas &middot; Klik ikon pensil untuk mengganti
+                Total 36 Slot Tugas &middot; Masing-masing Guru 3 Kali Mengawas{isOperator ? ' · Klik ikon pensil untuk mengganti' : ''}
               </span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 text-xs">
@@ -1672,7 +1693,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
                       <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#E6F2EE] text-[#0B6B58]">
                         {count}x
                       </span>
-                      {sample && (
+                      {isOperator && sample && (
                         <button
                           type="button"
                           onClick={() => {
@@ -1736,27 +1757,29 @@ export const PosUjian: React.FC<PosUjianProps> = ({
               )}
 
               {/* Mode Tukar / Pindah Meja */}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSwapMode(!isSwapMode);
-                  setSelectedMejaForSwap(null);
-                  onToast(
-                    !isSwapMode
-                      ? 'Mode Tukar/Pindah Meja aktif. Klik meja awal lalu klik meja tujuan.'
-                      : 'Mode Tukar Meja dimatikan.'
-                  );
-                }}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-1.5 cursor-pointer ${
-                  isSwapMode
-                    ? 'bg-amber-600 text-white shadow-xs animate-pulse'
-                    : 'bg-[#E8EFEC] hover:bg-[#D3DDD9] text-[#13262A]'
-                }`}
-                title="Aktifkan klik dua meja untuk bertukar posisi duduk"
-              >
-                <ArrowLeftRight className="w-3.5 h-3.5" />
-                {isSwapMode ? 'Mode Tukar Aktif' : 'Tukar / Geser Meja'}
-              </button>
+              {isOperator && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSwapMode(!isSwapMode);
+                    setSelectedMejaForSwap(null);
+                    onToast(
+                      !isSwapMode
+                        ? 'Mode Tukar/Pindah Meja aktif. Klik meja awal lalu klik meja tujuan.'
+                        : 'Mode Tukar Meja dimatikan.'
+                    );
+                  }}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-1.5 cursor-pointer ${
+                    isSwapMode
+                      ? 'bg-amber-600 text-white shadow-xs animate-pulse'
+                      : 'bg-[#E8EFEC] hover:bg-[#D3DDD9] text-[#13262A]'
+                  }`}
+                  title="Aktifkan klik dua meja untuk bertukar posisi duduk"
+                >
+                  <ArrowLeftRight className="w-3.5 h-3.5" />
+                  {isSwapMode ? 'Mode Tukar Aktif' : 'Tukar / Geser Meja'}
+                </button>
+              )}
 
               <button
                 type="button"
@@ -1779,7 +1802,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
           </div>
 
           {/* Banner Peringatan Mode Tukar */}
-          {isSwapMode && (
+          {isOperator && isSwapMode && (
             <div className="bg-amber-50 border border-amber-300 p-3 rounded-xl flex items-center justify-between text-xs text-amber-900">
               <div className="flex items-center gap-2">
                 <ArrowLeftRight className="w-4 h-4 text-amber-700 shrink-0" />
@@ -1819,7 +1842,9 @@ export const PosUjian: React.FC<PosUjianProps> = ({
                 Denah Duduk Peserta {posConfig.namaUjian} &mdash; {printRuang.toUpperCase()}
               </h3>
               <p className="text-xs text-[#566A6E]">
-                Klik pada meja untuk mengatur/menukar peserta secara langsung atau menyesuaikan skema formasi.
+                {isOperator
+                  ? 'Klik pada meja untuk mengatur/menukar peserta secara langsung atau menyesuaikan skema formasi.'
+                  : 'Tampilan denah susunan tempat duduk peserta ujian (Mode Lihat Saja).'}
               </p>
             </div>
 
@@ -1885,20 +1910,24 @@ export const PosUjian: React.FC<PosUjianProps> = ({
                       return (
                         <div
                           key={mejaNo}
-                          onClick={() => handleDeskClick(mejaNo, student)}
-                          className={`p-3 rounded-xl border text-center transition cursor-pointer select-none ${
+                          onClick={isOperator ? () => handleDeskClick(mejaNo, student) : undefined}
+                          className={`p-3 rounded-xl border text-center transition select-none ${
+                            isOperator ? 'cursor-pointer' : 'cursor-default'
+                          } ${
                             isSelected
                               ? 'border-2 border-amber-500 bg-amber-50 scale-102 shadow-md'
                               : student
-                              ? 'border-[#0B6B58]/40 bg-[#FAFDFC] hover:border-[#0B6B58] hover:shadow-sm'
-                              : 'border-dashed border-gray-300 bg-gray-50/60 hover:border-gray-400'
+                              ? `border-[#0B6B58]/40 bg-[#FAFDFC] ${isOperator ? 'hover:border-[#0B6B58] hover:shadow-sm' : ''}`
+                              : `border-dashed border-gray-300 bg-gray-50/60 ${isOperator ? 'hover:border-gray-400' : ''}`
                           }`}
                           title={
-                            isSwapMode
-                              ? isSelected
-                                ? 'Klik meja lain untuk bertukar'
-                                : 'Klik untuk menukar'
-                              : 'Klik untuk ubah peserta di meja ini'
+                            isOperator
+                              ? isSwapMode
+                                ? isSelected
+                                  ? 'Klik meja lain untuk bertukar'
+                                  : 'Klik untuk menukar'
+                                : 'Klik untuk ubah peserta di meja ini'
+                              : undefined
                           }
                         >
                       <div className="flex items-center justify-between pb-1 mb-1 border-b border-gray-100">
@@ -1952,13 +1981,15 @@ export const PosUjian: React.FC<PosUjianProps> = ({
               <span className="font-medium">
                 Pintu Masuk Ruangan &middot; Denah ini dapat dicetak dan ditempel di pintu luar ruang ujian.
               </span>
-              <button
-                type="button"
-                onClick={() => setIsModalSkemaOpen(true)}
-                className="text-xs font-bold text-[#0B6B58] hover:underline cursor-pointer"
-              >
-                Ubah Skema Formasi Meja &rarr;
-              </button>
+              {isOperator && (
+                <button
+                  type="button"
+                  onClick={() => setIsModalSkemaOpen(true)}
+                  className="text-xs font-bold text-[#0B6B58] hover:underline cursor-pointer"
+                >
+                  Ubah Skema Formasi Meja &rarr;
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -2325,7 +2356,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
       {/* ========================================================================= */}
       {/* MODAL: PENGATURAN SKEMA DUDUK FORMATION */}
       {/* ========================================================================= */}
-      {isModalSkemaOpen && (
+      {isOperator && isModalSkemaOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-xl border border-[#D3DDD9] max-w-md w-full p-6 space-y-4 my-6">
             <div className="flex items-center justify-between pb-3 border-b border-[#D3DDD9]">
@@ -2424,7 +2455,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
       {/* ========================================================================= */}
       {/* MODAL: ASSIGN / PINDAH SISWA KE MEJA SPESIFIK */}
       {/* ========================================================================= */}
-      {isModalAssignMejaOpen && targetMejaToAssign && (
+      {isOperator && isModalAssignMejaOpen && targetMejaToAssign && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-xl border border-[#D3DDD9] max-w-md w-full p-6 space-y-4 my-6">
             <div className="flex items-center justify-between pb-3 border-b border-[#D3DDD9]">
@@ -2496,7 +2527,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
       {/* ========================================================================= */}
       {/* MODAL: TAMBAH / UBAH RAMBU-RAMBU UJIAN */}
       {/* ========================================================================= */}
-      {isModalRambuOpen && (
+      {isOperator && isModalRambuOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-xl border border-[#D3DDD9] max-w-lg w-full p-6 space-y-4 my-6">
             <div className="flex items-center justify-between pb-3 border-b border-[#D3DDD9]">
@@ -2634,7 +2665,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
       {/* ========================================================================= */}
       {/* MODAL: PENGATURAN POS UJIAN */}
       {/* ========================================================================= */}
-      {isModalConfigOpen && (
+      {isOperator && isModalConfigOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-xl border border-[#D3DDD9] max-w-xl w-full p-6 space-y-4 my-6">
             <div className="flex items-center justify-between pb-3 border-b border-[#D3DDD9]">
@@ -2831,7 +2862,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
       {/* ========================================================================= */}
       {/* MODAL: TAMBAH / UBAH JADWAL UJIAN (TANPA KOLOM RUANG) */}
       {/* ========================================================================= */}
-      {isModalJadwalOpen && (
+      {isOperator && isModalJadwalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-xl border border-[#D3DDD9] max-w-lg w-full p-6 space-y-4 my-6">
             <div className="flex items-center justify-between pb-3 border-b border-[#D3DDD9]">
@@ -2939,7 +2970,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
       {/* ========================================================================= */}
       {/* MODAL: TAMBAH / UBAH PESERTA UJIAN */}
       {/* ========================================================================= */}
-      {isModalPesertaOpen && (
+      {isOperator && isModalPesertaOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-xl border border-[#D3DDD9] max-w-lg w-full p-6 space-y-4 my-6">
             <div className="flex items-center justify-between pb-3 border-b border-[#D3DDD9]">
@@ -3095,7 +3126,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
       {/* ========================================================================= */}
       {/* MODAL: TAMBAH / UBAH PANITIA UJIAN */}
       {/* ========================================================================= */}
-      {isModalPanitiaOpen && (
+      {isOperator && isModalPanitiaOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-xl border border-[#D3DDD9] max-w-lg w-full p-6 space-y-4 my-6">
             <div className="flex items-center justify-between pb-3 border-b border-[#D3DDD9]">
@@ -3226,7 +3257,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
       {/* ========================================================================= */}
       {/* MODAL: TAMBAH / UBAH PENGAWAS SILANG */}
       {/* ========================================================================= */}
-      {isModalPengawasOpen && (
+      {isOperator && isModalPengawasOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-xl border border-[#D3DDD9] max-w-lg w-full p-6 space-y-4 my-6">
             <div className="flex items-center justify-between pb-3 border-b border-[#D3DDD9]">
@@ -3444,7 +3475,9 @@ export const PosUjian: React.FC<PosUjianProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    recordActivity('POS Ujian', `Cetak dokumen POS Ujian: ${printDoc}`, false, 'update');
+                    if (isOperator) {
+                      recordActivity('POS Ujian', `Cetak dokumen POS Ujian: ${printDoc}`, false, 'update');
+                    }
                     window.print();
                   }}
                   className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs"

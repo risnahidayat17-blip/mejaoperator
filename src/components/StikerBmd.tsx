@@ -114,6 +114,7 @@ export const StikerBmd: React.FC<StikerBmdProps> = ({ role, config, onToast }) =
           : '';
 
   const updateCfg = (patch: Partial<StikerConfig>) => {
+    if (!isOperator) return;
     const next = { ...cfg, ...patch };
     setCfg(next);
     saveStikerConfig(next);
@@ -128,6 +129,7 @@ export const StikerBmd: React.FC<StikerBmdProps> = ({ role, config, onToast }) =
   }, [items, search]);
 
   const persist = (list: BmdItem[], activity?: string) => {
+    if (!isOperator) return;
     saveBmdItems(list, activity);
     setItems(getBmdItems());
   };
@@ -173,6 +175,7 @@ export const StikerBmd: React.FC<StikerBmdProps> = ({ role, config, onToast }) =
 
   const handleSaveForm = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!isOperator) return;
     const f = new FormData(e.currentTarget);
     const rec: BmdItem = {
       id: editing ? editing.id : `bmd_${Date.now()}`,
@@ -209,6 +212,7 @@ export const StikerBmd: React.FC<StikerBmdProps> = ({ role, config, onToast }) =
   };
 
   const handleImport = () => {
+    if (!isOperator) return;
     const parsed = parseBmdText(pasteText);
     if (!parsed.length) {
       onToast('Tidak ada baris yang bisa dibaca. Salin kolom Kode Barang, ID Barang, Nama Barang, Merk/Type, Sumber Dana dari Excel.', true);
@@ -229,6 +233,7 @@ export const StikerBmd: React.FC<StikerBmdProps> = ({ role, config, onToast }) =
   };
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isOperator) return;
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
@@ -333,19 +338,23 @@ export const StikerBmd: React.FC<StikerBmdProps> = ({ role, config, onToast }) =
           Stiker Barang Milik Daerah (BMD) sesuai data SIKATON: Kode SKPD, Kode/ID Barang, Nama, Merk/Type, dan Sumber Dana. Satu lembar A4 memuat 16 stiker (2 kolom × 8 baris).
         </p>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => setIsPasteOpen(true)} className="px-3 py-2 bg-white border border-[#D3DDD9] hover:bg-[#F3F7F5] text-[#13262A] text-xs font-semibold rounded-lg flex items-center gap-2 cursor-pointer">
-            <ClipboardPaste className="w-4 h-4" /> Impor dari Excel
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setEditing(null);
-              setIsFormOpen(true);
-            }}
-            className="px-3 py-2 bg-white border border-[#D3DDD9] hover:bg-[#F3F7F5] text-[#13262A] text-xs font-semibold rounded-lg flex items-center gap-2 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" /> Tambah Barang
-          </button>
+          {isOperator && (
+            <>
+              <button type="button" onClick={() => setIsPasteOpen(true)} className="px-3 py-2 bg-white border border-[#D3DDD9] hover:bg-[#F3F7F5] text-[#13262A] text-xs font-semibold rounded-lg flex items-center gap-2 cursor-pointer">
+                <ClipboardPaste className="w-4 h-4" /> Impor dari Excel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditing(null);
+                  setIsFormOpen(true);
+                }}
+                className="px-3 py-2 bg-white border border-[#D3DDD9] hover:bg-[#F3F7F5] text-[#13262A] text-xs font-semibold rounded-lg flex items-center gap-2 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Tambah Barang
+              </button>
+            </>
+          )}
           <button type="button" onClick={handlePrint} className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 cursor-pointer">
             <Printer className="w-4 h-4" /> Cetak Stiker ({toPrint.length})
           </button>
@@ -356,15 +365,15 @@ export const StikerBmd: React.FC<StikerBmdProps> = ({ role, config, onToast }) =
       <div className="no-print bg-white p-3.5 rounded-xl border border-[#D3DDD9] grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-xs shadow-xs">
         <div>
           <label className="block font-semibold text-[#566A6E] mb-1">Kode SKPD</label>
-          <input value={cfg.kodeSkpd} onChange={(e) => updateCfg({ kodeSkpd: e.target.value })} className={inputCls} placeholder="1.01.01.002.0358" />
+          <input value={cfg.kodeSkpd} disabled={!isOperator} onChange={(e) => updateCfg({ kodeSkpd: e.target.value })} className={inputCls + ' disabled:bg-gray-50 disabled:text-[#566A6E] disabled:cursor-not-allowed'} placeholder="1.01.01.002.0358" />
         </div>
         <div>
           <label className="block font-semibold text-[#566A6E] mb-1">Teks nama sekolah (bawah stiker)</label>
-          <input value={cfg.namaSekolahStiker || ''} onChange={(e) => updateCfg({ namaSekolahStiker: e.target.value })} className={inputCls} placeholder={autoNamaSekolah(config)} />
+          <input value={cfg.namaSekolahStiker || ''} disabled={!isOperator} onChange={(e) => updateCfg({ namaSekolahStiker: e.target.value })} className={inputCls + ' disabled:bg-gray-50 disabled:text-[#566A6E] disabled:cursor-not-allowed'} placeholder={autoNamaSekolah(config)} />
         </div>
         <div>
           <label className="block font-semibold text-[#566A6E] mb-1">Logo stiker</label>
-          <select value={cfg.logo} onChange={(e) => updateCfg({ logo: e.target.value as StikerConfig['logo'] })} className={inputCls + ' bg-white'}>
+          <select value={cfg.logo} disabled={!isOperator} onChange={(e) => updateCfg({ logo: e.target.value as StikerConfig['logo'] })} className={inputCls + ' bg-white disabled:bg-gray-50 disabled:text-[#566A6E] disabled:cursor-not-allowed'}>
             <option value="pemda_bawaan">Logo Pemda (bawaan Excel)</option>
             <option value="pemda_profil">Logo Pemda dari Pengaturan Sekolah</option>
             <option value="sekolah">Logo Sekolah</option>
@@ -406,7 +415,7 @@ export const StikerBmd: React.FC<StikerBmdProps> = ({ role, config, onToast }) =
                 <th className="p-2 text-left">Nama Barang</th>
                 <th className="p-2 text-left">Merk / Type</th>
                 <th className="p-2 text-left">Sumber Dana</th>
-                <th className="p-2 w-20"></th>
+                {isOperator && <th className="p-2 w-20"></th>}
               </tr>
             </thead>
             <tbody>
@@ -420,22 +429,26 @@ export const StikerBmd: React.FC<StikerBmdProps> = ({ role, config, onToast }) =
                   <td className="p-2 font-semibold text-[#13262A]">{b.namaBarang}</td>
                   <td className="p-2">{b.merkType}</td>
                   <td className="p-2">{b.sumberDana}</td>
-                  <td className="p-2">
-                    <div className="flex gap-1 justify-end">
-                      <button type="button" onClick={() => { setEditing(b); setIsFormOpen(true); }} className="p-1.5 text-[#0B6B58] hover:bg-[#E6F2EE] rounded cursor-pointer" title="Ubah">
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button type="button" onClick={() => handleDelete(b)} className="p-1.5 text-red-600 hover:bg-red-50 rounded cursor-pointer" title="Hapus">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </td>
+                  {isOperator && (
+                    <td className="p-2">
+                      <div className="flex gap-1 justify-end">
+                        <button type="button" onClick={() => { setEditing(b); setIsFormOpen(true); }} className="p-1.5 text-[#0B6B58] hover:bg-[#E6F2EE] rounded cursor-pointer" title="Ubah">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button type="button" onClick={() => handleDelete(b)} className="p-1.5 text-red-600 hover:bg-red-50 rounded cursor-pointer" title="Hapus">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="p-6 text-center text-[#566A6E]">
-                    Belum ada data BMD. Gunakan “Impor dari Excel” atau “Tambah Barang”.
+                  <td colSpan={isOperator ? 7 : 6} className="p-6 text-center text-[#566A6E]">
+                    {isOperator
+                      ? 'Belum ada data BMD. Gunakan “Impor dari Excel” atau “Tambah Barang”.'
+                      : 'Belum ada data BMD yang tersedia.'}
                   </td>
                 </tr>
               )}
@@ -456,7 +469,7 @@ export const StikerBmd: React.FC<StikerBmdProps> = ({ role, config, onToast }) =
       </div>
 
       {/* Modal tambah/ubah */}
-      {isFormOpen && (
+      {isOperator && isFormOpen && (
         <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 overflow-y-auto">
           <form onSubmit={handleSaveForm} className="bg-white rounded-xl shadow-xl border border-[#D3DDD9] max-w-lg w-full p-6 space-y-3 my-6 text-xs">
             <div className="flex items-center justify-between">
@@ -494,7 +507,7 @@ export const StikerBmd: React.FC<StikerBmdProps> = ({ role, config, onToast }) =
       )}
 
       {/* Modal impor */}
-      {isPasteOpen && (
+      {isOperator && isPasteOpen && (
         <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 overflow-y-auto">
           <div className="bg-white rounded-xl shadow-xl border border-[#D3DDD9] max-w-2xl w-full p-6 space-y-3 my-6 text-xs">
             <div className="flex items-center justify-between">

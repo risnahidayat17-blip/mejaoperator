@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 
 interface DashboardProps {
+  role?: 'operator' | 'guru';
   config: SchoolConfig;
   siswa: Siswa[];
   guru: Guru[];
@@ -32,6 +33,7 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
+  role = 'operator',
   config,
   siswa,
   guru,
@@ -104,7 +106,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   return (
     <div className="space-y-6">
       {/* Banner */}
-      <div className="bg-gradient-to-r from-[#0B6B58] to-[#13262A] text-white p-6 rounded-2xl shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-5">
+      <div className="bg-gradient-to-r from-[#0B6B58] via-[#0E6470] to-[#13262A] text-white p-6 rounded-2xl shadow-md flex flex-col md:flex-row md:items-center justify-between gap-5">
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-xl bg-white/10 p-2 shrink-0 border border-white/20 flex items-center justify-center">
             {logo ? (
@@ -132,7 +134,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             onClick={() => onNavigate('suratkeluar')}
             className="px-4 py-2 bg-white text-[#0B6B58] text-xs font-bold rounded-xl shadow-xs hover:bg-[#DAEEE7] transition cursor-pointer"
           >
-            + Buat Surat Keluar
+            {role === 'operator' ? '+ Buat Surat Keluar' : 'Surat Keluar'}
           </button>
           <button
             type="button"
@@ -156,11 +158,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div
           onClick={() => onNavigate('siswa')}
-          className="bg-white p-4 rounded-xl border border-[#D3DDD9] hover:border-[#0B6B58] transition shadow-xs cursor-pointer group"
+          className="bg-white/95 p-4 rounded-xl border border-[#CBE0D9] hover:border-[#0B6B58] transition shadow-xs cursor-pointer group"
         >
           <div className="flex items-center justify-between text-[#566A6E] mb-2">
             <span className="text-[11px] font-bold uppercase tracking-wider">Siswa Aktif</span>
-            <Users className="w-4 h-4 text-[#0B6B58] group-hover:scale-110 transition" />
+            <span className="w-7 h-7 rounded-lg bg-[#DAEEE7] text-[#0B6B58] flex items-center justify-center group-hover:scale-105 transition">
+              <Users className="w-4 h-4" />
+            </span>
           </div>
           <div className="text-3xl font-extrabold text-[#13262A] font-display num-tabular">
             {activeSiswa.length}
@@ -172,11 +176,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
         <div
           onClick={() => onNavigate('guru')}
-          className="bg-white p-4 rounded-xl border border-[#D3DDD9] hover:border-[#0B6B58] transition shadow-xs cursor-pointer group"
+          className="bg-white/95 p-4 rounded-xl border border-[#CBE0D9] hover:border-[#0E7490] transition shadow-xs cursor-pointer group"
         >
           <div className="flex items-center justify-between text-[#566A6E] mb-2">
             <span className="text-[11px] font-bold uppercase tracking-wider">Guru & Tendik</span>
-            <GraduationCap className="w-4 h-4 text-[#0B6B58] group-hover:scale-110 transition" />
+            <span className="w-7 h-7 rounded-lg bg-sky-100 text-[#0369A1] flex items-center justify-center group-hover:scale-105 transition">
+              <GraduationCap className="w-4 h-4" />
+            </span>
           </div>
           <div className="text-3xl font-extrabold text-[#13262A] font-display num-tabular">
             {activeGuru.length}
@@ -188,11 +194,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
         <div
           onClick={() => onNavigate('aset')}
-          className="bg-white p-4 rounded-xl border border-[#D3DDD9] hover:border-[#0B6B58] transition shadow-xs cursor-pointer group"
+          className="bg-white/95 p-4 rounded-xl border border-[#CBE0D9] hover:border-[#1D7A3A] transition shadow-xs cursor-pointer group"
         >
           <div className="flex items-center justify-between text-[#566A6E] mb-2">
             <span className="text-[11px] font-bold uppercase tracking-wider">Aset & Sarpras</span>
-            <Package className="w-4 h-4 text-[#0B6B58] group-hover:scale-110 transition" />
+            <span className="w-7 h-7 rounded-lg bg-[#DDF1E3] text-[#1D7A3A] flex items-center justify-center group-hover:scale-105 transition">
+              <Package className="w-4 h-4" />
+            </span>
           </div>
           <div className="text-3xl font-extrabold text-[#13262A] font-display num-tabular">
             {totalAsetUnit} <span className="text-xs font-normal text-gray-500">unit</span>
@@ -204,11 +212,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
         <div
           onClick={() => onNavigate('suratmasuk')}
-          className="bg-white p-4 rounded-xl border border-[#D3DDD9] hover:border-[#0B6B58] transition shadow-xs cursor-pointer group"
+          className="bg-white/95 p-4 rounded-xl border border-[#CBE0D9] hover:border-amber-600 transition shadow-xs cursor-pointer group"
         >
           <div className="flex items-center justify-between text-[#566A6E] mb-2">
             <span className="text-[11px] font-bold uppercase tracking-wider">Agenda Surat</span>
-            <Inbox className="w-4 h-4 text-[#0B6B58] group-hover:scale-110 transition" />
+            <span className="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center group-hover:scale-105 transition">
+              <Inbox className="w-4 h-4" />
+            </span>
           </div>
           <div className="text-3xl font-extrabold text-[#13262A] font-display num-tabular">
             {suratmasuk.length + suratkeluar.length}
@@ -293,7 +303,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* Ringkasan riwayat pengerjaan */}
-      <RiwayatPengerjaan />
+      <RiwayatPengerjaan role={role} />
     </div>
   );
 };

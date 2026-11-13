@@ -162,6 +162,7 @@ export const SuratMasuk: React.FC<SuratMasukProps> = ({ role, onToast }) => {
   };
 
   const openForm = (item?: ISuratMasuk | null) => {
+    if (!isOperator) return;
     resetScanState();
     if (item) {
       setEditingItem(item);
@@ -191,6 +192,7 @@ export const SuratMasuk: React.FC<SuratMasukProps> = ({ role, onToast }) => {
     ) : null;
 
   const handleScanDone = async (r: ScanResult) => {
+    if (!isOperator) return;
     setShowScanner(false);
     // data hasil baca -> form (operator tetap bisa memeriksa/mengubah sebelum menyimpan)
     const f = r.fields;
@@ -251,6 +253,7 @@ export const SuratMasuk: React.FC<SuratMasukProps> = ({ role, onToast }) => {
 
   const handleSave = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!isOperator) return;
     const form = new FormData(e.currentTarget);
     const record: ISuratMasuk = {
       id: editingItem ? editingItem.id : `sm_${Date.now()}`,
@@ -297,6 +300,7 @@ export const SuratMasuk: React.FC<SuratMasukProps> = ({ role, onToast }) => {
   };
 
   const handleUploadPhoto = async (file: File) => {
+    if (!isOperator) return;
     try {
       setIsProcessingImg(true);
       const compressed = await compressImage(file);
@@ -339,27 +343,29 @@ export const SuratMasuk: React.FC<SuratMasukProps> = ({ role, onToast }) => {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setEditingItem(null);
-              setFotoSurat('');
-              resetScanState();
-              setShowScanner(true);
-            }}
-            className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 transition cursor-pointer"
-          >
-            <ScanLine className="w-4 h-4" /> Scan Surat (Kamera)
-          </button>
-          <button
-            type="button"
-            onClick={() => openForm()}
-            className="px-4 py-2 bg-white hover:bg-[#F1F4F2] text-[#0B6B58] border border-[#0B6B58] text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 transition cursor-pointer"
-          >
-            <Plus className="w-4 h-4" /> Catat Manual
-          </button>
-        </div>
+        {isOperator && (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setEditingItem(null);
+                setFotoSurat('');
+                resetScanState();
+                setShowScanner(true);
+              }}
+              className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 transition cursor-pointer"
+            >
+              <ScanLine className="w-4 h-4" /> Scan Surat (Kamera)
+            </button>
+            <button
+              type="button"
+              onClick={() => openForm()}
+              className="px-4 py-2 bg-white hover:bg-[#F1F4F2] text-[#0B6B58] border border-[#0B6B58] text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 transition cursor-pointer"
+            >
+              <Plus className="w-4 h-4" /> Catat Manual
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Filter Bar */}
@@ -411,7 +417,9 @@ export const SuratMasuk: React.FC<SuratMasukProps> = ({ role, onToast }) => {
                 <th className="py-2.5 px-4 border-b border-[#D3DDD9] text-center w-28">Bukti Fisik</th>
                 <th className="py-2.5 px-4 border-b border-[#D3DDD9]">Disposisi & Arahan</th>
                 <th className="py-2.5 px-4 border-b border-[#D3DDD9] text-center w-24">Status</th>
-                <th className="py-2.5 px-4 border-b border-[#D3DDD9] text-right w-20">Aksi</th>
+                {isOperator && (
+                  <th className="py-2.5 px-4 border-b border-[#D3DDD9] text-right w-20">Aksi</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-[#D3DDD9]">
@@ -482,17 +490,17 @@ export const SuratMasuk: React.FC<SuratMasukProps> = ({ role, onToast }) => {
                       {item.status}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => openForm(item)}
-                        className="p-1.5 text-[#566A6E] hover:text-[#0B6B58] hover:bg-[#E8EFEC] rounded transition cursor-pointer"
-                        title="Ubah Surat"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      {isOperator && (
+                  {isOperator && (
+                    <td className="py-3 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => openForm(item)}
+                          className="p-1.5 text-[#566A6E] hover:text-[#0B6B58] hover:bg-[#E8EFEC] rounded transition cursor-pointer"
+                          title="Ubah Surat"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleDelete(item.id, item.perihal)}
@@ -501,9 +509,9 @@ export const SuratMasuk: React.FC<SuratMasukProps> = ({ role, onToast }) => {
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
-                      )}
-                    </div>
-                  </td>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -512,7 +520,7 @@ export const SuratMasuk: React.FC<SuratMasukProps> = ({ role, onToast }) => {
       </div>
 
       {/* FORM MODAL */}
-      {isModalOpen && (
+      {isOperator && isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl border border-[#D3DDD9] max-w-xl w-full p-6 space-y-4 my-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-[#D3DDD9]">
@@ -740,7 +748,7 @@ export const SuratMasuk: React.FC<SuratMasukProps> = ({ role, onToast }) => {
         </div>
       )}
 
-      {showScanner && <ScanSuratModal onClose={() => setShowScanner(false)} onDone={handleScanDone} />}
+      {isOperator && showScanner && <ScanSuratModal onClose={() => setShowScanner(false)} onDone={handleScanDone} />}
 
       {/* FULL PHOTO VIEW MODAL */}
       {previewFotoItem && (
