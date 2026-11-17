@@ -60,6 +60,7 @@ import { saveFile, deleteFile, newRecordId, getFileDataUrl, setFileUploadedHandl
 import { hashPassword, verifyPassword } from './auth';
 import { isImageKitReady, uploadToImageKit, uploadDataUrlToImageKit, dataUrlToBlob } from './imagekit';
 import type { DapodikWsConfig } from './dapodikWebService';
+import { formatNamaKapitalGelarEYD, formatGelarInText } from './eyd';
 
 export const KEYS = {
   USERS: 'mo_users',
@@ -275,7 +276,7 @@ export function mergeActivities(remote: WorkActivity[], local: WorkActivity[]): 
       map.set(item.id, {
         ...item,
         ts,
-        userNama: (item.userNama || 'OPERATOR').toUpperCase().trim(),
+        userNama: formatNamaKapitalGelarEYD(item.userNama || 'OPERATOR', true),
         userRole: item.userRole || 'Guru/Tendik',
       });
     }
@@ -674,16 +675,19 @@ export function initStorageDefaults(): void {
     }
   } catch {}
 
-  // Pastikan semua nama Guru dan Tendik ditulis dalam huruf kapital
+  // Pastikan nama Guru, Tendik, panitia, pengawas, dan riwayat tetap rapi serta gelar mengikuti EYD (mis. S.Pd. bukan S.PD)
   try {
     const rawGurus = localStorage.getItem(KEYS.GURU);
     if (rawGurus) {
       const gList: Guru[] = JSON.parse(rawGurus);
       let gUpdated = false;
       gList.forEach((g) => {
-        if (g.nama && g.nama !== g.nama.toUpperCase()) {
-          g.nama = g.nama.toUpperCase();
-          gUpdated = true;
+        if (g.nama) {
+          const fmt = formatNamaKapitalGelarEYD(g.nama, true);
+          if (g.nama !== fmt) {
+            g.nama = fmt;
+            gUpdated = true;
+          }
         }
       });
       if (gUpdated) {
@@ -692,16 +696,18 @@ export function initStorageDefaults(): void {
     }
   } catch {}
 
-  // Pastikan nama panitia dan pengawas ujian juga berhuruf kapital
   try {
     const rawPanitia = localStorage.getItem(KEYS.POS_UJIAN_PANITIA);
     if (rawPanitia) {
       const pList: PanitiaUjianItem[] = JSON.parse(rawPanitia);
       let pUpdated = false;
       pList.forEach((p) => {
-        if (p.nama && p.nama !== p.nama.toUpperCase()) {
-          p.nama = p.nama.toUpperCase();
-          pUpdated = true;
+        if (p.nama) {
+          const fmt = formatNamaKapitalGelarEYD(p.nama, true);
+          if (p.nama !== fmt) {
+            p.nama = fmt;
+            pUpdated = true;
+          }
         }
       });
       if (pUpdated) {
@@ -714,9 +720,12 @@ export function initStorageDefaults(): void {
       const pwList: PengawasSilangItem[] = JSON.parse(rawPengawas);
       let pwUpdated = false;
       pwList.forEach((pw) => {
-        if (pw.nama && pw.nama !== pw.nama.toUpperCase()) {
-          pw.nama = pw.nama.toUpperCase();
-          pwUpdated = true;
+        if (pw.nama) {
+          const fmt = formatGelarInText(pw.nama);
+          if (pw.nama !== fmt) {
+            pw.nama = fmt;
+            pwUpdated = true;
+          }
         }
       });
       if (pwUpdated) {
@@ -732,21 +741,24 @@ export function initStorageDefaults(): void {
     localStorage.setItem(KEYS.ACTIVITIES, JSON.stringify([]));
   }
 
-  // Pastikan setiap riwayat pengerjaan mencantumkan nama guru / tendik / operator yang melakukan perubahan
+  // Pastikan setiap riwayat pengerjaan mencantumkan nama guru / tendik / operator dengan penulisan gelar EYD (S.Pd., bukan S.PD)
   try {
     const rawActs = localStorage.getItem(KEYS.ACTIVITIES);
     if (rawActs) {
       const actList: WorkActivity[] = JSON.parse(rawActs);
       let actUpdated = false;
-      const defaultUser = (getSchoolConfig().namaOperator || 'RISNA HIDAYAT, S.PD.').toUpperCase();
+      const defaultUser = formatNamaKapitalGelarEYD(getSchoolConfig().namaOperator || 'RISNA HIDAYAT, S.Pd.', true);
       actList.forEach((a) => {
         if (!a.userNama) {
           a.userNama = defaultUser;
           a.userRole = 'Operator';
           actUpdated = true;
-        } else if (a.userNama !== a.userNama.toUpperCase()) {
-          a.userNama = a.userNama.toUpperCase();
-          actUpdated = true;
+        } else {
+          const fmt = formatNamaKapitalGelarEYD(a.userNama, true);
+          if (a.userNama !== fmt) {
+            a.userNama = fmt;
+            actUpdated = true;
+          }
         }
       });
       if (actUpdated) {
@@ -1308,8 +1320,8 @@ export function recordActivity(
     const list = getActivities();
     const cur = getCurrentUser();
     const cfg = getSchoolConfig();
-    const rawNama = pelaku || cur?.name || cfg.namaOperator || 'RISNA HIDAYAT, S.PD.';
-    const userNama = (rawNama || '').toUpperCase().trim();
+    const rawNama = pelaku || cur?.name || cfg.namaOperator || 'RISNA HIDAYAT, S.Pd.';
+    const userNama = formatNamaKapitalGelarEYD(rawNama || '', true);
     const userRole = role || (cur?.role === 'guru' ? (cur?.jabatan || 'Guru/Tendik') : 'Operator');
 
     const item: WorkActivity = {
@@ -1492,7 +1504,7 @@ export function getGurus(): Guru[] {
   const list = getFromStorage<Guru[]>(KEYS.GURU, initialGurus);
   return list.map((g) => ({
     ...g,
-    nama: (g.nama || '').toUpperCase(),
+    nama: formatNamaKapitalGelarEYD(g.nama || '', true),
   }));
 }
 
@@ -1501,19 +1513,19 @@ export function saveGuru(guru: Guru): void {
   const idx = list.findIndex((g) => g.id === guru.id);
   const now = Date.now();
   const isNew = idx < 0;
-  const uppercaseGuru: Guru = {
+  const normalizedGuru: Guru = {
     ...guru,
-    nama: (guru.nama || '').toUpperCase().trim(),
+    nama: formatNamaKapitalGelarEYD(guru.nama || '', true),
   };
   if (idx >= 0) {
-    list[idx] = { ...uppercaseGuru, updatedAt: now };
+    list[idx] = { ...normalizedGuru, updatedAt: now };
   } else {
-    list.push({ ...uppercaseGuru, createdAt: uppercaseGuru.createdAt || now, updatedAt: now });
+    list.push({ ...normalizedGuru, createdAt: normalizedGuru.createdAt || now, updatedAt: now });
   }
   setToStorage(KEYS.GURU, list);
   recordActivity(
     'Guru & Tendik',
-    isNew ? `Tambah GTK baru: ${uppercaseGuru.nama}` : `Perbarui data GTK: ${uppercaseGuru.nama}`,
+    isNew ? `Tambah GTK baru: ${normalizedGuru.nama}` : `Perbarui data GTK: ${normalizedGuru.nama}`,
     isNew,
     isNew ? 'create' : 'update'
   );
@@ -1545,7 +1557,7 @@ export function importBulkGurus(
   const preserveAuth = (existing: Guru | undefined, item: Guru): Guru => {
     const base: Guru = {
       ...item,
-      nama: (item.nama || '').toUpperCase().trim(),
+      nama: formatNamaKapitalGelarEYD(item.nama || '', true),
       status: item.status || 'Aktif',
     };
     if (!existing) return base;
@@ -1634,7 +1646,7 @@ export function importBulkGurus(
       resultList.push({
         ...item,
         id: item.id || `g_${now}_${i}`,
-        nama: (item.nama || '').toUpperCase().trim(),
+        nama: formatNamaKapitalGelarEYD(item.nama || '', true),
         status: item.status || 'Aktif',
         createdAt: item.createdAt || now,
         updatedAt: now,
@@ -2657,14 +2669,14 @@ export function generatePesertaFromSiswa(
 
 export function getPosUjianPanitia(): PanitiaUjianItem[] {
   const list = getFromStorage<PanitiaUjianItem[]>(KEYS.POS_UJIAN_PANITIA, initialPanitiaUjian);
-  return list.map((p) => ({ ...p, nama: (p.nama || '').toUpperCase() }));
+  return list.map((p) => ({ ...p, nama: formatGelarInText(p.nama || '') }));
 }
 
 export function savePosUjianPanitia(item: PanitiaUjianItem): void {
   const list = getPosUjianPanitia();
   const idx = list.findIndex((x) => x.id === item.id);
   const exists = idx >= 0;
-  const upperItem: PanitiaUjianItem = { ...item, nama: (item.nama || '').toUpperCase().trim() };
+  const upperItem: PanitiaUjianItem = { ...item, nama: formatGelarInText((item.nama || '').trim()) };
   if (exists) {
     list[idx] = upperItem;
   } else {
@@ -2834,7 +2846,7 @@ function buildJadwalPengawasOtomatis(shuffle: boolean = false): PengawasSilangIt
           hariTanggal: day.hariTanggal,
           ruangTugas: ruang,
           peran,
-          nama: (guru.nama || '').toUpperCase(),
+          nama: formatNamaKapitalGelarEYD(guru.nama || '', true),
           nip: guru.nip || '-',
           asalSekolah: schoolName,
           mataPelajaran: day.mataPelajaran,
@@ -2864,16 +2876,16 @@ export function generateJadwalPengawasOtomatis(shuffle: boolean = false): Pengaw
 export function getPosUjianPengawas(): PengawasSilangItem[] {
   const list = getFromStorage<PengawasSilangItem[]>(KEYS.POS_UJIAN_PENGAWAS, initialPengawasSilang);
   if (!list || list.length === 0) {
-    return initialPengawasSilang.map((p) => ({ ...p, nama: (p.nama || '').toUpperCase() }));
+    return initialPengawasSilang.map((p) => ({ ...p, nama: formatGelarInText(p.nama || '') }));
   }
-  return list.map((p) => ({ ...p, nama: (p.nama || '').toUpperCase() }));
+  return list.map((p) => ({ ...p, nama: formatGelarInText(p.nama || '') }));
 }
 
 export function savePosUjianPengawas(item: PengawasSilangItem): void {
   const list = getPosUjianPengawas();
   const idx = list.findIndex((x) => x.id === item.id);
   const exists = idx >= 0;
-  const upperItem: PengawasSilangItem = { ...item, nama: (item.nama || '').toUpperCase().trim() };
+  const upperItem: PengawasSilangItem = { ...item, nama: formatGelarInText((item.nama || '').trim()) };
   if (exists) {
     list[idx] = upperItem;
   } else {
@@ -2902,7 +2914,7 @@ export function replacePengawasGlobally(
 ): void {
   const list = getPosUjianPengawas();
   const upperOld = (oldNama || '').toUpperCase().trim();
-  const upperNew = (newPengawas.nama || '').toUpperCase().trim();
+  const upperNew = formatGelarInText((newPengawas.nama || '').trim());
   const updated = list.map((p) => {
     if (p.nama.toUpperCase().trim() === upperOld) {
       return {

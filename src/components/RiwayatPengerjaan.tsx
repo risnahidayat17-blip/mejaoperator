@@ -7,6 +7,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { History, Trash2, CheckCircle2, User, FileText, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import { getActivities, clearActivities, subscribeToStorage, subscribeToCloudChanges, syncFromCloud } from '../lib/storage';
 import { WorkActivity } from '../types';
+import { formatGelarInText } from '../lib/eyd';
 
 const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 const HARI = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
@@ -296,7 +297,7 @@ export const RiwayatPengerjaan: React.FC<{ role?: 'operator' | 'guru' }> = ({ ro
                   : a.baru || a.action === 'create'
                   ? 'Baru'
                   : 'Diubah';
-              const pelaku = a.userNama || 'RISNA HIDAYAT, S.PD.';
+              const pelaku = formatGelarInText(a.userNama || 'RISNA HIDAYAT, S.Pd.');
               const peran = a.userRole || 'Guru/Tendik';
 
               return (
@@ -401,7 +402,7 @@ export const RiwayatPengerjaan: React.FC<{ role?: 'operator' | 'guru' }> = ({ ro
                         : a.baru || a.action === 'create'
                         ? 'Baru'
                         : 'Diubah';
-                    const pelaku = a.userNama || 'RISNA HIDAYAT, S.PD.';
+                    const pelaku = formatGelarInText(a.userNama || 'RISNA HIDAYAT, S.Pd.');
                     const peran = a.userRole || 'Guru/Tendik';
 
                     return (

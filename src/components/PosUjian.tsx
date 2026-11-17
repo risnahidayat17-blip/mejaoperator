@@ -4344,7 +4344,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
                               Foto 3x4
                             </div>
 
-                            <div className="text-xs font-bold text-black uppercase">{p.nama}</div>
+                            <div className="text-xs font-bold text-black">{p.nama}</div>
                             <div className="text-[10px] font-mono text-gray-700">NIP. {p.nip || '-'}</div>
 
                             <div className="mt-2 py-1 px-3 font-bold text-xs border border-black rounded inline-block uppercase">
@@ -4382,7 +4382,7 @@ export const PosUjian: React.FC<PosUjianProps> = ({
                               Foto 3x4
                             </div>
 
-                            <div className="text-xs font-bold text-black uppercase">{pg.nama}</div>
+                            <div className="text-xs font-bold text-black">{pg.nama}</div>
                             <div className="text-[10px] font-mono text-gray-700">NIP. {pg.nip || '-'}</div>
                             <div className="text-[10px] text-gray-700">{pg.asalSekolah}</div>
 

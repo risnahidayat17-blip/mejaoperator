@@ -5,6 +5,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { SchoolConfig, Guru, DokumenGtk, FileRef } from '../types';
+import { formatNamaKapitalGelarEYD } from '../lib/eyd';
 import { ikResize } from '../lib/imagekit';
 import { MIN_GURU_PASSWORD_LENGTH } from '../lib/auth';
 import {
@@ -218,7 +219,7 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
     e.preventDefault();
     if (!isOperator) return;
     const form = new FormData(e.currentTarget);
-    const nama = String(form.get('nama') || '').trim().toUpperCase();
+    const nama = formatNamaKapitalGelarEYD(String(form.get('nama') || '').trim(), true);
     if (!nama) {
       onToast('Nama Lengkap GTK wajib diisi.', true);
       return;
@@ -1029,14 +1030,14 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
             <form onSubmit={handleSaveGuru} className="space-y-3.5 text-xs">
               <div>
                 <label className="block font-semibold text-[#566A6E] mb-1">
-                  Nama Lengkap (Huruf Kapital) *
+                  Nama Lengkap &amp; Gelar (Sesuai EYD, mis. S.Pd.) *
                 </label>
                 <input
                   name="nama"
-                  defaultValue={editingGuru?.nama ? editingGuru.nama.toUpperCase() : ''}
+                  defaultValue={editingGuru?.nama ? formatNamaKapitalGelarEYD(editingGuru.nama, true) : ''}
                   required
-                  placeholder="Contoh: BUDI SANTOSO, S.PD."
-                  className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-semibold uppercase"
+                  placeholder="Contoh: BUDI SANTOSO, S.Pd."
+                  className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-semibold"
                 />
               </div>
 

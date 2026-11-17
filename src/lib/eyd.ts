@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Utilitas pemformatan nama & gelar sesuai EYD (Ejaan Yang Disempurnakan).
+ * Contoh penulisan yang benar: S.Pd., S.Pd.I., S.Pd.SD., M.Pd., S.Kom., A.Ma.Pd. (bukan S.PD).
  */
 
 const PREFIX_TITLES: Record<string, string> = {
@@ -93,6 +94,9 @@ const SUFFIX_DEGREES: Record<string, string> = {
   PHD: 'Ph.D.',
 };
 
+// Urutkan pasangan nilai gelar terpanjang dulu untuk memecah gelar yang menempel tanpa spasi (mis. "S.Pd.M.Pd.")
+const SORTED_DEGREE_KEYS = Object.keys(SUFFIX_DEGREES).sort((a, b) => b.length - a.length);
+
 const LOWER_PARTICLES = new Set(['bin', 'binti', 'ibnu']);
 
 function compactKey(token: string): string {
@@ -132,29 +136,50 @@ function formatSingleDegree(token: string): string {
   );
 }
 
+/**
+ * Memecah deretan gelar dalam satu segmen koma tanpa merusak singkatan seperti "S.PD.", "S.PD.SD.", atau "S.Pd.I.",
+ * sekaligus mampu memisahkan gelar yang menempel seperti "S.Pd.M.Pd." atau "S.Pd.Gr.".
+ */
+function splitDegreeToken(tok: string): string[] {
+  const key = compactKey(tok);
+  if (!key) return [];
+  if (SUFFIX_DEGREES[key]) return [SUFFIX_DEGREES[key]];
+
+  // Cek apakah merupakan gabungan dua gelar yang menempel (mis. "S.Pd.M.Pd.", "S.PD.GR.")
+  for (const firstKey of SORTED_DEGREE_KEYS) {
+    if (key.length > firstKey.length && key.startsWith(firstKey)) {
+      const restKey = key.slice(firstKey.length);
+      if (SUFFIX_DEGREES[restKey]) {
+        return [SUFFIX_DEGREES[firstKey], SUFFIX_DEGREES[restKey]];
+      }
+    }
+  }
+
+  return [formatSingleDegree(tok)];
+}
+
 function splitDegreeChunk(chunk: string): string[] {
   const tokens = chunk
-    .replace(/\.(?=[A-Z]{1,3}\.)/g, '. ')
+    .trim()
     .split(/\s+/)
     .map((t) => t.trim())
     .filter(Boolean);
 
   const out: string[] = [];
   for (const tok of tokens) {
-    // Tangani kasus seperti "S.Pd.Gr" atau "S.Pd.Gr." -> ["S.Pd.", "Gr."]
-    const grTrail = /^(.*\.)(gr)\.?$/i.exec(tok);
-    if (grTrail && compactKey(grTrail[1]) in SUFFIX_DEGREES) {
-      out.push(formatSingleDegree(grTrail[1]), 'Gr.');
+    const key = compactKey(tok);
+    if (!key) continue;
+    if (SUFFIX_DEGREES[key]) {
+      out.push(SUFFIX_DEGREES[key]);
       continue;
     }
-    out.push(formatSingleDegree(tok));
+    out.push(...splitDegreeToken(tok));
   }
   return out.filter(Boolean);
 }
 
 function titleCaseWord(word: string, isFirstNameWord: boolean): string {
   if (!word) return '';
-  // Inisial nama bertitik (mis. M. atau A.)
   if (/^[a-zA-Z]\.$/.test(word)) {
     return `${word.charAt(0).toUpperCase()}.`;
   }
@@ -168,32 +193,26 @@ function titleCaseWord(word: string, isFirstNameWord: boolean): string {
     .join('-');
 }
 
-/**
- * Memformat nama lengkap beserta gelar depan & gelar belakang sesuai kaidah EYD:
- * - Gelar depan diakhiri titik dengan huruf kapital sesuai kaidah (H., Hj., Drs., Dra., Dr., Prof., Ir., K.H.)
- * - Nama orang menggunakan kapitalisasi awal kata (Title Case)
- * - Gelar belakang dipisahkan koma dan spasi (`, `) serta ditulis sesuai EYD (S.Pd., M.Pd., S.Pd.I., S.Pd.SD., Gr., A.Ma.Pd., dll.)
- */
-export function formatNamaGelarEYD(input?: string): string {
-  if (!input) return '';
+function parseNameAndDegrees(input?: string) {
+  if (!input) return null;
   const raw = input.trim().replace(/\s+/g, ' ').replace(/[,;]+$/g, '').trim();
-  if (!raw) return '';
+  if (!raw) return null;
 
   const segments = raw
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
-  if (segments.length === 0) return '';
+  if (segments.length === 0) return null;
 
   const nameTokens = segments[0].split(/\s+/).filter(Boolean);
   const tailDegrees: string[] = [];
 
-  // Tarik gelar di ujung nama jika pengguna belum memakai tanda koma (mis. "Budi Santoso S.Pd")
+  // Tarik gelar di ujung nama jika belum memakai tanda koma (mis. "Budi Santoso S.Pd")
   while (nameTokens.length > 1) {
     const last = nameTokens[nameTokens.length - 1];
     const key = compactKey(last);
     if (SUFFIX_DEGREES[key]) {
-      tailDegrees.unshift(formatSingleDegree(last));
+      tailDegrees.unshift(SUFFIX_DEGREES[key]);
       nameTokens.pop();
     } else {
       break;
@@ -213,26 +232,57 @@ export function formatNamaGelarEYD(input?: string): string {
     }
   }
 
-  const formattedName = nameTokens
-    .map((w, idx) => titleCaseWord(w, idx === 0))
-    .join(' ');
-
-  const fullNamePart = [...prefixes, formattedName].filter(Boolean).join(' ');
-
   const allSuffixes: string[] = [...tailDegrees];
   for (let i = 1; i < segments.length; i++) {
     allSuffixes.push(...splitDegreeChunk(segments[i]));
   }
 
-  if (allSuffixes.length === 0) return fullNamePart;
-  return `${fullNamePart}, ${allSuffixes.join(', ')}`;
+  return { prefixes, nameTokens, allSuffixes };
 }
 
-/** Rapikan penulisan singkatan gelar pada kolom Ijazah (jika mengandung singkatan gelar seperti S.PD, M.PD, A.MA). */
-export function formatIjazahEYD(input?: string): string {
+/**
+ * Memformat nama lengkap beserta gelar depan & gelar belakang sesuai kaidah EYD:
+ * - Gelar depan: H., Hj., Drs., Dra., Dr., Prof., Ir., K.H.
+ * - Nama orang: Title Case (mis. H. Kaerudin, S.Pd., M.Pd.)
+ * - Gelar belakang: S.Pd., M.Pd., S.Pd.I., S.Pd.SD., Gr., A.Ma.Pd., dll.
+ */
+export function formatNamaGelarEYD(input?: string): string {
+  const parsed = parseNameAndDegrees(input);
+  if (!parsed) return '';
+  const formattedName = parsed.nameTokens
+    .map((w, idx) => titleCaseWord(w, idx === 0))
+    .join(' ');
+  const fullNamePart = [...parsed.prefixes, formattedName].filter(Boolean).join(' ');
+  if (parsed.allSuffixes.length === 0) return fullNamePart;
+  return `${fullNamePart}, ${parsed.allSuffixes.join(', ')}`;
+}
+
+/**
+ * Memformat nama dengan mempertahankan huruf kapital pada nama pribadi bila diminta
+ * (mis. "RISNA HIDAYAT, S.Pd.", "CASWILA, S.Pd.SD.", "H. KAERUDIN, M.Pd."),
+ * tetapi SEMUA gelar depan dan gelar belakang selalu mengikuti penulisan EYD (bukan S.PD).
+ */
+export function formatNamaKapitalGelarEYD(input?: string, forceUpperName = true): string {
+  const parsed = parseNameAndDegrees(input);
+  if (!parsed) return '';
+  const formattedName = parsed.nameTokens
+    .map((w) => (forceUpperName ? w.toUpperCase() : w))
+    .join(' ');
+  const fullNamePart = [...parsed.prefixes, formattedName].filter(Boolean).join(' ');
+  if (parsed.allSuffixes.length === 0) return fullNamePart;
+  return `${fullNamePart}, ${parsed.allSuffixes.join(', ')}`;
+}
+
+const KNOWN_DEGREE_REGEX =
+  /\b(S\.Pd\.SD|S\.Pd\.AUD|S\.Pd\.I|S\.Pd\.K|S\.Pd\.H|S\.Pd|M\.Pd\.I|M\.Pd\.K|M\.Pd|S\.Ag|M\.Ag|S\.Si|M\.Si|S\.Kom|M\.Kom|S\.E|M\.E|M\.M|S\.M|S\.H|M\.H|S\.Sos|M\.Sos|S\.Hum|M\.Hum|S\.Psi|M\.Psi|S\.Or|M\.Or|S\.Sn|M\.Sn|S\.T|M\.T|S\.P|M\.P|S\.I\.P|S\.I\.Kom|S\.Ak|M\.Ak|S\.K\.M|M\.K\.M|S\.Kep|M\.Kep|S\.Stat|S\.Th\.I|S\.Fil\.I|S\.S|S\.Fil|S\.Pt|S\.Pi|S\.Hut|S\.A\.P|M\.A\.P|S\.Tr\.Kom|S\.Tr\.Pd|A\.Ma\.Pd\.SD|A\.Ma\.Pd|A\.Ma\.Pust|A\.Ma|A\.Md\.Kom|A\.Md\.Ak|A\.Md\.Pust|A\.Md|Ph\.D)\b\.?/gi;
+
+/** Merapikan penulisan gelar akademik pada kolom Ijazah atau teks bebas agar selalu sesuai EYD (S.Pd., M.Pd., bukan S.PD). */
+export function formatGelarInText(input?: string): string {
   if (!input) return '';
-  return input.replace(
-    /\b(S\.Pd\.I|S\.Pd\.SD|S\.Pd\.AUD|S\.Pd|M\.Pd\.I|M\.Pd|S\.Ag|M\.Ag|S\.Si|M\.Si|S\.Kom|M\.Kom|S\.E|M\.M|S\.H|M\.H|S\.Sos|S\.Or|A\.Ma\.Pd\.SD|A\.Ma\.Pd|A\.Ma|A\.Md\.Kom|A\.Md)\.?(?=\b|\s|$|,|\()/gi,
-    (match) => formatSingleDegree(match)
-  );
+  return input.replace(KNOWN_DEGREE_REGEX, (match) => formatSingleDegree(match));
+}
+
+/** Alias untuk kolom Ijazah Daftar 1. */
+export function formatIjazahEYD(input?: string): string {
+  return formatGelarInText(input);
 }

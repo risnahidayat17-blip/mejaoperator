@@ -21,6 +21,7 @@ import {
 import { docxToHtml, sanitizeLetterHtml, htmlToPlainText, MAX_DOCX_BYTES } from '../lib/docx';
 import { printDomElement } from '../lib/print';
 import { KopSuratHD } from './KopSuratHD';
+import { formatGelarInText } from '../lib/eyd';
 import {
   Send,
   Plus,
@@ -95,7 +96,7 @@ const SPPD_JENIS = 'SPPD (Surat Perintah Perjalanan Dinas)';
 function defaultSppdData(cfg: SchoolConfig): SppdData {
   return {
     pejabatPerintah: `Kepala ${cfg.namaSekolah || 'SD Negeri 2 Cempaka'}`,
-    pegawaiNama: cfg.kepsek || 'H. KAERUDIN, M.Pd',
+    pegawaiNama: cfg.kepsek || 'H. KAERUDIN, M.Pd.',
     pegawaiNip: cfg.nipKepsek || '19720904 1994121001',
     pegawaiJabatanPangkat: 'Kepala SDN 2 Cempaka / IVb',
     dari: cfg.tempatLaporan || cfg.kecamatan || 'Talun',
@@ -151,7 +152,7 @@ export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast 
   const [pembuka, setPembuka] = useState('Yang bertanda tangan di bawah ini:');
   const [isi, setIsi] = useState('');
   const [penutup, setPenutup] = useState('Demikian surat keterangan ini dibuat untuk digunakan sebagaimana mestinya.');
-  const [penandatangan, setPenandatangan] = useState(config.kepsek || 'H. KAERUDIN, M.Pd,');
+  const [penandatangan, setPenandatangan] = useState(config.kepsek || 'H. KAERUDIN, M.Pd.');
   const [nipTtd, setNipTtd] = useState(config.nipKepsek || '19720904 199412 1 001');
   const [jabatanTtd, setJabatanTtd] = useState('Kepala Sekolah');
   const [kopOption, setKopOption] = useState('Dengan kop sekolah');
@@ -256,7 +257,7 @@ export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast 
       setTglSurat(today);
       setTempat(config.kabupaten || 'Cirebon');
       setSifat('Biasa');
-      setPenandatangan(config.kepsek || 'H. KAERUDIN, M.Pd,');
+      setPenandatangan(config.kepsek || 'H. KAERUDIN, M.Pd.');
       setNipTtd(config.nipKepsek || '19720904 199412 1 001');
       setJabatanTtd('Kepala Sekolah');
       setKopOption('Dengan kop sekolah');
@@ -669,7 +670,7 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
                     Mengadakan perjalanan
                   </td>
                   <td className="py-3 px-2 align-top">:</td>
-                  <td className="py-3 align-top font-semibold">{sp.pegawaiNama}</td>
+                  <td className="py-3 align-top font-semibold">{formatGelarInText(sp.pegawaiNama)}</td>
                 </tr>
                 <tr className="border-b border-black/45">
                   <td className="py-3 pr-1.5 align-top">3.</td>
@@ -754,7 +755,7 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
                 <div>{s.jabatanTtd || 'Pejabat yang memberi perintah'}</div>
                 <div className="h-20" />
                 <div className="font-bold underline" style={{ textUnderlineOffset: '2px' }}>
-                  {s.penandatangan || config.kepsek}
+                  {formatGelarInText(s.penandatangan || config.kepsek)}
                 </div>
                 <div className="text-[12.5px]">{cleanNip(s.nipTtd || config.nipKepsek)}</div>
               </div>
@@ -888,7 +889,7 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
               <div className="grid grid-cols-[150px_14px_1fr] text-[13.5px] leading-relaxed">
                 <span>Nama</span>
                 <span>:</span>
-                <span>{s.penandatangan || config.kepsek}</span>
+                <span>{formatGelarInText(s.penandatangan || config.kepsek)}</span>
                 <span>NIP</span>
                 <span>:</span>
                 <span>{s.nipTtd || config.nipKepsek}</span>
@@ -935,7 +936,7 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
               <div>{s.jabatanTtd || 'Kepala Sekolah'}</div>
               <div className="h-20" />
               <div className="font-bold underline" style={{ textUnderlineOffset: '2px' }}>
-                {s.penandatangan || config.kepsek}
+                {formatGelarInText(s.penandatangan || config.kepsek)}
               </div>
               <div className="text-[12.5px]">{cleanNip(s.nipTtd || config.nipKepsek)}</div>
             </div>
@@ -974,7 +975,7 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
             <div className="pt-8 ml-auto w-64 text-left leading-normal">
               <div>{s.jabatanTtd || 'Kepala Sekolah'},</div>
               <div className="h-20" />
-              <div className="font-bold underline">{s.penandatangan}</div>
+              <div className="font-bold underline">{formatGelarInText(s.penandatangan)}</div>
               <div className="text-[12.5px]">{cleanNip(s.nipTtd)}</div>
             </div>
           </div>
