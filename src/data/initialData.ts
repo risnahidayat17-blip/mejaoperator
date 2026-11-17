@@ -105,7 +105,46 @@ export const initialGurus: Guru[] = gtkDapodik;
 
 export const initialSiswas: Siswa[] = siswaDapodik;
 
-export const initialSuratKeluar: SuratKeluar[] = [];
+export const initialSuratKeluar: SuratKeluar[] = [
+  {
+    id: 'sk_sppd_083_2025',
+    noAgenda: '1',
+    tglSurat: '2025-08-12',
+    noSurat: '421.2/ 083-SD /VIII/ 2025',
+    jenis: 'SPPD (Surat Perintah Perjalanan Dinas)',
+    sifat: 'Penting',
+    tempat: 'Talun',
+    perihal: 'SPPD Pelatihan Pembelajaran Mendalam (PM) Gelombang 5 — H. Kaerudin, M.Pd.',
+    tujuan: 'Universitas Muhammadiyah Cirebon',
+    pembuka: 'Surat Perintah Perjalanan Dinas (SPPD)',
+    isi: 'Pelatihan Pembelajaran Mendalam (PM) Gelombang 5 di Universitas Muhammadiyah Cirebon selama 6 (Enam) Hari tanggal 12 – 17 Agustus 2025.',
+    penutup: 'Lihat sebelah',
+    penandatangan: 'H. KAERUDIN, M.Pd',
+    nipTtd: '19720904 1994121001',
+    jabatanTtd: 'Pejabat yang memberi perintah',
+    kop: 'Dengan kop sekolah',
+    ukuranKertas: 'Legal',
+    mode: 'standar',
+    lampiranPdf: '/assets/aistudio/SPPD_SDN_2_CEMPAKA_NEW_efe09a5f.pdf',
+    lampiranPdfName: 'SPPD_SDN_2_CEMPAKA_NEW.pdf',
+    sppdData: {
+      pejabatPerintah: 'Kepala SD Negeri 2 Cempaka',
+      pegawaiNama: 'H. KAERUDIN, M.Pd',
+      pegawaiNip: '19720904 1994121001',
+      pegawaiJabatanPangkat: 'Kepala SDN 2 Cempaka / IVb',
+      dari: 'Talun',
+      ke: 'Universitas Muhammadiyah Cirebon',
+      lamaHari: '6 ( Enam ) Hari',
+      tanggalPerjalanan: '12 – 17 Agustus 2025',
+      lumpsum: 'Rp. …………,-',
+      maksud: 'Pelatihan Pembelajaran Mendalam (PM) Gelombang 5',
+      bebanBiaya: 'Atas beban Dinas / Lembaga : SDN 2 Cempaka',
+      keterangan: 'Lihat sebelah',
+    },
+    createdAt: 1754956800000,
+    updatedAt: 1754956800000,
+  },
+];
 
 export const initialMutasi: Mutasi[] = [];
 
@@ -262,6 +301,16 @@ export const initialLetterTemplates: LetterTemplate[] = [
     pembuka: "Sehubungan dengan agenda peningkatan mutu pembelajaran dan sarana prasarana satuan pendidikan, bersama ini kami sampaikan:",
     isi: "Kami mengajukan permohonan bantuan dan fasilitasi sarana penunjang kegiatan asesmen berbasis komputer serta pengadaan bahan ajar kurikulum.",
     penutup: "Atas perhatian, dukungan, dan kerja sama yang baik, kami ucapkan terima kasih.",
+    sifat: "Penting"
+  },
+  {
+    id: "tmpl_sppd",
+    judul: "SPPD (Surat Perintah Perjalanan Dinas)",
+    kategori: "Kepegawaian",
+    ukuranKertas: "Legal",
+    pembuka: "Surat Perintah Perjalanan Dinas (SPPD)",
+    isi: "Pelaksanaan tugas perjalanan dinas sesuai surat perintah dari Kepala SD Negeri 2 Cempaka.",
+    penutup: "Lihat sebelah",
     sifat: "Penting"
   }
 ];

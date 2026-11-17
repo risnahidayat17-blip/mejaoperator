@@ -807,6 +807,46 @@ function migrateDapodikSeed(): void {
   } catch (e) {
     console.error('Migrasi data Dapodik gagal:', e);
   }
+  migrateSppdSeed();
+}
+
+function migrateSppdSeed(): void {
+  const FLAG = 'mo_sppd_seed_v1';
+  try {
+    if (localStorage.getItem(FLAG)) return;
+    const rawSk = localStorage.getItem(KEYS.SURATKELUAR);
+    const list: SuratKeluar[] = rawSk ? JSON.parse(rawSk) : [];
+    const sppdTemplate = initialSuratKeluar.find((x) => x.id === 'sk_sppd_083_2025');
+    if (sppdTemplate && Array.isArray(list)) {
+      const exists = list.some(
+        (x) =>
+          x.id === sppdTemplate.id ||
+          x.noSurat.replace(/\s+/g, '') === sppdTemplate.noSurat.replace(/\s+/g, '')
+      );
+      if (!exists) {
+        const nextAgenda = String(list.length + 1);
+        list.push({ ...sppdTemplate, noAgenda: nextAgenda });
+        setToStorage(KEYS.SURATKELUAR, list);
+      }
+    }
+
+    const rawTpl = localStorage.getItem(KEYS.TEMPLATES);
+    if (rawTpl) {
+      const tplList: LetterTemplate[] = JSON.parse(rawTpl);
+      const sppdTpl = initialLetterTemplates.find((t) => t.id === 'tmpl_sppd');
+      if (
+        sppdTpl &&
+        Array.isArray(tplList) &&
+        !tplList.some((t) => t.id === sppdTpl.id || t.judul === sppdTpl.judul)
+      ) {
+        tplList.push(sppdTpl);
+        setToStorage(KEYS.TEMPLATES, tplList);
+      }
+    }
+    localStorage.setItem(FLAG, '1');
+  } catch (e) {
+    console.error('Migrasi data SPPD gagal:', e);
+  }
 }
 
 // User & Auth

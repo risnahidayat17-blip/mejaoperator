@@ -72,7 +72,9 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
 
   const matchesGuruUser = (g?: Guru | null): boolean => {
     if (!g || !currentUser) return false;
-    if (currentUser.guruId && g.id === currentUser.guruId) return true;
+    if (currentUser.guruId) {
+      return g.id === currentUser.guruId;
+    }
     const cleanCurNip = (currentUser.nip || '').replace(/\D/g, '');
     const cleanGNip = (g.nip || '').replace(/\D/g, '');
     if (cleanCurNip.length >= 5 && cleanGNip.length >= 5 && cleanCurNip === cleanGNip) return true;
@@ -254,7 +256,8 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
 
   const handleSaveDok = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!canEditCurrentFolder || !selectedGuru || savingDok) return;
+    if (!selectedGuru || (!isOperator && !isOwnerOfGuru(selectedGuru)) || savingDok) return;
+    if (editingDok && editingDok.guruId !== selectedGuru.id) return;
     const form = new FormData(e.currentTarget);
     const kategori = String(form.get('kategori') || '').trim();
     const isPribadi = katPribadiList.includes(kategori);
@@ -426,8 +429,8 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
                   </button>
                 </>
               ) : (
-                <span className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-[#F1F4F2] text-[#566A6E] border border-[#D3DDD9]">
-                  Mode Lihat Saja
+                <span className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-[#F1F4F2] text-[#566A6E] border border-[#D3DDD9] inline-flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-amber-600" /> Mode Lihat Saja (Milik GTK Lain)
                 </span>
               )}
             </div>
@@ -622,7 +625,7 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
                                 <Eye className="w-3.5 h-3.5 text-[#0B6B58]" /> Lihat
                               </button>
                             )}
-                            {canEditCurrentFolder && (
+                            {canEditCurrentFolder ? (
                               <button
                                 type="button"
                                 onClick={() => {
@@ -636,6 +639,13 @@ export const GuruTendik: React.FC<GuruTendikProps> = ({ role, config, onToast })
                               >
                                 <Pencil className="w-3.5 h-3.5" /> Edit
                               </button>
+                            ) : (
+                              <span
+                                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-[#566A6E] bg-[#F1F4F2] rounded-lg border border-[#D3DDD9]"
+                                title="Hanya pemilik akun atau Operator yang dapat mengubah berkas ini"
+                              >
+                                <Lock className="w-3 h-3" /> Lihat Saja
+                              </span>
                             )}
                             {isOperator && (
                               <button

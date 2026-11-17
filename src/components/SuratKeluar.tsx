@@ -4,12 +4,13 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { SchoolConfig, SuratKeluar as ISuratKeluar, Siswa, LetterTemplate } from '../types';
+import { SchoolConfig, SuratKeluar as ISuratKeluar, Siswa, Guru, LetterTemplate, SppdData } from '../types';
 import {
   getSuratKeluar,
   saveSuratKeluar,
   deleteSuratKeluar,
   getSiswas,
+  getGurus,
   getTemplates,
   saveTemplate,
   deleteTemplate,
@@ -89,16 +90,37 @@ function cleanNip(nip?: string): string {
   return digits ? `NIP. ${digits}` : nip;
 }
 
+const SPPD_JENIS = 'SPPD (Surat Perintah Perjalanan Dinas)';
+
+function defaultSppdData(cfg: SchoolConfig): SppdData {
+  return {
+    pejabatPerintah: `Kepala ${cfg.namaSekolah || 'SD Negeri 2 Cempaka'}`,
+    pegawaiNama: cfg.kepsek || 'H. KAERUDIN, M.Pd',
+    pegawaiNip: cfg.nipKepsek || '19720904 1994121001',
+    pegawaiJabatanPangkat: 'Kepala SDN 2 Cempaka / IVb',
+    dari: cfg.tempatLaporan || cfg.kecamatan || 'Talun',
+    ke: '',
+    lamaHari: '1 ( Satu ) Hari',
+    tanggalPerjalanan: '',
+    lumpsum: 'Rp. …………,-',
+    maksud: '',
+    bebanBiaya: `Atas beban Dinas / Lembaga : ${cfg.namaSekolah || 'SDN 2 Cempaka'}`,
+    keterangan: 'Lihat sebelah',
+  };
+}
+
 export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast }) => {
   const isOperator = role === 'operator';
   const [suratList, setSuratList] = useState<ISuratKeluar[]>(() => getSuratKeluar());
   const [siswaList, setSiswaList] = useState<Siswa[]>(() => getSiswas());
+  const [guruList, setGuruList] = useState<Guru[]>(() => getGurus());
   const [templateList, setTemplateList] = useState<LetterTemplate[]>(() => getTemplates());
 
   useEffect(() => {
     const reload = () => {
       setSuratList(getSuratKeluar());
       setSiswaList(getSiswas());
+      setGuruList(getGurus());
       setTemplateList(getTemplates());
     };
     const u1 = subscribeToStorage(reload);
@@ -133,6 +155,8 @@ export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast 
   const [nipTtd, setNipTtd] = useState(config.nipKepsek || '19720904 199412 1 001');
   const [jabatanTtd, setJabatanTtd] = useState('Kepala Sekolah');
   const [kopOption, setKopOption] = useState('Dengan kop sekolah');
+  const [sppdData, setSppdData] = useState<SppdData>(() => defaultSppdData(config));
+  const [selectedGuruId, setSelectedGuruId] = useState('');
 
   // Surat kustom (ketik bebas / impor Word)
   const [mode, setMode] = useState<'standar' | 'kustom'>('standar');
@@ -157,9 +181,10 @@ export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditorOpen, mode, editorKey]);
 
-  // Preview Modal & Direct Google Print
+  // Preview Modal, Direct Google Print & PDF Modal
   const [previewSurat, setPreviewSurat] = useState<ISuratKeluar | null>(null);
   const [quickPrintSurat, setQuickPrintSurat] = useState<ISuratKeluar | null>(null);
+  const [pdfViewer, setPdfViewer] = useState<{ url: string; title: string; fileName?: string } | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const modalPreviewRef = useRef<HTMLDivElement>(null);
   const directPrintRef = useRef<HTMLDivElement>(null);
@@ -217,6 +242,8 @@ export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast 
       setPaperSize(surat.ukuranKertas || 'A4');
       setMode(surat.mode || 'standar');
       setIsiHtml(surat.isiHtml || '');
+      setSppdData(surat.sppdData || defaultSppdData(config));
+      setSelectedGuruId('');
       setTplId('');
       setEditorKey((k) => k + 1);
     } else {
@@ -236,6 +263,8 @@ export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast 
       setPaperSize('A4');
       setMode('standar');
       setIsiHtml('');
+      setSppdData(defaultSppdData(config));
+      setSelectedGuruId('');
       setTplId('');
       setEditorKey((k) => k + 1);
 
@@ -251,6 +280,23 @@ export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast 
       setPenutup('Demikian surat keterangan ini dibuat untuk digunakan sebagaimana mestinya.');
     }
     setIsEditorOpen(true);
+  };
+
+  const handleSelectGuruSppd = (gId: string) => {
+    setSelectedGuruId(gId);
+    const g = guruList.find((x) => x.id === gId);
+    if (!g) return;
+    const jabParts = [g.jabatan || g.jenisGtk || 'Guru', g.golongan].filter(Boolean).join(' / ');
+    setSppdData((prev) => ({
+      ...prev,
+      pegawaiNama: g.nama,
+      pegawaiNip: g.nip || '',
+      pegawaiJabatanPangkat: jabParts || prev.pegawaiJabatanPangkat,
+    }));
+    if (!perihal.trim() || /^SPPD\b/i.test(perihal)) {
+      const mks = sppdData.maksud.trim();
+      setPerihal(mks ? `SPPD ${mks} — ${g.nama}` : `SPPD Perjalanan Dinas — ${g.nama}`);
+    }
   };
 
   const handleSelectSiswa = (sId: string, currentJenis: string) => {
@@ -302,6 +348,7 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
     }
 
     const isKustom = mode === 'kustom';
+    const isSppd = !isKustom && jenis === SPPD_JENIS;
     const cleanHtml = isKustom ? sanitizeLetterHtml(isiHtmlRef.current) : '';
     if (isKustom && !htmlToPlainText(cleanHtml)) {
       onToast('Isi surat kustom masih kosong. Ketik isi surat atau unggah berkas Word.', true);
@@ -309,6 +356,9 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
     }
 
     const noAgenda = editingSurat ? editingSurat.noAgenda : String(suratList.length + 1);
+    const sppdSummary = isSppd
+      ? `${sppdData.maksud || 'Perjalanan Dinas'} di ${sppdData.ke || '-'} (${sppdData.lamaHari || '-'}, ${sppdData.tanggalPerjalanan || '-'})`
+      : '';
 
     const record: ISuratKeluar = {
       id: editingSurat ? editingSurat.id : `sk_${Date.now()}`,
@@ -318,19 +368,22 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
       jenis: isKustom ? 'Surat kustom' : jenis,
       siswaId: siswaId || undefined,
       sifat,
-      tempat,
+      tempat: isSppd ? (tempat || sppdData.dari || 'Talun') : tempat,
       perihal: perihal.trim(),
-      tujuan: tujuan.trim(),
+      tujuan: isSppd ? (sppdData.ke || tujuan).trim() : tujuan.trim(),
       pembuka,
-      isi: isKustom ? htmlToPlainText(cleanHtml).slice(0, 2000) : isi,
+      isi: isKustom ? htmlToPlainText(cleanHtml).slice(0, 2000) : isSppd ? sppdSummary : isi,
       penutup,
       penandatangan,
       nipTtd,
-      jabatanTtd,
+      jabatanTtd: isSppd ? (jabatanTtd || 'Pejabat yang memberi perintah') : jabatanTtd,
       kop: kopOption,
       ukuranKertas: paperSize,
       mode: isKustom ? 'kustom' : 'standar',
       isiHtml: isKustom ? cleanHtml : undefined,
+      sppdData: isSppd ? { ...sppdData } : undefined,
+      lampiranPdf: editingSurat?.lampiranPdf,
+      lampiranPdfName: editingSurat?.lampiranPdfName,
       createdAt: editingSurat ? editingSurat.createdAt : Date.now(),
       updatedAt: Date.now(),
     };
@@ -553,6 +606,7 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
 
   const renderSuratContent = (s: ISuratKeluar) => {
     const isAktif = s.jenis === 'Surat keterangan aktif siswa';
+    const isSppd = s.jenis === SPPD_JENIS || Boolean(s.sppdData);
     const student = siswaList.find((x) => x.id === s.siswaId);
     const dateFormatted = formatTanggalIndo(s.tglSurat);
     const isLegal = (s.ukuranKertas || paperSize) === 'Legal';
@@ -569,6 +623,242 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
             className="surat-kustom"
             dangerouslySetInnerHTML={{ __html: fillPlaceholders(sanitizeLetterHtml(s.isiHtml || ''), s) }}
           />
+        </div>
+      );
+    }
+
+    if (isSppd) {
+      const sp = s.sppdData || defaultSppdData(config);
+      return (
+        <div className="space-y-6 w-full">
+          {/* HALAMAN 1 SPPD */}
+          <div
+            className={`bg-white text-black w-full mx-auto px-10 py-8 md:px-12 md:py-10 shadow-xl border border-gray-300 rounded-sm select-text print-sheet transition-all ${
+              isLegal ? 'max-w-[780px] min-h-[1140px]' : 'max-w-[760px] min-h-[980px]'
+            }`}
+            style={{ fontFamily: "'Times New Roman', Times, serif", color: '#000000' }}
+          >
+            {s.kop !== 'Tanpa kop' && <KopSuratHD config={config} />}
+
+            <div className="text-center mt-2 mb-11">
+              <div
+                className="text-[14.5px] font-bold underline uppercase tracking-wide"
+                style={{ textUnderlineOffset: '3px' }}
+              >
+                SURAT PERINTAH PERJALANAN DINAS
+              </div>
+              <div className="text-[14px] font-bold mt-0.5">( S P P D )</div>
+              <div className="text-[13px] mt-0.5">Nomor : {s.noSurat || ''}</div>
+            </div>
+
+            <div className="border-t border-black" />
+
+            <table className="w-full border-collapse text-[13px] leading-snug">
+              <tbody>
+                <tr className="border-b border-black/45">
+                  <td className="py-3 pr-1.5 align-top w-6">1.</td>
+                  <td className="py-3 pr-2 align-top w-[250px]">Pejabat yang memberi perintah</td>
+                  <td className="py-3 px-2 align-top w-4">:</td>
+                  <td className="py-3 align-top">{sp.pejabatPerintah}</td>
+                </tr>
+                <tr className="border-b border-black/45">
+                  <td className="py-3 pr-1.5 align-top">2.</td>
+                  <td className="py-3 pr-2 align-top">
+                    Nama pegawai yang diperintahkan
+                    <br />
+                    Mengadakan perjalanan
+                  </td>
+                  <td className="py-3 px-2 align-top">:</td>
+                  <td className="py-3 align-top font-semibold">{sp.pegawaiNama}</td>
+                </tr>
+                <tr className="border-b border-black/45">
+                  <td className="py-3 pr-1.5 align-top">3.</td>
+                  <td className="py-3 pr-2 align-top">
+                    Jabatan, pangkat, dari pegawai yang
+                    <br />
+                    Diperintahkan
+                  </td>
+                  <td className="py-3 px-2 align-top">:</td>
+                  <td className="py-3 align-top">{sp.pegawaiJabatanPangkat}</td>
+                </tr>
+                <tr className="border-b border-black/45">
+                  <td className="py-3 pr-1.5 align-top">4.</td>
+                  <td className="py-3 pr-2 align-top">Perjalanan Dinas yang direncanakan</td>
+                  <td className="py-3 px-2 align-top">:</td>
+                  <td className="py-3 align-top">
+                    <div className="grid grid-cols-[44px_12px_1fr]">
+                      <span>dari</span>
+                      <span>:</span>
+                      <span>{sp.dari || '-'}</span>
+                      <span>ke</span>
+                      <span>:</span>
+                      <span>{sp.ke || s.tujuan || '-'}</span>
+                    </div>
+                  </td>
+                </tr>
+                <tr className="border-b border-black/45">
+                  <td className="py-3 pr-1.5 align-top">5.</td>
+                  <td className="py-3 pr-2 align-top">Lamanya mengadakan perjalanan</td>
+                  <td className="py-3 px-2 align-top">:</td>
+                  <td className="py-3 align-top">
+                    <div>A. Selama {sp.lamaHari || '-'}</div>
+                    {sp.tanggalPerjalanan && <div className="pl-4">tanggal {sp.tanggalPerjalanan}</div>}
+                    <div>B. dengan lumpsum biaya {sp.lumpsum || 'Rp. …………,-'}</div>
+                  </td>
+                </tr>
+                <tr className="border-b border-black/45">
+                  <td className="py-3 pr-1.5 align-top">6.</td>
+                  <td className="py-3 pr-2 align-top">Maksud mengadakan perjalanan</td>
+                  <td className="py-3 px-2 align-top">:</td>
+                  <td className="py-3 align-top">{sp.maksud || s.perihal}</td>
+                </tr>
+                <tr className="border-b border-black/45">
+                  <td className="py-3 pr-1.5 align-top">7.</td>
+                  <td className="py-3 pr-2 align-top">Perhitungan biaya perjalanan</td>
+                  <td className="py-3 px-2 align-top">:</td>
+                  <td className="py-3 align-top">{sp.bebanBiaya}</td>
+                </tr>
+                <tr>
+                  <td className="py-3 pr-1.5 align-top">8.</td>
+                  <td className="py-3 pr-2 align-top tracking-wide">K e t e r a n g a n</td>
+                  <td className="py-3 px-2 align-top">:</td>
+                  <td className="py-3 align-top">{sp.keterangan || 'Lihat sebelah'}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div className="border-t border-black mt-1.5 mb-8" />
+
+            <div className="grid grid-cols-[1.15fr_0.85fr] gap-6 items-start text-[12px] leading-snug">
+              <div className="text-[10.5px] leading-[1.35]">
+                <div className="font-bold">CATATAN :</div>
+                <p className="mt-0.5">
+                  Pemegang kuasa yang berhak memberi perintah jalan diperingatkan dengan tegas bahwa perjalanan dinas
+                  hanya boleh dilakukan atas biaya Negara, jika ini diperlukan untuk kepentingan Negara (lihat pasal 2
+                  dan 3 Peraturan Perjalanan Dinas Dalam Negeri buat pegawai Negeri Sipil / Peraturan Pemerintah No. 33
+                  tahun 1955 )
+                </p>
+                <p className="mt-1">
+                  Jika Negara menderita kerugian yang disebabkan karena pemberian perintah jalan yang tidak beralasan,
+                  maka kerugian itu akan dibebankan pada pemberi perintah itu
+                </p>
+                <p className="mt-0.5">
+                  ( pasal 11 Peraturan Pemerintah No. 33 / 1955 jo pasal 50 Peraturan Pemerintah No. 5 / 1975 )
+                </p>
+              </div>
+
+              <div className="pl-4 text-[13px] leading-normal">
+                <div>
+                  {s.tempat || sp.dari || config.tempatLaporan || 'Talun'}, {dateFormatted}
+                </div>
+                <div>{s.jabatanTtd || 'Pejabat yang memberi perintah'}</div>
+                <div className="h-20" />
+                <div className="font-bold underline" style={{ textUnderlineOffset: '2px' }}>
+                  {s.penandatangan || config.kepsek}
+                </div>
+                <div className="text-[12.5px]">{cleanNip(s.nipTtd || config.nipKepsek)}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="sppd-preview-divider text-center text-[11px] font-semibold uppercase tracking-wider text-[#566A6E]">
+            Halaman 2 (Lembar Sebelah / Belakang SPPD)
+          </div>
+
+          {/* HALAMAN 2 SPPD (LEMBAR BELAKANG) */}
+          <div
+            className={`bg-white text-black w-full mx-auto px-10 py-8 md:px-12 md:py-10 shadow-xl border border-gray-300 rounded-sm select-text print-sheet sppd-page-2 transition-all ${
+              isLegal ? 'max-w-[780px] min-h-[1140px]' : 'max-w-[760px] min-h-[980px]'
+            }`}
+          >
+            <table className="sppd-back-table">
+              <tbody>
+                <tr>
+                  <td className="w-1/2 h-[145px]" />
+                  <td className="w-1/2 h-[145px]">
+                    <div className="grid grid-cols-[125px_12px_1fr] leading-relaxed">
+                      <span>I. Berangkat dari</span>
+                      <span>:</span>
+                      <span />
+                      <span className="pl-3">(tempat kedudukan)</span>
+                      <span />
+                      <span />
+                      <span className="pl-3">Ke</span>
+                      <span>:</span>
+                      <span />
+                      <span className="pl-3">Pada tanggal</span>
+                      <span>:</span>
+                      <span />
+                    </div>
+                  </td>
+                </tr>
+                {['II', 'III', 'IV'].map((rom) => (
+                  <tr key={rom}>
+                    <td className="h-[145px]">
+                      <div className="grid grid-cols-[110px_12px_1fr] leading-relaxed">
+                        <span>{rom}. Tiba di</span>
+                        <span>:</span>
+                        <span />
+                        <span>&nbsp;</span>
+                        <span />
+                        <span />
+                        <span>Pada tanggal</span>
+                        <span>:</span>
+                        <span />
+                      </div>
+                    </td>
+                    <td className="h-[145px]">
+                      <div className="grid grid-cols-[110px_12px_1fr] leading-relaxed">
+                        <span>Berangkat dari</span>
+                        <span>:</span>
+                        <span />
+                        <span>Ke</span>
+                        <span>:</span>
+                        <span />
+                        <span>Pada tanggal</span>
+                        <span>:</span>
+                        <span />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                <tr>
+                  <td className="h-[145px]">
+                    <div className="grid grid-cols-[110px_12px_1fr] leading-relaxed">
+                      <span>V. Tiba di</span>
+                      <span>:</span>
+                      <span />
+                      <span>&nbsp;</span>
+                      <span />
+                      <span />
+                      <span>Pada tanggal</span>
+                      <span>:</span>
+                      <span />
+                    </div>
+                  </td>
+                  <td className="h-[145px] text-[12px] leading-snug">
+                    Telah diperiksa, dengan keterangan bahwa perjalanan tersebut di atas benar dilakukan atas
+                    perintahnya dan semata-mata untuk kepentingan jabatan dalam waktu yang sesingkat-singkatnya.
+                  </td>
+                </tr>
+                <tr>
+                  <td colSpan={2} className="h-[34px]">
+                    VI Catatan :
+                  </td>
+                </tr>
+                <tr>
+                  <td colSpan={2} className="h-[105px] text-[12px] leading-snug">
+                    <div>VII PERHATIAN :</div>
+                    <div className="pl-8 mt-0.5">
+                      PPK yang menerbitkan SPD, pegawai yang melakukan perjalanan dinas, para pejabat yang mengesahkan
+                      tanggal berangkat/tiba serta Bendahara Pengeluaran bertanggung jawab berdasarkan peraturan –
+                      peraturan Keuangan Negara apabila Negara menderita rugi akibat kesalahan, kelalaian dan kealpaan.
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       );
     }
@@ -750,9 +1040,11 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
           <option value="">Semua Jenis Surat</option>
           <option value="Surat keterangan aktif siswa">Surat Keterangan Aktif Siswa</option>
           <option value="Surat keterangan pindah siswa">Surat Keterangan Pindah Siswa</option>
+          <option value={SPPD_JENIS}>SPPD (Surat Perintah Perjalanan Dinas)</option>
           <option value="Pemberitahuan">Pemberitahuan</option>
           <option value="Undangan">Undangan</option>
           <option value="Surat tugas">Surat Tugas</option>
+          <option value="Surat kustom">Surat Kustom</option>
         </select>
       </div>
 
@@ -792,6 +1084,22 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
                   </td>
                   <td className="py-3 px-4 text-right">
                     <div className="flex items-center justify-end gap-1.5">
+                      {s.lampiranPdf && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPdfViewer({
+                              url: s.lampiranPdf!,
+                              title: s.perihal,
+                              fileName: s.lampiranPdfName,
+                            })
+                          }
+                          className="px-2 py-1 text-[11px] font-semibold bg-[#FBEFD0] text-[#8F5B00] hover:bg-amber-200/70 rounded flex items-center gap-1 transition cursor-pointer"
+                          title="Lihat Berkas PDF Asli"
+                        >
+                          <FileDown className="w-3.5 h-3.5" /> PDF
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => {
@@ -897,7 +1205,15 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
                       const val = e.target.value;
                       setJenis(val);
                       const t = templateList.find((x) => x.judul === val);
-                      if (t) {
+                      if (val === SPPD_JENIS) {
+                        setPaperSize('Legal');
+                        setJabatanTtd('Pejabat yang memberi perintah');
+                        setTempat(config.tempatLaporan || config.kecamatan || 'Talun');
+                        setSifat('Penting');
+                        if (!perihal.trim() || /^Surat keterangan/i.test(perihal)) {
+                          setPerihal(`SPPD Perjalanan Dinas — ${sppdData.pegawaiNama || config.kepsek}`);
+                        }
+                      } else if (t) {
                         setPaperSize(t.ukuranKertas || 'A4');
                         if (t.pembuka) setPembuka(t.pembuka);
                         if (t.isi) setIsi(t.isi);
@@ -922,6 +1238,9 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
                       <option value="Surat keterangan pindah siswa">
                         Surat Keterangan Pindah Siswa (Legal / F4)
                       </option>
+                      <option value={SPPD_JENIS}>
+                        SPPD — Surat Perintah Perjalanan Dinas (2 Halaman)
+                      </option>
                     </optgroup>
                     <optgroup label="Template Tambahan">
                       {templateList
@@ -929,7 +1248,8 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
                           (t) =>
                             !t.isiHtml &&
                             t.judul !== 'Surat keterangan aktif siswa' &&
-                            t.judul !== 'Surat keterangan pindah siswa'
+                            t.judul !== 'Surat keterangan pindah siswa' &&
+                            t.judul !== SPPD_JENIS
                         )
                         .map((t) => (
                           <option key={t.id} value={t.judul}>
@@ -1214,7 +1534,145 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
                   />
                 </div>
 
-                {mode === 'standar' && (
+                {mode === 'standar' && jenis === SPPD_JENIS && (
+                  <div className="p-3.5 bg-[#DAEEE7]/50 border border-[#0B6B58]/30 rounded-xl space-y-3 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-[#0B6B58]">Rincian SPPD (2 Halaman Depan & Belakang)</span>
+                      <select
+                        value={selectedGuruId}
+                        onChange={(e) => handleSelectGuruSppd(e.target.value)}
+                        className="px-2.5 py-1 text-[11px] border border-[#D3DDD9] rounded-lg bg-white font-semibold max-w-[210px]"
+                      >
+                        <option value="">-- Isi dari Guru/Tendik --</option>
+                        {guruList.map((g) => (
+                          <option key={g.id} value={g.id}>
+                            {g.nama} ({g.jabatan || g.jenisGtk})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-[#566A6E] mb-1">1. Pejabat yang memberi perintah</label>
+                      <input
+                        type="text"
+                        value={sppdData.pejabatPerintah}
+                        onChange={(e) => setSppdData({ ...sppdData, pejabatPerintah: e.target.value })}
+                        className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">2. Pegawai yang diperintahkan</label>
+                        <input
+                          type="text"
+                          value={sppdData.pegawaiNama}
+                          onChange={(e) => setSppdData({ ...sppdData, pegawaiNama: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white font-semibold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">3. Jabatan / Pangkat / Gol.</label>
+                        <input
+                          type="text"
+                          value={sppdData.pegawaiJabatanPangkat}
+                          onChange={(e) => setSppdData({ ...sppdData, pegawaiJabatanPangkat: e.target.value })}
+                          placeholder="Contoh: Kepala SDN 2 Cempaka / IVb"
+                          className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">4a. Berangkat dari</label>
+                        <input
+                          type="text"
+                          value={sppdData.dari}
+                          onChange={(e) => setSppdData({ ...sppdData, dari: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">4b. Tujuan ke</label>
+                        <input
+                          type="text"
+                          value={sppdData.ke}
+                          onChange={(e) => setSppdData({ ...sppdData, ke: e.target.value })}
+                          placeholder="Contoh: Universitas Muhammadiyah Cirebon"
+                          className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">5a. Lamanya</label>
+                        <input
+                          type="text"
+                          value={sppdData.lamaHari}
+                          onChange={(e) => setSppdData({ ...sppdData, lamaHari: e.target.value })}
+                          placeholder="6 ( Enam ) Hari"
+                          className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">Tanggal Tugas</label>
+                        <input
+                          type="text"
+                          value={sppdData.tanggalPerjalanan}
+                          onChange={(e) => setSppdData({ ...sppdData, tanggalPerjalanan: e.target.value })}
+                          placeholder="12 – 17 Agustus 2025"
+                          className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">5b. Lumpsum</label>
+                        <input
+                          type="text"
+                          value={sppdData.lumpsum}
+                          onChange={(e) => setSppdData({ ...sppdData, lumpsum: e.target.value })}
+                          className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-[#566A6E] mb-1">6. Maksud mengadakan perjalanan</label>
+                      <input
+                        type="text"
+                        value={sppdData.maksud}
+                        onChange={(e) => setSppdData({ ...sppdData, maksud: e.target.value })}
+                        placeholder="Contoh: Pelatihan Pembelajaran Mendalam (PM) Gelombang 5"
+                        className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">7. Perhitungan biaya</label>
+                        <input
+                          type="text"
+                          value={sppdData.bebanBiaya}
+                          onChange={(e) => setSppdData({ ...sppdData, bebanBiaya: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">8. Keterangan</label>
+                        <input
+                          type="text"
+                          value={sppdData.keterangan}
+                          onChange={(e) => setSppdData({ ...sppdData, keterangan: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {mode === 'standar' && jenis !== SPPD_JENIS && (
                   <>
                 {jenis !== 'Surat keterangan aktif siswa' && (
                   <div>
@@ -1327,6 +1785,7 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
                     ukuranKertas: paperSize,
                     mode,
                     isiHtml,
+                    sppdData: jenis === SPPD_JENIS ? sppdData : undefined,
                   })}
                 </div>
               </div>
@@ -1350,6 +1809,21 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
                 </span>
               </div>
               <div className="flex items-center gap-2">
+                {previewSurat.lampiranPdf && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPdfViewer({
+                        url: previewSurat.lampiranPdf!,
+                        title: previewSurat.perihal,
+                        fileName: previewSurat.lampiranPdfName,
+                      })
+                    }
+                    className="px-3 py-1.5 text-xs bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-lg flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <FileDown className="w-3.5 h-3.5" /> PDF Asli
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => handlePrint(previewSurat.ukuranKertas || paperSize, modalPreviewRef.current)}
@@ -1371,6 +1845,45 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
               <div ref={modalPreviewRef} className="w-full flex justify-center">
                 {renderSuratContent(previewSurat)}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* IN-APP PDF ATTACHMENT MODAL */}
+      {pdfViewer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/65 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-2xl border border-[#D3DDD9] w-full max-w-5xl h-[88vh] flex flex-col overflow-hidden">
+            <div className="px-6 py-3.5 bg-[#13262A] text-white flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <FileText className="w-4 h-4 text-[#4CC2A5] shrink-0" />
+                <span className="font-bold text-sm font-display truncate">
+                  Berkas PDF: {pdfViewer.title}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={pdfViewer.url}
+                  download={pdfViewer.fileName || 'SPPD.pdf'}
+                  className="px-3 py-1.5 text-xs bg-[#0B6B58] hover:bg-[#095747] text-white font-semibold rounded-lg flex items-center gap-1.5 transition"
+                >
+                  <FileDown className="w-3.5 h-3.5" /> Unduh PDF
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPdfViewer(null)}
+                  className="px-3 py-1.5 text-xs bg-white/20 hover:bg-white/30 text-white font-medium rounded-lg cursor-pointer"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 bg-[#E8EFEC]">
+              <iframe
+                src={pdfViewer.url}
+                title={pdfViewer.title}
+                className="w-full h-full border-0"
+              />
             </div>
           </div>
         </div>

@@ -162,6 +162,9 @@ function normalizeStatusPeg(rawStatus: string): string {
   const s = rawStatus.trim();
   const up = s.toUpperCase();
   if (!s) return 'GTT / Honorer';
+  if ((up.includes('PPPK') || up.includes('P3K')) && (up.includes('PARUH') || /\bPW\b/.test(up))) {
+    return 'PPPK Paruh Waktu';
+  }
   if (up.includes('PPPK') || up.includes('P3K')) return 'PPPK';
   if (up.includes('PNS')) return 'PNS';
   if (up.includes('HONOR') || up.includes('GTT') || up.includes('PTT')) return 'GTT / Honorer';

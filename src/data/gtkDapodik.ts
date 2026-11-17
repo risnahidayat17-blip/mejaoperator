@@ -265,7 +265,7 @@ export const gtkDapodik: Guru[] = [
     "tempatLahir": "Cirebon",
     "tglLahir": "1994-03-15",
     "jabatan": "Guru Kelas",
-    "statusPeg": "PPPK",
+    "statusPeg": "PPPK Paruh Waktu",
     "tmt": "2018-07-02",
     "agama": "Islam",
     "kawin": "K",

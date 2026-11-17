@@ -22,7 +22,8 @@ import {
   BAG_PER_KELAS,
 } from '../data/daftar1Static';
 import { saveGuru } from '../lib/storage';
-import { hitungTotalBulanMasaKerja, parseTmtDate } from './Daftar1Sheet';
+import { classifyStatusPegawai, isPppkParuhWaktuText, sortGuruDaftar1 } from './Daftar1Sheet';
+import { formatNamaGelarEYD } from '../lib/eyd';
 import {
   X,
   Save,
@@ -69,21 +70,16 @@ export const EditDaftar1Modal: React.FC<EditDaftar1ModalProps> = ({
   const [activeTab, setActiveTab] = useState<'guru' | 'sarana' | 'murid' | 'pengesahan'>('guru');
 
   // ----- State Tab 1: Guru -----
-  // Sort guru list with longest service period at top
+  // Urutkan sesuai Golongan/Ruang & TMT seperti lembar Daftar 1
   const sortedGurus = guruList
     .filter((g) => g.status !== 'Nonaktif')
     .slice()
-    .sort((a, b) => {
-      const bMasa = hitungTotalBulanMasaKerja(b, yy, mm);
-      const aMasa = hitungTotalBulanMasaKerja(a, yy, mm);
-      if (bMasa !== aMasa) return bMasa - aMasa;
-      const aP = parseTmtDate(a.tmt);
-      const bP = parseTmtDate(b.tmt);
-      const aTmtVal = aP ? aP.y * 10000 + aP.m * 100 + aP.d : 99999999;
-      const bTmtVal = bP ? bP.y * 10000 + bP.m * 100 + bP.d : 99999999;
-      if (aTmtVal !== bTmtVal) return aTmtVal - bTmtVal;
-      return a.nama.localeCompare(b.nama);
-    });
+    .sort((a, b) =>
+      sortGuruDaftar1(
+        { ...a, ...(reportData.guruOverrides?.[a.id] || {}) },
+        { ...b, ...(reportData.guruOverrides?.[b.id] || {}) }
+      )
+    );
 
   const [selectedGuruId, setSelectedGuruId] = useState<string>(sortedGurus[0]?.id || '');
   const [guruOverrides, setGuruOverrides] = useState<Record<string, Partial<Guru>>>(
@@ -365,14 +361,15 @@ export const EditDaftar1Modal: React.FC<EditDaftar1ModalProps> = ({
               <div className="md:col-span-4 border border-[#D3DDD9] rounded-xl overflow-hidden bg-[#FAFBFB] flex flex-col max-h-[500px]">
                 <div className="p-2.5 bg-[#F1F4F2] border-b border-[#D3DDD9] font-bold text-[#13262A] text-xs flex items-center justify-between">
                   <span>Pilih Guru / Tendik:</span>
-                  <span className="text-[10px] text-[#566A6E]">Urutan masa kerja</span>
+                  <span className="text-[10px] text-[#566A6E]">Urutan Jabatan &amp; Gol./TMT</span>
                 </div>
                 <div className="overflow-y-auto flex-1 divide-y divide-[#E6EDEA]">
                   {sortedGurus.map((g, idx) => {
                     const isSel = g.id === selectedGuruId;
                     const ov = guruOverrides[g.id];
-                    const gMasaT = ov?.masaTahun !== undefined ? ov.masaTahun : g.masaTahun;
-                    const gMasaB = ov?.masaBulan !== undefined ? ov.masaBulan : g.masaBulan;
+                    const merged = ov ? { ...g, ...ov } : g;
+                    const golLabel = merged.golongan ? `Gol. ${merged.golongan}` : merged.statusPeg || 'Non-ASN';
+                    const tmtLabel = merged.tmtGol || merged.tmt || '-';
                     return (
                       <button
                         key={g.id}
@@ -386,15 +383,13 @@ export const EditDaftar1Modal: React.FC<EditDaftar1ModalProps> = ({
                           {idx + 1}.
                         </span>
                         <div className="flex-1 min-w-0">
-                          <div className="truncate font-semibold">{ov?.nama || g.nama}</div>
+                          <div className="truncate font-semibold">{formatNamaGelarEYD(merged.nama)}</div>
                           <div className="text-[10px] text-[#566A6E] flex items-center gap-1 mt-0.5">
-                            <span>{ov?.jabatan || g.jabatan || 'Guru'}</span>
+                            <span>{merged.jabatan || 'Guru'}</span>
                             <span>&bull;</span>
-                            <span>
-                              {typeof gMasaT === 'number'
-                                ? `${gMasaT} th ${gMasaB || 0} bln`
-                                : g.tmt || '-'}
-                            </span>
+                            <span>{golLabel}</span>
+                            <span>&bull;</span>
+                            <span>TMT {tmtLabel}</span>
                           </div>
                         </div>
                       </button>
@@ -407,9 +402,11 @@ export const EditDaftar1Modal: React.FC<EditDaftar1ModalProps> = ({
               <div className="md:col-span-8 border border-[#D3DDD9] rounded-xl p-4 bg-white space-y-3.5">
                 <div className="flex flex-wrap items-center justify-between border-b border-[#E6EDEA] pb-2">
                   <div className="font-bold text-[#0B6B58] text-sm flex items-center gap-2">
-                    <span>{currentGuru.nama}</span>
+                    <span>{formatNamaGelarEYD(currentGuru.nama)}</span>
                     <span className="text-[10px] px-2 py-0.5 rounded bg-[#F1F4F2] text-[#566A6E] font-mono">
-                      {currentGuru.statusPeg || 'PNS'}
+                      {classifyStatusPegawai(currentGuru) === 'pppk_pw'
+                        ? 'PPPK Paruh Waktu'
+                        : currentGuru.statusPeg || 'PNS'}
                     </span>
                   </div>
                   <label className="flex items-center gap-1.5 text-[11px] text-[#566A6E] cursor-pointer">
@@ -425,11 +422,14 @@ export const EditDaftar1Modal: React.FC<EditDaftar1ModalProps> = ({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">Nama Lengkap & Gelar</label>
+                    <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">
+                      Nama Lengkap &amp; Gelar <span className="text-[10px] font-normal text-[#0B6B58]">(otomatis EYD di Daftar 1)</span>
+                    </label>
                     <input
                       value={currentGuru.nama || ''}
                       onChange={(e) => updateCurrentGuruField('nama', e.target.value)}
                       className={inputCls}
+                      placeholder="Contoh: H. Kaerudin, S.Pd., M.Pd."
                     />
                   </div>
                   <div>
@@ -637,13 +637,27 @@ export const EditDaftar1Modal: React.FC<EditDaftar1ModalProps> = ({
                   <div>
                     <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">Status Pegawai</label>
                     <select
-                      value={currentGuru.statusPeg || 'PNS'}
-                      onChange={(e) => updateCurrentGuruField('statusPeg', e.target.value)}
+                      value={
+                        classifyStatusPegawai(currentGuru) === 'pppk_pw'
+                          ? 'PPPK Paruh Waktu'
+                          : classifyStatusPegawai(currentGuru) === 'pppk'
+                            ? 'PPPK'
+                            : classifyStatusPegawai(currentGuru) === 'pns'
+                              ? 'PNS'
+                              : 'GTT / Honorer'
+                      }
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        updateCurrentGuruField('statusPeg', val);
+                        if (val !== 'PPPK Paruh Waktu' && isPppkParuhWaktuText(currentGuru.ketLaporan)) {
+                          updateCurrentGuruField('ketLaporan', '');
+                        }
+                      }}
                       className={inputCls}
                     >
                       <option value="PNS">PNS</option>
                       <option value="PPPK">PPPK</option>
-                      <option value="PPPK PW">PPPK PW (Paruh Waktu)</option>
+                      <option value="PPPK Paruh Waktu">PPPK Paruh Waktu (PPPK PW)</option>
                       <option value="GTT / Honorer">G. Bantu / Honorer</option>
                     </select>
                   </div>

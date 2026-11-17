@@ -8,7 +8,7 @@ import { createPortal } from 'react-dom';
 import { SchoolConfig, Siswa, Guru, LaporanBulan as ILaporanBulan } from '../types';
 import { getFromStorage, setToStorage, KEYS } from '../lib/storage';
 import { triggerGooglePrint } from '../lib/print';
-import { Daftar1Pages, hitungTotalBulanMasaKerja, parseTmtDate } from './Daftar1Sheet';
+import { Daftar1Pages, sortGuruDaftar1 } from './Daftar1Sheet';
 import { EditDaftar1Modal } from './EditDaftar1Modal';
 import { Printer, Pencil, X } from 'lucide-react';
 
@@ -34,21 +34,14 @@ export const LaporanBulan: React.FC<LaporanBulanProps> = ({
   const laporanList = getFromStorage<ILaporanBulan[]>(KEYS.LAPORAN, []);
   const reportData = laporanList.find((l) => l.id === selectedMonth) || { id: selectedMonth };
 
-  const [yy, mm] = selectedMonth.split('-').map(Number);
   const activeGuru = guru
     .filter((g) => g.status !== 'Nonaktif')
+    .map((g) => {
+      const ov = reportData.guruOverrides?.[g.id];
+      return ov ? { ...g, ...ov } : g;
+    })
     .slice()
-    .sort((a, b) => {
-      const bMasa = hitungTotalBulanMasaKerja(b, yy || new Date().getFullYear(), mm || new Date().getMonth() + 1);
-      const aMasa = hitungTotalBulanMasaKerja(a, yy || new Date().getFullYear(), mm || new Date().getMonth() + 1);
-      if (bMasa !== aMasa) return bMasa - aMasa;
-      const aP = parseTmtDate(a.tmt);
-      const bP = parseTmtDate(b.tmt);
-      const aTmtVal = aP ? aP.y * 10000 + aP.m * 100 + aP.d : 99999999;
-      const bTmtVal = bP ? bP.y * 10000 + bP.m * 100 + bP.d : 99999999;
-      if (aTmtVal !== bTmtVal) return aTmtVal - bTmtVal;
-      return a.nama.localeCompare(b.nama);
-    });
+    .sort(sortGuruDaftar1);
 
   // Preview berskala: lembar F4 landscape (330 mm = 1247 px) dikecilkan agar muat di layar
   const PAGE_PX = 1247.2;

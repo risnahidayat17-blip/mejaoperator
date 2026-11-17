@@ -9,6 +9,7 @@
 
 import React from 'react';
 import { SchoolConfig, Siswa, Guru, LaporanBulan as ILaporanBulan } from '../types';
+import { formatNamaGelarEYD, formatIjazahEYD } from '../lib/eyd';
 import {
   AIR_BERSIH,
   BAG_PER_KELAS,
@@ -29,11 +30,20 @@ const STATUS_OPTIONS = ['Negeri Biasa', 'Negeri Inpres', 'Subsidi', 'Bantuan', '
 const BAHASA_OPTIONS = ['INDONESIA', 'SUNDA', 'JAWA'];
 
 const PANGKAT: Record<string, string> = {
+  'I/a': 'Juru Muda', 'I/b': 'Juru Muda Tk.I', 'I/c': 'Juru', 'I/d': 'Juru Tk.I',
   'II/a': 'Pengatur Muda', 'II/b': 'Pengatur Muda Tk.I', 'II/c': 'Pengatur', 'II/d': 'Pengatur Tk.I',
   'III/a': 'Penata Muda', 'III/b': 'Penata Muda Tk.I', 'III/c': 'Penata', 'III/d': 'Penata Tk.I',
   'IV/a': 'Pembina', 'IV/b': 'Pembina Tk.I', 'IV/c': 'Pembina Utama Muda', 'IV/d': 'Pembina Utama Madya',
   'IV/e': 'Pembina Utama',
 };
+
+function getPangkat(gol?: string): string {
+  if (!gol) return '';
+  const m = /\b(I{1,3}|IV)\s*\/\s*([a-e])\b/i.exec(gol);
+  if (!m) return '';
+  const key = `${m[1].toUpperCase()}/${m[2].toLowerCase()}`;
+  return PANGKAT[key] || '';
+}
 
 const AGAMA: Record<string, string> = {
   islam: 'Is', kristen: 'Kr', katolik: 'Kt', katholik: 'Kt', hindu: 'Hi', budha: 'Bu', buddha: 'Bu', konghucu: 'Kh',
@@ -78,6 +88,118 @@ export function hitungTotalBulanMasaKerja(g: Guru, endY: number, endM: number): 
   if (!p) return 0;
   const months = (endY - p.y) * 12 + (endM - p.m);
   return months > 0 ? months : 0;
+}
+
+export type StatusPegCol = 'pns' | 'bantu' | 'pppk' | 'pppk_pw';
+
+export function isPppkParuhWaktuText(s?: string): boolean {
+  if (!s) return false;
+  return /paruh\s*waktu|p(?:pp|3)k[\s\-_/]*pw\b|\bpppkpw\b/i.test(s.trim());
+}
+
+export function classifyStatusPegawai(
+  g: Pick<Guru, 'statusPeg' | 'ketLaporan'>
+): StatusPegCol {
+  const sp = (g.statusPeg || '').trim();
+  const ket = (g.ketLaporan || '').trim();
+  const isPnsText = /^(c?pns|pegawai negeri)\b/i.test(sp);
+
+  if (isPppkParuhWaktuText(sp) || (!isPnsText && isPppkParuhWaktuText(ket))) {
+    return 'pppk_pw';
+  }
+  if (/(pppk|p3k)/i.test(sp)) {
+    return 'pppk';
+  }
+  if (isPnsText) {
+    return 'pns';
+  }
+  return 'bantu';
+}
+
+const ROMAN_GOL: Record<string, number> = {
+  I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9,
+  X: 10, XI: 11, XII: 12, XIII: 13, XIV: 14, XV: 15, XVI: 16, XVII: 17,
+};
+
+export function parseGolonganRank(gol?: string): number {
+  if (!gol) return 0;
+  const clean = gol.trim();
+  // Golongan PNS: I/a s.d. IV/e
+  const pnsMatch = /\b(I{1,3}|IV)\s*\/\s*([a-e])\b/i.exec(clean);
+  if (pnsMatch) {
+    const major = ROMAN_GOL[pnsMatch[1].toUpperCase()] || 0;
+    const minor = pnsMatch[2].toLowerCase().charCodeAt(0) - 96; // a=1..e=5
+    return 2000 + major * 10 + minor;
+  }
+  // Golongan PPPK (Romawi I s.d. XVII)
+  const romanMatch = /\b(XVII|XVI|XV|XIV|XIII|XII|XI|X|IX|VIII|VII|VI|V|IV|III|II|I)\b/i.exec(clean);
+  if (romanMatch) {
+    const val = ROMAN_GOL[romanMatch[1].toUpperCase()] || 0;
+    if (val > 0) return 1000 + val;
+  }
+  // Golongan PPPK numerik (1..17)
+  const numMatch = /\b(1[0-7]|[1-9])\b/.exec(clean);
+  if (numMatch) {
+    return 1000 + Number(numMatch[1]);
+  }
+  return 0;
+}
+
+function dateNum(s?: string): number {
+  const p = parseTmtDate(s);
+  return p ? p.y * 10000 + p.m * 100 + p.d : 99999999;
+}
+
+export function isKepalaSekolah(g: Pick<Guru, 'jabatan'>): boolean {
+  return /kepala\s*sekolah|kepsek/i.test(g.jabatan || '');
+}
+
+export function isTendikRole(g: Pick<Guru, 'jenisGtk' | 'jabatan'>): boolean {
+  if (g.jenisGtk === 'Tendik') return true;
+  if (g.jenisGtk === 'Guru') return false;
+  const jab = (g.jabatan || '').toLowerCase();
+  return /tendik|administrasi|tata usaha|\btas\b|operator|pustaka|penjaga|kebersihan|satpam|keamanan|laboran|pesuruh/.test(jab);
+}
+
+/**
+ * Urutan kelompok jabatan & status Daftar 1:
+ * 6: Kepala Sekolah
+ * 5: Guru PNS (lalu 4.5 jika ada Tendik PNS)
+ * 4: Guru PPPK
+ * 3: Tendik PPPK
+ * 2: Guru dan Tendik PPPK Paruh Waktu
+ * 1: Guru dan Tendik Honorer / G. Bantu
+ */
+export function getJabatanTier(g: Pick<Guru, 'statusPeg' | 'ketLaporan' | 'jenisGtk' | 'jabatan'>): number {
+  if (isKepalaSekolah(g)) return 60;
+  const status = classifyStatusPegawai(g);
+  const tendik = isTendikRole(g);
+
+  if (status === 'pns') return tendik ? 45 : 50;
+  if (status === 'pppk') return tendik ? 30 : 40;
+  if (status === 'pppk_pw') return 20;
+  return 10; // Guru & Tendik Honorer / G. Bantu
+}
+
+/** Urutkan GTK Daftar 1 sesuai jabatan/status, Golongan/Ruang tertinggi, lalu TMT terawal. */
+export function sortGuruDaftar1(a: Guru, b: Guru): number {
+  const tierDiff = getJabatanTier(b) - getJabatanTier(a);
+  if (tierDiff !== 0) return tierDiff;
+
+  const golDiff = parseGolonganRank(b.golongan) - parseGolonganRank(a.golongan);
+  if (golDiff !== 0) return golDiff;
+
+  const tmtGolDiff = dateNum(a.tmtGol) - dateNum(b.tmtGol);
+  if (tmtGolDiff !== 0) return tmtGolDiff;
+
+  const tmtDiff = dateNum(a.tmt) - dateNum(b.tmt);
+  if (tmtDiff !== 0) return tmtDiff;
+
+  // Jika dalam kelompok gabungan (PPPK PW / Honorer) gol & TMT sama, Guru didahulukan sebelum Tendik
+  const roleDiff = Number(isTendikRole(a)) - Number(isTendikRole(b));
+  if (roleDiff !== 0) return roleDiff;
+
+  return a.nama.localeCompare(b.nama, 'id');
 }
 
 function masaKerja(g: Guru, endY: number, endM: number) {
@@ -159,7 +281,7 @@ export const Daftar1Pages: React.FC<Daftar1Props> = ({ config, siswa, guru, repo
   const absenPct = grand ? ((absenTot / grand) * 100).toFixed(1).replace('.', ',') : '0,0';
   const two = (n: number) => pad2(n);
 
-  // ----- Guru (Daftar 1: Urutan nama berdasarkan masa kerja terlama yang diatas) -----
+  // ----- Guru (Daftar 1: Urutan sesuai Golongan/Ruang dan TMT) -----
   const gtk = guru
     .filter((g) => g.status !== 'Nonaktif')
     .map((g) => {
@@ -167,22 +289,7 @@ export const Daftar1Pages: React.FC<Daftar1Props> = ({ config, siswa, guru, repo
       return ov ? { ...g, ...ov } : g;
     })
     .slice()
-    .sort((a, b) => {
-      const bMasa = hitungTotalBulanMasaKerja(b, yy, mm);
-      const aMasa = hitungTotalBulanMasaKerja(a, yy, mm);
-      if (bMasa !== aMasa) {
-        return bMasa - aMasa; // Masa kerja terlama di atas
-      }
-      // Jika masa kerja sama, urutkan tanggal TMT lebih awal di atas
-      const aP = parseTmtDate(a.tmt);
-      const bP = parseTmtDate(b.tmt);
-      const aTmtVal = aP ? aP.y * 10000 + aP.m * 100 + aP.d : 99999999;
-      const bTmtVal = bP ? bP.y * 10000 + bP.m * 100 + bP.d : 99999999;
-      if (aTmtVal !== bTmtVal) {
-        return aTmtVal - bTmtVal;
-      }
-      return a.nama.localeCompare(b.nama);
-    });
+    .sort(sortGuruDaftar1);
 
   const gurus = gtk.filter((g) => g.jenisGtk !== 'Tendik');
   const gL = gurus.filter((g) => g.jk === 'L').length;
@@ -632,20 +739,20 @@ export const Daftar1Pages: React.FC<Daftar1Props> = ({ config, siswa, guru, repo
           <tbody>
             {gtk.map((g, idx) => {
               const ab = reportData.absen?.[g.id] || {};
-              const sp = g.statusPeg || '';
-              const isPPPKPW = /paruh/i.test(sp);
-              const isPPPK = !isPPPKPW && /pppk/i.test(sp);
-              const isPNS = !isPPPK && !isPPPKPW && /^(c?pns)/i.test(sp);
-              const isBantu = !isPNS && !isPPPK && !isPPPKPW;
+              const statusCol = classifyStatusPegawai(g);
+              const isPNS = statusCol === 'pns';
+              const isBantu = statusCol === 'bantu';
+              const isPPPK = statusCol === 'pppk';
+              const isPPPKPW = statusCol === 'pppk_pw';
               const mark = (on: boolean) => (on ? '√' : '-');
-              const pangkat = g.golongan ? PANGKAT[g.golongan] : '';
+              const pangkat = getPangkat(g.golongan);
               const ttl = [g.tempatLahir, fmtLong(g.tglLahir)].filter(Boolean).join(', ');
               const ag = g.agama ? AGAMA[g.agama.toLowerCase()] || g.agama : '';
               return (
                 <tr key={g.id}>
                   <td>{idx + 1}</td>
                   <td className="lb-l">
-                    <b className="lb-nm">{g.nama}</b>
+                    <b className="lb-nm">{formatNamaGelarEYD(g.nama)}</b>
                     <div>{ttl}</div>
                   </td>
                   <td>
@@ -656,7 +763,7 @@ export const Daftar1Pages: React.FC<Daftar1Props> = ({ config, siswa, guru, repo
                   <td>{ag}</td>
                   <td>{g.kawin || '-'}</td>
                   <td>{g.anak ? pad2(g.anak) : '-'}</td>
-                  <td>{g.ijazah || g.pendidikan || '-'}</td>
+                  <td>{formatIjazahEYD(g.ijazah || g.pendidikan) || '-'}</td>
                   <td>{g.jabatan}</td>
                   <td className="lb-pre">{masaKerja(g, yy, mm) || '-'}</td>
                   <td>{fmtDash(g.tmt) || '-'}</td>
@@ -689,7 +796,7 @@ export const Daftar1Pages: React.FC<Daftar1Props> = ({ config, siswa, guru, repo
             <div>{korwilJabatanVal}</div>
             <div>Kecamatan {config.kecamatan || ''}</div>
             <div className="lb-ttd-gap" />
-            <div className="lb-ttd-nm">{korwilNamaVal || '…………………………………'}</div>
+            <div className="lb-ttd-nm">{korwilNamaVal ? formatNamaGelarEYD(korwilNamaVal) : '…………………………………'}</div>
             <div>NIP. {korwilNipVal || '…………………………………'}</div>
           </div>
           <div className="lb-ttd-r">
@@ -698,7 +805,7 @@ export const Daftar1Pages: React.FC<Daftar1Props> = ({ config, siswa, guru, repo
             </div>
             <div>Kepala {config.namaSekolah},</div>
             <div className="lb-ttd-gap" />
-            <div className="lb-ttd-nm">{kepsekVal}</div>
+            <div className="lb-ttd-nm">{formatNamaGelarEYD(kepsekVal)}</div>
             <div>NIP. &nbsp;{nipKepsekVal}</div>
           </div>
         </div>

@@ -240,6 +240,21 @@ export interface SuratMasuk {
   updatedAt?: number;
 }
 
+export interface SppdData {
+  pejabatPerintah: string;
+  pegawaiNama: string;
+  pegawaiNip?: string;
+  pegawaiJabatanPangkat: string;
+  dari: string;
+  ke: string;
+  lamaHari: string;
+  tanggalPerjalanan: string;
+  lumpsum: string;
+  maksud: string;
+  bebanBiaya: string;
+  keterangan: string;
+}
+
 export interface SuratKeluar {
   id: string;
   noAgenda: string;
@@ -262,6 +277,9 @@ export interface SuratKeluar {
   /** 'kustom' = isi surat bebas (diketik / diimpor dari Word) dan disimpan sebagai HTML di isiHtml. */
   mode?: 'standar' | 'kustom';
   isiHtml?: string;
+  sppdData?: SppdData;
+  lampiranPdf?: string;
+  lampiranPdfName?: string;
   createdAt?: number;
   updatedAt?: number;
 }
