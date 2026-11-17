@@ -254,6 +254,20 @@ export const EditDaftar1Modal: React.FC<EditDaftar1ModalProps> = ({
     }));
   };
 
+  const updateCurrentGuruMasaPer = (nextPer: string) => {
+    if (!currentGuru || !nextPer) return;
+    setMasaDraft(null);
+    setGuruOverrides((prev) => ({
+      ...prev,
+      [currentGuru.id]: {
+        ...(prev[currentGuru.id] || {}),
+        masaTahun: typeof currentGuru.masaTahun === 'number' ? currentGuru.masaTahun : effMasaTahun,
+        masaBulan: typeof currentGuru.masaTahun === 'number' ? (currentGuru.masaBulan || 0) : effMasaBulan,
+        masaPer: nextPer,
+      },
+    }));
+  };
+
   const updateCurrentGuruAbsen = (type: 's' | 'i' | 'a', value: number) => {
     if (!currentGuru) return;
     setGuruAbsen((prev) => ({
@@ -671,19 +685,41 @@ export const EditDaftar1Modal: React.FC<EditDaftar1ModalProps> = ({
                       />
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-[10px] text-[#566A6E]">
-                      Masa kerja otomatis bertambah +1 bulan setiap pindah bulan (berdasarkan TMT atau bulan acuan edit terakhir).
-                    </p>
-                    {currentGuru.masaTahun !== undefined && parseTmtDate(currentGuru.tmt) && (
-                      <button
-                        type="button"
-                        onClick={resetCurrentGuruMasaToTmt}
-                        className="text-[10px] font-semibold text-[#0B6B58] hover:underline cursor-pointer"
-                      >
-                        Hitung ulang dari TMT
-                      </button>
-                    )}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                    <div className="text-[10px] text-[#566A6E] space-y-0.5">
+                      <div>
+                        Masa kerja otomatis bertambah +1 bulan setiap pindah bulan (acuan bawaan: <strong>Mei 2026</strong>).
+                      </div>
+                      {typeof currentGuru.masaTahun === 'number' && (
+                        <div className="text-[#0B6B58] font-medium">
+                          Basis tersimpan: {String(currentGuru.masaTahun).padStart(2, '0')} th{' '}
+                          {String(currentGuru.masaBulan || 0).padStart(2, '0')} bln (per{' '}
+                          {currentGuru.masaPer || '2026-05'})
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {typeof currentGuru.masaTahun === 'number' && (
+                        <label className="flex items-center gap-1 text-[10px] text-[#566A6E]">
+                          <span>Acuan:</span>
+                          <input
+                            type="month"
+                            value={currentGuru.masaPer || '2026-05'}
+                            onChange={(e) => updateCurrentGuruMasaPer(e.target.value)}
+                            className="px-1.5 py-0.5 border border-[#D3DDD9] rounded bg-white text-[10px] font-semibold text-[#13262A]"
+                          />
+                        </label>
+                      )}
+                      {currentGuru.masaTahun !== undefined && parseTmtDate(currentGuru.tmt) && (
+                        <button
+                          type="button"
+                          onClick={resetCurrentGuruMasaToTmt}
+                          className="text-[10px] font-semibold text-[#0B6B58] hover:underline cursor-pointer"
+                        >
+                          Hitung ulang dari TMT
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 

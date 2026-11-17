@@ -821,6 +821,62 @@ function migrateDapodikSeed(): void {
   }
   migrateSppdSeed();
   migrateKopDefaultSize();
+  migrateMasaKerjaRefMei2026();
+}
+
+function migrateMasaKerjaRefMei2026(): void {
+  const FLAG = 'mo_masa_mei2026_v1';
+  try {
+    if (localStorage.getItem(FLAG)) return;
+
+    const rawGurus = localStorage.getItem(KEYS.GURU);
+    if (rawGurus) {
+      const list: Guru[] = JSON.parse(rawGurus);
+      if (Array.isArray(list)) {
+        let changed = false;
+        const next = list.map((g) => {
+          if (g.id === 't_01' && typeof g.masaTahun !== 'number') {
+            changed = true;
+            return { ...g, masaTahun: 31, masaBulan: 4, masaPer: '2026-05' };
+          }
+          if (typeof g.masaTahun === 'number' && (!g.masaPer || g.masaPer === '2026-11')) {
+            changed = true;
+            return { ...g, masaPer: '2026-05' };
+          }
+          return g;
+        });
+        if (changed) setToStorage(KEYS.GURU, next);
+      }
+    }
+
+    const rawLap = localStorage.getItem(KEYS.LAPORAN);
+    if (rawLap) {
+      const lapList: LaporanBulan[] = JSON.parse(rawLap);
+      if (Array.isArray(lapList)) {
+        let changed = false;
+        const nextLap = lapList.map((rep) => {
+          if (!rep.guruOverrides) return rep;
+          let repChanged = false;
+          const nextOv: Record<string, Partial<Guru>> = { ...rep.guruOverrides };
+          Object.keys(nextOv).forEach((gid) => {
+            const ov = nextOv[gid];
+            if (ov && typeof ov.masaTahun === 'number' && (!ov.masaPer || ov.masaPer === '2026-11')) {
+              nextOv[gid] = { ...ov, masaPer: '2026-05' };
+              repChanged = true;
+            }
+          });
+          if (!repChanged) return rep;
+          changed = true;
+          return { ...rep, guruOverrides: nextOv };
+        });
+        if (changed) setToStorage(KEYS.LAPORAN, nextLap);
+      }
+    }
+
+    localStorage.setItem(FLAG, '1');
+  } catch (e) {
+    console.error('Migrasi acuan masa kerja Mei 2026 gagal:', e);
+  }
 }
 
 function migrateKopDefaultSize(): void {

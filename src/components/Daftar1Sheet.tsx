@@ -97,11 +97,8 @@ export function resolveMasaRefYearMonth(
     const [y, m] = fallbackRefMonth.split('-').map(Number);
     return { y, m };
   }
-  if (typeof g.updatedAt === 'number' && g.updatedAt > 0) {
-    const d = new Date(g.updatedAt);
-    return { y: d.getFullYear(), m: d.getMonth() + 1 };
-  }
-  return null;
+  // Acuan bawaan untuk data masa kerja manual tanpa masaPer adalah Daftar 1 bulan Mei 2026
+  return { y: 2026, m: 5 };
 }
 
 export function hitungTotalBulanMasaKerja(
