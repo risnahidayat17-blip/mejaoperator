@@ -197,7 +197,8 @@ export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast 
         setQuickPrintSurat(null);
         return;
       }
-      const pSize = quickPrintSurat.ukuranKertas === 'Legal' ? 'Legal' : 'A4';
+      const isSppdDoc = quickPrintSurat.jenis === SPPD_JENIS || Boolean(quickPrintSurat.sppdData);
+      const pSize = quickPrintSurat.ukuranKertas === 'Legal' || isSppdDoc ? 'Legal' : 'A4';
       printDomElement(directPrintRef.current, {
         paper: pSize,
         margin: '14mm 18mm',
@@ -426,15 +427,19 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
   };
 
   const handlePrint = (pSize?: 'A4' | 'Legal', targetEl?: HTMLElement | null) => {
-    const size = pSize || paperSize;
+    const current = previewSurat || editingSurat;
+    const isSppdDoc =
+      current?.jenis === SPPD_JENIS ||
+      Boolean(current?.sppdData) ||
+      (!previewSurat && jenis === SPPD_JENIS);
+    const size = pSize || (isSppdDoc ? 'Legal' : paperSize);
     const target = targetEl || modalPreviewRef.current || previewRef.current;
     if (!target) return;
-    const current = previewSurat || editingSurat;
     if (current) {
       recordActivity('Surat Keluar', `Cetak surat keluar: ${current.perihal || current.noSurat || 'Surat'}`, false, 'update');
     }
     printDomElement(target, {
-      paper: size === 'Legal' ? 'Legal' : 'A4',
+      paper: size === 'Legal' || isSppdDoc ? 'Legal' : 'A4',
       margin: '14mm 18mm',
     });
   };
@@ -610,7 +615,7 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
     const isSppd = s.jenis === SPPD_JENIS || Boolean(s.sppdData);
     const student = siswaList.find((x) => x.id === s.siswaId);
     const dateFormatted = formatTanggalIndo(s.tglSurat);
-    const isLegal = (s.ukuranKertas || paperSize) === 'Legal';
+    const isLegal = isSppd || (s.ukuranKertas || paperSize) === 'Legal';
 
     if (s.mode === 'kustom') {
       return (
@@ -634,59 +639,59 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
         <div className="space-y-6 w-full">
           {/* HALAMAN 1 SPPD */}
           <div
-            className={`bg-white text-black w-full mx-auto px-10 py-8 md:px-12 md:py-10 shadow-xl border border-gray-300 rounded-sm select-text print-sheet transition-all ${
-              isLegal ? 'max-w-[780px] min-h-[1140px]' : 'max-w-[760px] min-h-[980px]'
+            className={`bg-white text-black w-full mx-auto px-10 py-8 md:px-12 md:py-10 shadow-xl border border-gray-300 rounded-sm select-text print-sheet sppd-page-1 transition-all ${
+              isLegal ? 'max-w-[794px] min-h-[1200px]' : 'max-w-[760px] min-h-[980px]'
             }`}
             style={{ fontFamily: "'Times New Roman', Times, serif", color: '#000000' }}
           >
             {s.kop !== 'Tanpa kop' && <KopSuratHD config={config} />}
 
-            <div className="text-center mt-2 mb-11">
+            <div className="text-center mt-3 mb-11">
               <div
-                className="text-[14.5px] font-bold underline uppercase tracking-wide"
+                className="text-[15px] font-bold underline uppercase tracking-wide"
                 style={{ textUnderlineOffset: '3px' }}
               >
                 SURAT PERINTAH PERJALANAN DINAS
               </div>
-              <div className="text-[14px] font-bold mt-0.5">( S P P D )</div>
-              <div className="text-[13px] mt-0.5">Nomor : {s.noSurat || ''}</div>
+              <div className="text-[14.5px] font-bold mt-0.5">( S P P D )</div>
+              <div className="text-[13.5px] mt-0.5">Nomor : {s.noSurat || ''}</div>
             </div>
 
             <div className="border-t border-black" />
 
-            <table className="w-full border-collapse text-[13px] leading-snug">
+            <table className="w-full border-collapse text-[13.5px] leading-relaxed">
               <tbody>
                 <tr className="border-b border-black/45">
-                  <td className="py-3 pr-1.5 align-top w-6">1.</td>
-                  <td className="py-3 pr-2 align-top w-[250px]">Pejabat yang memberi perintah</td>
-                  <td className="py-3 px-2 align-top w-4">:</td>
-                  <td className="py-3 align-top">{sp.pejabatPerintah}</td>
+                  <td className="py-[21px] pr-1.5 align-top w-6">1.</td>
+                  <td className="py-[21px] pr-2 align-top w-[255px]">Pejabat yang memberi perintah</td>
+                  <td className="py-[21px] px-2 align-top w-4">:</td>
+                  <td className="py-[21px] align-top">{sp.pejabatPerintah}</td>
                 </tr>
                 <tr className="border-b border-black/45">
-                  <td className="py-3 pr-1.5 align-top">2.</td>
-                  <td className="py-3 pr-2 align-top">
+                  <td className="py-[21px] pr-1.5 align-top">2.</td>
+                  <td className="py-[21px] pr-2 align-top">
                     Nama pegawai yang diperintahkan
                     <br />
                     Mengadakan perjalanan
                   </td>
-                  <td className="py-3 px-2 align-top">:</td>
-                  <td className="py-3 align-top font-semibold">{formatGelarInText(sp.pegawaiNama)}</td>
+                  <td className="py-[21px] px-2 align-top">:</td>
+                  <td className="py-[21px] align-top font-semibold">{formatGelarInText(sp.pegawaiNama)}</td>
                 </tr>
                 <tr className="border-b border-black/45">
-                  <td className="py-3 pr-1.5 align-top">3.</td>
-                  <td className="py-3 pr-2 align-top">
+                  <td className="py-[21px] pr-1.5 align-top">3.</td>
+                  <td className="py-[21px] pr-2 align-top">
                     Jabatan, pangkat, dari pegawai yang
                     <br />
                     Diperintahkan
                   </td>
-                  <td className="py-3 px-2 align-top">:</td>
-                  <td className="py-3 align-top">{sp.pegawaiJabatanPangkat}</td>
+                  <td className="py-[21px] px-2 align-top">:</td>
+                  <td className="py-[21px] align-top">{sp.pegawaiJabatanPangkat}</td>
                 </tr>
                 <tr className="border-b border-black/45">
-                  <td className="py-3 pr-1.5 align-top">4.</td>
-                  <td className="py-3 pr-2 align-top">Perjalanan Dinas yang direncanakan</td>
-                  <td className="py-3 px-2 align-top">:</td>
-                  <td className="py-3 align-top">
+                  <td className="py-[21px] pr-1.5 align-top">4.</td>
+                  <td className="py-[21px] pr-2 align-top">Perjalanan Dinas yang direncanakan</td>
+                  <td className="py-[21px] px-2 align-top">:</td>
+                  <td className="py-[21px] align-top">
                     <div className="grid grid-cols-[44px_12px_1fr]">
                       <span>dari</span>
                       <span>:</span>
@@ -698,66 +703,68 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
                   </td>
                 </tr>
                 <tr className="border-b border-black/45">
-                  <td className="py-3 pr-1.5 align-top">5.</td>
-                  <td className="py-3 pr-2 align-top">Lamanya mengadakan perjalanan</td>
-                  <td className="py-3 px-2 align-top">:</td>
-                  <td className="py-3 align-top">
+                  <td className="py-[21px] pr-1.5 align-top">5.</td>
+                  <td className="py-[21px] pr-2 align-top">Lamanya mengadakan perjalanan</td>
+                  <td className="py-[21px] px-2 align-top">:</td>
+                  <td className="py-[21px] align-top">
                     <div>A. Selama {sp.lamaHari || '-'}</div>
                     {sp.tanggalPerjalanan && <div className="pl-4">tanggal {sp.tanggalPerjalanan}</div>}
                     <div>B. dengan lumpsum biaya {sp.lumpsum || 'Rp. …………,-'}</div>
                   </td>
                 </tr>
                 <tr className="border-b border-black/45">
-                  <td className="py-3 pr-1.5 align-top">6.</td>
-                  <td className="py-3 pr-2 align-top">Maksud mengadakan perjalanan</td>
-                  <td className="py-3 px-2 align-top">:</td>
-                  <td className="py-3 align-top">{sp.maksud || s.perihal}</td>
+                  <td className="py-[21px] pr-1.5 align-top">6.</td>
+                  <td className="py-[21px] pr-2 align-top">Maksud mengadakan perjalanan</td>
+                  <td className="py-[21px] px-2 align-top">:</td>
+                  <td className="py-[21px] align-top">{sp.maksud || s.perihal}</td>
                 </tr>
                 <tr className="border-b border-black/45">
-                  <td className="py-3 pr-1.5 align-top">7.</td>
-                  <td className="py-3 pr-2 align-top">Perhitungan biaya perjalanan</td>
-                  <td className="py-3 px-2 align-top">:</td>
-                  <td className="py-3 align-top">{sp.bebanBiaya}</td>
+                  <td className="py-[21px] pr-1.5 align-top">7.</td>
+                  <td className="py-[21px] pr-2 align-top">Perhitungan biaya perjalanan</td>
+                  <td className="py-[21px] px-2 align-top">:</td>
+                  <td className="py-[21px] align-top">{sp.bebanBiaya}</td>
                 </tr>
                 <tr>
-                  <td className="py-3 pr-1.5 align-top">8.</td>
-                  <td className="py-3 pr-2 align-top tracking-wide">K e t e r a n g a n</td>
-                  <td className="py-3 px-2 align-top">:</td>
-                  <td className="py-3 align-top">{sp.keterangan || 'Lihat sebelah'}</td>
+                  <td className="py-[21px] pr-1.5 align-top">8.</td>
+                  <td className="py-[21px] pr-2 align-top tracking-wide">K e t e r a n g a n</td>
+                  <td className="py-[21px] px-2 align-top">:</td>
+                  <td className="py-[21px] align-top">{sp.keterangan || 'Lihat sebelah'}</td>
                 </tr>
               </tbody>
             </table>
 
-            <div className="border-t border-black mt-1.5 mb-8" />
+            <div className="mt-2">
+              <div className="border-t border-black mb-7" />
 
-            <div className="grid grid-cols-[1.15fr_0.85fr] gap-6 items-start text-[12px] leading-snug">
-              <div className="text-[10.5px] leading-[1.35]">
-                <div className="font-bold">CATATAN :</div>
-                <p className="mt-0.5">
-                  Pemegang kuasa yang berhak memberi perintah jalan diperingatkan dengan tegas bahwa perjalanan dinas
-                  hanya boleh dilakukan atas biaya Negara, jika ini diperlukan untuk kepentingan Negara (lihat pasal 2
-                  dan 3 Peraturan Perjalanan Dinas Dalam Negeri buat pegawai Negeri Sipil / Peraturan Pemerintah No. 33
-                  tahun 1955 )
-                </p>
-                <p className="mt-1">
-                  Jika Negara menderita kerugian yang disebabkan karena pemberian perintah jalan yang tidak beralasan,
-                  maka kerugian itu akan dibebankan pada pemberi perintah itu
-                </p>
-                <p className="mt-0.5">
-                  ( pasal 11 Peraturan Pemerintah No. 33 / 1955 jo pasal 50 Peraturan Pemerintah No. 5 / 1975 )
-                </p>
-              </div>
+              <div className="grid grid-cols-[1.15fr_0.85fr] gap-6 items-start text-[12px] leading-snug">
+                <div className="text-[11px] leading-[1.4]">
+                  <div className="font-bold">CATATAN :</div>
+                  <p className="mt-0.5">
+                    Pemegang kuasa yang berhak memberi perintah jalan diperingatkan dengan tegas bahwa perjalanan dinas
+                    hanya boleh dilakukan atas biaya Negara, jika ini diperlukan untuk kepentingan Negara (lihat pasal 2
+                    dan 3 Peraturan Perjalanan Dinas Dalam Negeri buat pegawai Negeri Sipil / Peraturan Pemerintah No. 33
+                    tahun 1955 )
+                  </p>
+                  <p className="mt-1">
+                    Jika Negara menderita kerugian yang disebabkan karena pemberian perintah jalan yang tidak beralasan,
+                    maka kerugian itu akan dibebankan pada pemberi perintah itu
+                  </p>
+                  <p className="mt-0.5">
+                    ( pasal 11 Peraturan Pemerintah No. 33 / 1955 jo pasal 50 Peraturan Pemerintah No. 5 / 1975 )
+                  </p>
+                </div>
 
-              <div className="pl-4 text-[13px] leading-normal">
-                <div>
-                  {s.tempat || sp.dari || config.tempatLaporan || 'Talun'}, {dateFormatted}
+                <div className="pl-4 text-[13.5px] leading-normal">
+                  <div>
+                    {s.tempat || sp.dari || config.tempatLaporan || 'Talun'}, {dateFormatted}
+                  </div>
+                  <div>{s.jabatanTtd || 'Pejabat yang memberi perintah'}</div>
+                  <div className="h-24" />
+                  <div className="font-bold underline" style={{ textUnderlineOffset: '2px' }}>
+                    {formatGelarInText(s.penandatangan || config.kepsek)}
+                  </div>
+                  <div className="text-[13px]">{cleanNip(s.nipTtd || config.nipKepsek)}</div>
                 </div>
-                <div>{s.jabatanTtd || 'Pejabat yang memberi perintah'}</div>
-                <div className="h-20" />
-                <div className="font-bold underline" style={{ textUnderlineOffset: '2px' }}>
-                  {formatGelarInText(s.penandatangan || config.kepsek)}
-                </div>
-                <div className="text-[12.5px]">{cleanNip(s.nipTtd || config.nipKepsek)}</div>
               </div>
             </div>
           </div>
@@ -769,7 +776,7 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
           {/* HALAMAN 2 SPPD (LEMBAR BELAKANG) */}
           <div
             className={`bg-white text-black w-full mx-auto px-10 py-8 md:px-12 md:py-10 shadow-xl border border-gray-300 rounded-sm select-text print-sheet sppd-page-2 transition-all ${
-              isLegal ? 'max-w-[780px] min-h-[1140px]' : 'max-w-[760px] min-h-[980px]'
+              isLegal ? 'max-w-[794px] min-h-[1260px]' : 'max-w-[760px] min-h-[980px]'
             }`}
           >
             <table className="sppd-back-table">
@@ -1806,7 +1813,7 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
                   Pratinjau Surat: {previewSurat.perihal}
                 </span>
                 <span className="text-[10px] font-mono font-bold bg-white/15 text-emerald-300 px-2 py-0.5 rounded border border-white/10">
-                  {previewSurat.ukuranKertas || 'A4'} Portrait
+                  {previewSurat.jenis === SPPD_JENIS || previewSurat.sppdData ? 'Legal' : previewSurat.ukuranKertas || 'A4'} Portrait
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -1827,7 +1834,14 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
                 )}
                 <button
                   type="button"
-                  onClick={() => handlePrint(previewSurat.ukuranKertas || paperSize, modalPreviewRef.current)}
+                  onClick={() =>
+                    handlePrint(
+                      previewSurat.jenis === SPPD_JENIS || previewSurat.sppdData
+                        ? 'Legal'
+                        : previewSurat.ukuranKertas || paperSize,
+                      modalPreviewRef.current
+                    )
+                  }
                   className="px-3 py-1.5 text-xs bg-[#0B6B58] hover:bg-[#095747] text-white font-semibold rounded-lg flex items-center gap-1.5 transition cursor-pointer"
                 >
                   <Printer className="w-3.5 h-3.5" /> Cetak (Preview Google)
