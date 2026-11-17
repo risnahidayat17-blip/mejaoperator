@@ -80,9 +80,44 @@ const sum = (arr: Num[]) => arr.reduce<number>((a, b) => a + (b || 0), 0);
 
 type LP = { L: number; P: number };
 
-export function hitungTotalBulanMasaKerja(g: Guru, endY: number, endM: number): number {
+export function resolveMasaRefYearMonth(
+  g: Pick<Guru, 'masaPer' | 'updatedAt'>,
+  fallbackRefMonth?: string
+): { y: number; m: number } | null {
+  const per = (g.masaPer || '').trim();
+  if (per) {
+    const parsedPer = parseTmtDate(per);
+    if (parsedPer) return { y: parsedPer.y, m: parsedPer.m };
+    if (/^\d{4}-\d{2}$/.test(per)) {
+      const [y, m] = per.split('-').map(Number);
+      return { y, m };
+    }
+  }
+  if (fallbackRefMonth && /^\d{4}-\d{2}$/.test(fallbackRefMonth)) {
+    const [y, m] = fallbackRefMonth.split('-').map(Number);
+    return { y, m };
+  }
+  if (typeof g.updatedAt === 'number' && g.updatedAt > 0) {
+    const d = new Date(g.updatedAt);
+    return { y: d.getFullYear(), m: d.getMonth() + 1 };
+  }
+  return null;
+}
+
+export function hitungTotalBulanMasaKerja(
+  g: Guru,
+  endY: number,
+  endM: number,
+  fallbackRefMonth?: string
+): number {
   if (typeof g.masaTahun === 'number' && g.masaTahun >= 0) {
-    return g.masaTahun * 12 + (g.masaBulan || 0);
+    const baseMonths = g.masaTahun * 12 + (g.masaBulan || 0);
+    const ref = resolveMasaRefYearMonth(g, fallbackRefMonth);
+    if (ref) {
+      const delta = (endY - ref.y) * 12 + (endM - ref.m);
+      return Math.max(0, baseMonths + delta);
+    }
+    return Math.max(0, baseMonths);
   }
   const p = parseTmtDate(g.tmt);
   if (!p) return 0;
@@ -202,14 +237,16 @@ export function sortGuruDaftar1(a: Guru, b: Guru): number {
   return a.nama.localeCompare(b.nama, 'id');
 }
 
-function masaKerja(g: Guru, endY: number, endM: number) {
-  if (typeof g.masaTahun === 'number') {
-    return `${pad2(g.masaTahun)} tahun\n${pad2(g.masaBulan || 0)} bulan`;
-  }
-  const p = parseTmtDate(g.tmt);
-  if (!p) return '';
-  let months = (endY - p.y) * 12 + (endM - p.m);
-  if (months < 0) months = 0;
+export function masaKerja(
+  g: Guru,
+  endY: number,
+  endM: number,
+  fallbackRefMonth?: string
+): string {
+  const hasManual = typeof g.masaTahun === 'number' && g.masaTahun >= 0;
+  const hasTmt = Boolean(parseTmtDate(g.tmt));
+  if (!hasManual && !hasTmt) return '';
+  const months = hitungTotalBulanMasaKerja(g, endY, endM, fallbackRefMonth);
   return `${pad2(Math.floor(months / 12))} tahun\n${pad2(months % 12)} bulan`;
 }
 
@@ -222,7 +259,10 @@ interface Daftar1Props {
 }
 
 export const Daftar1Pages: React.FC<Daftar1Props> = ({ config, siswa, guru, reportData, month }) => {
-  const [yy, mm] = month.split('-').map(Number);
+  const parts = (month || '').split('-').map(Number);
+  const now = new Date();
+  const yy = Number.isFinite(parts[0]) && parts[0] > 1900 ? parts[0] : now.getFullYear();
+  const mm = Number.isFinite(parts[1]) && parts[1] >= 1 && parts[1] <= 12 ? parts[1] : now.getMonth() + 1;
   const lastDay = new Date(yy, mm, 0).getDate();
   const bulanLabel = `${BULAN[mm - 1] || ''} ${yy}`.toUpperCase();
   const tglLaporan = `${pad2(lastDay)} ${BULAN[mm - 1]} ${yy}`;
@@ -310,7 +350,8 @@ export const Daftar1Pages: React.FC<Daftar1Props> = ({ config, siswa, guru, repo
   const statusSel = (reportData.pengesahan?.statusSekolah || config.statusSekolah || '').toLowerCase();
   const bahasaSel = (reportData.pengesahan?.bahasa || config.bahasa || 'Indonesia').toUpperCase();
   const tahunBerdiriVal = reportData.pengesahan?.tahunBerdiri || config.tahunBerdiri || '-';
-  const tglLaporanVal = reportData.pengesahan?.tglLaporan || tglLaporan;
+  // Titimangsa Daftar 1 selalu mengikuti tanggal terakhir pada bulan laporan yang dipilih
+  const tglLaporanVal = tglLaporan;
   const tempatLaporanVal = reportData.pengesahan?.tempatLaporan || config.tempatLaporan || config.kecamatan || config.kabupaten || '';
   const korwilJabatanVal = reportData.pengesahan?.korwilJabatan || config.korwilJabatan || 'Korwil Bidang Pendidikan';
   const korwilNamaVal = reportData.pengesahan?.korwilNama || config.korwilNama || '';
@@ -765,7 +806,14 @@ export const Daftar1Pages: React.FC<Daftar1Props> = ({ config, siswa, guru, repo
                   <td>{g.anak ? pad2(g.anak) : '-'}</td>
                   <td>{formatIjazahEYD(g.ijazah || g.pendidikan) || '-'}</td>
                   <td>{g.jabatan}</td>
-                  <td className="lb-pre">{masaKerja(g, yy, mm) || '-'}</td>
+                  <td className="lb-pre">
+                    {masaKerja(
+                      g,
+                      yy,
+                      mm,
+                      reportData.guruOverrides?.[g.id]?.masaTahun !== undefined ? month : undefined
+                    ) || '-'}
+                  </td>
                   <td>{fmtDash(g.tmt) || '-'}</td>
                   <td>{g.mengampu || '-'}</td>
                   <td>

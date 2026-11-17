@@ -22,7 +22,14 @@ import {
   BAG_PER_KELAS,
 } from '../data/daftar1Static';
 import { saveGuru } from '../lib/storage';
-import { classifyStatusPegawai, isPppkParuhWaktuText, sortGuruDaftar1 } from './Daftar1Sheet';
+import {
+  classifyStatusPegawai,
+  hitungTotalBulanMasaKerja,
+  isPppkParuhWaktuText,
+  parseTmtDate,
+  resolveMasaRefYearMonth,
+  sortGuruDaftar1,
+} from './Daftar1Sheet';
 import { formatNamaGelarEYD } from '../lib/eyd';
 import {
   X,
@@ -85,6 +92,7 @@ export const EditDaftar1Modal: React.FC<EditDaftar1ModalProps> = ({
   const [guruOverrides, setGuruOverrides] = useState<Record<string, Partial<Guru>>>(
     () => reportData.guruOverrides || {}
   );
+  const [masaDraft, setMasaDraft] = useState<{ id: string; tahun: string; bulan: string } | null>(null);
   const [guruAbsen, setGuruAbsen] = useState<Record<string, { s?: number; i?: number; a?: number }>>(
     () => reportData.absen || {}
   );
@@ -125,9 +133,7 @@ export const EditDaftar1Modal: React.FC<EditDaftar1ModalProps> = ({
   );
 
   // ----- State Tab 4: Pengesahan & Identitas -----
-  const [tglLaporan, setTglLaporan] = useState<string>(
-    reportData.pengesahan?.tglLaporan || defaultTglLaporan
-  );
+  const [tglLaporan, setTglLaporan] = useState<string>(defaultTglLaporan);
   const [tempatLaporan, setTempatLaporan] = useState<string>(
     reportData.pengesahan?.tempatLaporan || config.tempatLaporan || config.kecamatan || config.kabupaten || ''
   );
@@ -169,6 +175,81 @@ export const EditDaftar1Modal: React.FC<EditDaftar1ModalProps> = ({
       [currentGuru.id]: {
         ...(prev[currentGuru.id] || {}),
         [field]: value,
+      },
+    }));
+  };
+
+  const hasMonthlyMasaOverride =
+    currentGuru && guruOverrides[currentGuru.id]?.masaTahun !== undefined;
+  const effMasaTotalMonths = currentGuru
+    ? hitungTotalBulanMasaKerja(
+        currentGuru,
+        yy,
+        mm,
+        hasMonthlyMasaOverride ? month : undefined
+      )
+    : 0;
+  const hasAnyMasaBasis = Boolean(
+    currentGuru &&
+      (typeof currentGuru.masaTahun === 'number' || parseTmtDate(currentGuru.tmt))
+  );
+  const effMasaTahun = Math.floor(effMasaTotalMonths / 12);
+  const effMasaBulan = effMasaTotalMonths % 12;
+
+  const masaTahunInputVal =
+    currentGuru && masaDraft?.id === currentGuru.id
+      ? masaDraft.tahun
+      : hasAnyMasaBasis
+        ? String(effMasaTahun)
+        : '';
+  const masaBulanInputVal =
+    currentGuru && masaDraft?.id === currentGuru.id
+      ? masaDraft.bulan
+      : hasAnyMasaBasis
+        ? String(effMasaBulan)
+        : '';
+
+  const updateCurrentGuruMasa = (nextTahunRaw: string, nextBulanRaw: string) => {
+    if (!currentGuru) return;
+    setMasaDraft({ id: currentGuru.id, tahun: nextTahunRaw, bulan: nextBulanRaw });
+    const tTrim = nextTahunRaw.trim();
+    const bTrim = nextBulanRaw.trim();
+    if (tTrim === '' && bTrim === '') {
+      setGuruOverrides((prev) => ({
+        ...prev,
+        [currentGuru.id]: {
+          ...(prev[currentGuru.id] || {}),
+          masaTahun: undefined,
+          masaBulan: undefined,
+          masaPer: undefined,
+        },
+      }));
+      return;
+    }
+    if (tTrim === '') return;
+    const parsedTahun = Math.max(0, Number(tTrim) || 0);
+    const parsedBulan = Math.min(11, Math.max(0, bTrim === '' ? 0 : Number(bTrim) || 0));
+    setGuruOverrides((prev) => ({
+      ...prev,
+      [currentGuru.id]: {
+        ...(prev[currentGuru.id] || {}),
+        masaTahun: parsedTahun,
+        masaBulan: parsedBulan,
+        masaPer: month,
+      },
+    }));
+  };
+
+  const resetCurrentGuruMasaToTmt = () => {
+    if (!currentGuru) return;
+    setMasaDraft(null);
+    setGuruOverrides((prev) => ({
+      ...prev,
+      [currentGuru.id]: {
+        ...(prev[currentGuru.id] || {}),
+        masaTahun: undefined,
+        masaBulan: undefined,
+        masaPer: undefined,
       },
     }));
   };
@@ -215,9 +296,15 @@ export const EditDaftar1Modal: React.FC<EditDaftar1ModalProps> = ({
       sortedGurus.forEach((g) => {
         const patch = guruOverrides[g.id];
         if (patch) {
+          const merged = { ...g, ...patch };
+          if (typeof merged.masaTahun === 'number' && !merged.masaPer) {
+            const legacyRef = resolveMasaRefYearMonth(g);
+            if (legacyRef) {
+              merged.masaPer = `${legacyRef.y}-${String(legacyRef.m).padStart(2, '0')}`;
+            }
+          }
           saveGuru({
-            ...g,
-            ...patch,
+            ...merged,
             updatedAt: Date.now(),
           });
         }
@@ -251,7 +338,7 @@ export const EditDaftar1Modal: React.FC<EditDaftar1ModalProps> = ({
       guruOverrides,
       pengesahan: {
         tempatLaporan: tempatLaporan.trim(),
-        tglLaporan: tglLaporan.trim(),
+        tglLaporan: defaultTglLaporan,
         korwilJabatan: korwilJabatan.trim(),
         korwilNama: korwilNama.trim(),
         korwilNip: korwilNip.trim(),
@@ -549,38 +636,54 @@ export const EditDaftar1Modal: React.FC<EditDaftar1ModalProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3 bg-[#F8FBFA] p-3 rounded-lg border border-[#E6EDEA]">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">TMT Mulai Bekerja (Tgl)</label>
-                    <input
-                      value={currentGuru.tmt || ''}
-                      onChange={(e) => updateCurrentGuruField('tmt', e.target.value)}
-                      className={inputCls}
-                      placeholder="2010-01-01"
-                    />
+                <div className="bg-[#F8FBFA] p-3 rounded-lg border border-[#E6EDEA] space-y-2">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">TMT Mulai Bekerja (Tgl)</label>
+                      <input
+                        value={currentGuru.tmt || ''}
+                        onChange={(e) => updateCurrentGuruField('tmt', e.target.value)}
+                        className={inputCls}
+                        placeholder="2010-01-01"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">Masa Kerja (Tahun)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={masaTahunInputVal}
+                        onChange={(e) => updateCurrentGuruMasa(e.target.value, masaBulanInputVal)}
+                        className={inputCls}
+                        placeholder="Contoh: 14"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">Masa Kerja (Bulan)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={11}
+                        value={masaBulanInputVal}
+                        onChange={(e) => updateCurrentGuruMasa(masaTahunInputVal || '0', e.target.value)}
+                        className={inputCls}
+                        placeholder="Contoh: 2"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">Masa Kerja (Tahun)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={currentGuru.masaTahun ?? ''}
-                      onChange={(e) => updateCurrentGuruField('masaTahun', e.target.value ? Number(e.target.value) : undefined)}
-                      className={inputCls}
-                      placeholder="Contoh: 14"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">Masa Kerja (Bulan)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      max={11}
-                      value={currentGuru.masaBulan ?? ''}
-                      onChange={(e) => updateCurrentGuruField('masaBulan', e.target.value ? Number(e.target.value) : 0)}
-                      className={inputCls}
-                      placeholder="Contoh: 2"
-                    />
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[10px] text-[#566A6E]">
+                      Masa kerja otomatis bertambah +1 bulan setiap pindah bulan (berdasarkan TMT atau bulan acuan edit terakhir).
+                    </p>
+                    {currentGuru.masaTahun !== undefined && parseTmtDate(currentGuru.tmt) && (
+                      <button
+                        type="button"
+                        onClick={resetCurrentGuruMasaToTmt}
+                        className="text-[10px] font-semibold text-[#0B6B58] hover:underline cursor-pointer"
+                      >
+                        Hitung ulang dari TMT
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -1134,11 +1237,13 @@ export const EditDaftar1Modal: React.FC<EditDaftar1ModalProps> = ({
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] text-[#566A6E] mb-0.5">Tanggal Cetak Laporan</label>
+                        <label className="block text-[10px] text-[#566A6E] mb-0.5">
+                          Tanggal Titimangsa (Otomatis Tgl Terakhir Bulan)
+                        </label>
                         <input
                           value={tglLaporan}
-                          onChange={(e) => setTglLaporan(e.target.value)}
-                          className={inputCls}
+                          readOnly
+                          className={inputCls + ' bg-[#F3F7F5] text-[#13262A] font-semibold cursor-default'}
                         />
                       </div>
                     </div>

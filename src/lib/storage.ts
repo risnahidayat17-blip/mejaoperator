@@ -820,6 +820,25 @@ function migrateDapodikSeed(): void {
     console.error('Migrasi data Dapodik gagal:', e);
   }
   migrateSppdSeed();
+  migrateKopDefaultSize();
+}
+
+function migrateKopDefaultSize(): void {
+  const FLAG = 'mo_kop_size_v1';
+  try {
+    if (localStorage.getItem(FLAG)) return;
+    const rawCfg = localStorage.getItem(KEYS.CFG);
+    if (rawCfg) {
+      const cfg = JSON.parse(rawCfg) as SchoolConfig;
+      if (cfg && (!cfg.logoHeight || cfg.logoHeight <= 85)) {
+        cfg.logoHeight = 100;
+        setToStorage(KEYS.CFG, cfg);
+      }
+    }
+    localStorage.setItem(FLAG, '1');
+  } catch (e) {
+    console.error('Migrasi ukuran kop surat gagal:', e);
+  }
 }
 
 function migrateSppdSeed(): void {

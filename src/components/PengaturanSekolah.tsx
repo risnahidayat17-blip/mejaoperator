@@ -615,23 +615,23 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                       Tinggi Logo di Kop Surat:
                     </label>
                     <span className="font-mono text-xs font-bold text-[#0B6B58]">
-                      {formData.logoHeight || 85} px
+                      {formData.logoHeight || 100} px
                     </span>
                   </div>
                   <input
                     type="range"
                     min="65"
-                    max="115"
+                    max="130"
                     step="2"
-                    value={formData.logoHeight || 85}
+                    value={formData.logoHeight || 100}
                     onChange={(e) => handleFieldChange('logoHeight', Number(e.target.value))}
                     disabled={!isOperator}
                     className="w-full accent-[#0B6B58] cursor-pointer disabled:cursor-not-allowed"
                   />
                   <div className="flex justify-between text-[10px] text-[#566A6E]">
                     <span>Kompak (65px)</span>
-                    <span>Standar Proporsional (85px)</span>
-                    <span>Besar (115px)</span>
+                    <span>Standar Proporsional (100px)</span>
+                    <span>Besar (130px)</span>
                   </div>
                 </div>
               </div>
