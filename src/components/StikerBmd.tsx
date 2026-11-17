@@ -165,7 +165,7 @@ export const StikerBmd: React.FC<StikerBmdProps> = ({ role, config, onToast }) =
       return;
     }
     printDomElement(stikerPrintRef.current, {
-      pageCss: '@page { size: A4 portrait; margin: 6mm; }',
+      pageCss: '@page { size: A4 portrait; margin: 0; }',
       extraPortalClass: 'printing-stiker-portal',
     });
   };
@@ -315,7 +315,7 @@ export const StikerBmd: React.FC<StikerBmdProps> = ({ role, config, onToast }) =
           .stk-page { box-shadow: 0 1px 4px rgba(0,0,0,.2); margin: 0 auto 12px; padding: 6mm; width: 210mm; height: 297mm; }
         }
         @media print {
-          #app-print-portal.printing-stiker-portal .stk-page { break-after: page; page-break-after: always; padding: 0; width: 198mm; height: 285mm; margin: 0; }
+          #app-print-portal.printing-stiker-portal .stk-page { break-after: page; page-break-after: always; padding: 6mm; width: 210mm; height: 297mm; margin: 0; box-sizing: border-box; }
           #app-print-portal.printing-stiker-portal .stk-page:last-child { break-after: auto; page-break-after: auto; }
           #app-print-portal.printing-stiker-portal .stk-sheet-wrap { zoom: 1; }
           #app-print-portal.printing-stiker-portal .stk-empty { border: 0; }

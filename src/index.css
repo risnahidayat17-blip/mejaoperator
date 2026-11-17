@@ -88,7 +88,7 @@ h1, h2, h3, h4 {
 @media print {
   @page {
     size: A4 portrait;
-    margin: 14mm 16mm;
+    margin: 0;
   }
 
   html,
@@ -130,12 +130,17 @@ h1, h2, h3, h4 {
   body.printing-portal #app-print-portal {
     display: block !important;
     width: 100% !important;
+    box-sizing: border-box !important;
     margin: 0 !important;
-    padding: 0 !important;
+    padding: var(--print-pt, 14mm) var(--print-pr, 16mm) var(--print-pb, 14mm) var(--print-pl, 16mm) !important;
     background: #ffffff !important;
     color: #000000 !important;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
+  }
+
+  body.printing-portal #app-print-portal.printing-stiker-portal {
+    padding: 0 !important;
   }
 
   body.printing-portal #app-print-portal * {
@@ -165,13 +170,24 @@ h1, h2, h3, h4 {
     page-break-inside: avoid;
   }
 
-  .sppd-page-2 {
+  body.printing-portal #app-print-portal .sppd-page-2 {
     break-before: page !important;
     page-break-before: always !important;
     margin-top: 0 !important;
-    padding-top: 0 !important;
+    padding-top: var(--print-pt, 14mm) !important;
     border-top: none !important;
     box-shadow: none !important;
+  }
+
+  body.printing-portal #app-print-portal .page-break {
+    break-after: page !important;
+    page-break-after: always !important;
+    margin-bottom: 0 !important;
+  }
+
+  body.printing-portal #app-print-portal .page-break + * {
+    margin-top: 0 !important;
+    padding-top: var(--print-pt, 14mm) !important;
   }
 
   .sppd-preview-divider {
