@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, lazy, Suspense } from 'react';
 import { SchoolConfig, SuratMasuk as ISuratMasuk } from '../types';
 import {
   getSuratMasuk,
@@ -24,7 +24,9 @@ import {
   resolveImageKitUrl,
 } from '../lib/imagekit';
 import { compressImageFileToDataUrl, TARGET_BYTES } from '../lib/compress';
-import { ScanSuratModal, ScanResult } from './ScanSuratModal';
+import type { ScanResult } from './ScanSuratModal';
+
+const LazyScanSuratModal = lazy(() => import('./ScanSuratModal').then((m) => ({ default: m.ScanSuratModal })));
 import {
   Inbox,
   Plus,
@@ -216,9 +218,11 @@ export const SuratMasuk: React.FC<SuratMasukProps> = ({ role, onToast }) => {
       let thumbUrl = r.thumb;
       if (isImageKitReady()) {
         try {
-          const up = await uploadToImageKit(r.pdf, r.pdfName, { subfolder: 'surat-masuk' });
+          const [up, tu] = await Promise.all([
+            uploadToImageKit(r.pdf, r.pdfName, { subfolder: 'surat-masuk' }),
+            uploadDataUrlToImageKit(r.thumb, `surat-masuk-${Date.now().toString(36)}`, { subfolder: 'surat-masuk' }),
+          ]);
           pdfUrl = up.url;
-          const tu = await uploadDataUrlToImageKit(r.thumb, `surat-masuk-${Date.now().toString(36)}`, { subfolder: 'surat-masuk' });
           thumbUrl = tu.url;
         } catch (e) {
           onToast(
@@ -236,14 +240,18 @@ export const SuratMasuk: React.FC<SuratMasukProps> = ({ role, onToast }) => {
       setFilePdf(pdfUrl);
       setFotoSurat(thumbUrl);
       const n = auto.length;
-      onToast(
-        r.ocrError
-          ? `PDF ${r.pageCount} halaman siap. ${r.ocrError} Isi data surat secara manual.`
-          : n > 0
-          ? `PDF ${r.pageCount} halaman siap. ${n} kolom terisi otomatis dari isi surat — mohon periksa kembali.`
-          : `PDF ${r.pageCount} halaman siap, tetapi teks surat tidak terbaca jelas. Isi data secara manual.`,
-        !!r.ocrError || n === 0
-      );
+      if (!r.ocrUsed) {
+        onToast(`PDF ${r.pageCount} halaman siap (ringan ${(r.pdf.size / 1024).toFixed(0)} KB). Silakan lengkapi data surat.`);
+      } else {
+        onToast(
+          r.ocrError
+            ? `PDF ${r.pageCount} halaman siap. ${r.ocrError} Isi data surat secara manual.`
+            : n > 0
+            ? `PDF ${r.pageCount} halaman siap. ${n} kolom terisi otomatis dari isi surat — mohon periksa kembali.`
+            : `PDF ${r.pageCount} halaman siap, tetapi teks surat tidak terbaca jelas. Isi data secara manual.`,
+          !!r.ocrError || n === 0
+        );
+      }
     } catch (e: any) {
       onToast(e?.message || 'Gagal menyiapkan PDF.', true);
     } finally {
@@ -579,7 +587,7 @@ export const SuratMasuk: React.FC<SuratMasukProps> = ({ role, onToast }) => {
                   </div>
                 ) : (
                   <p className="text-[10px] text-[#566A6E]">
-                    Foto surat dengan kamera: tepi kertas dipotong otomatis, lalu nomor surat, tanggal, perihal, dan pengirim dibaca otomatis dan disimpan sebagai PDF.
+                    Foto surat dengan kamera: tepi kertas dirapikan otomatis, lalu dikompres ringan menjadi PDF siap arsip (OCR teks tersedia sebagai opsi).
                   </p>
                 )}
                 {isProcessingImg && (
@@ -748,7 +756,11 @@ export const SuratMasuk: React.FC<SuratMasukProps> = ({ role, onToast }) => {
         </div>
       )}
 
-      {isOperator && showScanner && <ScanSuratModal onClose={() => setShowScanner(false)} onDone={handleScanDone} />}
+      {isOperator && showScanner && (
+        <Suspense fallback={null}>
+          <LazyScanSuratModal onClose={() => setShowScanner(false)} onDone={handleScanDone} />
+        </Suspense>
+      )}
 
       {/* FULL PHOTO VIEW MODAL */}
       {previewFotoItem && (

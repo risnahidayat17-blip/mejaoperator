@@ -30,7 +30,7 @@ export interface CompressOptions {
   maxQuality?: number;
 }
 
-const SIDES = [2000, 1754, 1600, 1450, 1300, 1150, 1000, 900, 800, 700, 600, 500, 400];
+const SIDES = [1600, 1450, 1300, 1150, 1000, 900, 800, 700, 600, 500, 400];
 
 function encode(c: HTMLCanvasElement, q: number): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
@@ -80,8 +80,9 @@ export async function compressCanvas(
   opts: CompressOptions = {}
 ): Promise<CompressedImage> {
   const minQ = opts.minQuality ?? 0.6;
-  const maxQ = opts.maxQuality ?? 0.92;
-  const startSide = opts.startSide ?? 1754;
+  const maxQ = opts.maxQuality ?? 0.9;
+  const autoStart = maxBytes < 55 * 1024 ? 1150 : maxBytes < 95 * 1024 ? 1350 : 1500;
+  const startSide = opts.startSide ?? autoStart;
   const long = Math.max(src.width, src.height);
   const sides = Array.from(new Set([Math.min(long, startSide), ...SIDES.filter((s) => s < Math.min(long, startSide))]));
 
@@ -94,7 +95,7 @@ export async function compressCanvas(
     let best: CompressedImage = { bytes: base, w: c.width, h: c.height, quality: minQ };
     let lo = minQ;
     let hi = maxQ;
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 4; i++) {
       const mid = (lo + hi) / 2;
       const b = await encode(c, mid);
       if (b.length <= maxBytes) {
@@ -115,14 +116,37 @@ export async function compressCanvas(
   return smallest!;
 }
 
-export function loadImageToCanvas(file: Blob): Promise<HTMLCanvasElement> {
+export async function loadImageToCanvas(file: Blob, maxSide = 1500): Promise<HTMLCanvasElement> {
+  if (typeof createImageBitmap === 'function') {
+    try {
+      const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' } as ImageBitmapOptions);
+      const long = Math.max(bmp.width, bmp.height);
+      const k = long > maxSide ? maxSide / long : 1;
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(bmp.width * k));
+      c.height = Math.max(1, Math.round(bmp.height * k));
+      const ctx = c.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, c.width, c.height);
+        ctx.drawImage(bmp, 0, 0, c.width, c.height);
+        bmp.close?.();
+        return c;
+      }
+      bmp.close?.();
+    } catch {
+      /* lanjut ke cara cadangan */
+    }
+  }
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
+      const long = Math.max(img.naturalWidth, img.naturalHeight);
+      const k = long > maxSide ? maxSide / long : 1;
       const c = document.createElement('canvas');
-      c.width = img.naturalWidth;
-      c.height = img.naturalHeight;
+      c.width = Math.max(1, Math.round(img.naturalWidth * k));
+      c.height = Math.max(1, Math.round(img.naturalHeight * k));
       const ctx = c.getContext('2d');
       if (!ctx) {
         URL.revokeObjectURL(url);
@@ -130,7 +154,7 @@ export function loadImageToCanvas(file: Blob): Promise<HTMLCanvasElement> {
       }
       ctx.fillStyle = '#fff';
       ctx.fillRect(0, 0, c.width, c.height);
-      ctx.drawImage(img, 0, 0);
+      ctx.drawImage(img, 0, 0, c.width, c.height);
       URL.revokeObjectURL(url);
       resolve(c);
     };

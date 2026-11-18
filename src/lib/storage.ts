@@ -820,7 +820,9 @@ function migrateDapodikSeed(): void {
     console.error('Migrasi data Dapodik gagal:', e);
   }
   migrateSppdSeed();
+  migrateSuratPindahTugasSeed();
   migrateKopDefaultSize();
+  migrateFormatNoSuratRomawi();
   migrateMasaKerjaRefMei2026();
 }
 
@@ -897,6 +899,29 @@ function migrateKopDefaultSize(): void {
   }
 }
 
+function migrateFormatNoSuratRomawi(): void {
+  const FLAG = 'mo_no_surat_romawi_v1';
+  try {
+    if (localStorage.getItem(FLAG)) return;
+    const rawCfg = localStorage.getItem(KEYS.CFG);
+    if (rawCfg) {
+      const cfg = JSON.parse(rawCfg) as SchoolConfig;
+      const cur = String(cfg?.formatNoSurat || '').trim();
+      if (
+        !cur ||
+        cur === '421.2/{no:3}/SD/2026' ||
+        cur === '421.2/{no:3}/SD/{tahun}'
+      ) {
+        cfg.formatNoSurat = '421.2/{no:3}/SD/{romawi}/{tahun}';
+        setToStorage(KEYS.CFG, cfg);
+      }
+    }
+    localStorage.setItem(FLAG, '1');
+  } catch (e) {
+    console.error('Migrasi format nomor surat romawi gagal:', e);
+  }
+}
+
 function migrateSppdSeed(): void {
   const FLAG = 'mo_sppd_seed_v1';
   try {
@@ -933,6 +958,40 @@ function migrateSppdSeed(): void {
     localStorage.setItem(FLAG, '1');
   } catch (e) {
     console.error('Migrasi data SPPD gagal:', e);
+  }
+}
+
+function migrateSuratPindahTugasSeed(): void {
+  const FLAG = 'mo_surat_pindah_tugas_seed_v1';
+  try {
+    if (localStorage.getItem(FLAG)) return;
+    const rawSk = localStorage.getItem(KEYS.SURATKELUAR);
+    const list: SuratKeluar[] = rawSk ? JSON.parse(rawSk) : [];
+    const seeds = initialSuratKeluar.filter(
+      (x) => x.id === 'sk_pindah_putra_2026' || x.id === 'sk_tugas_diklat_027_2026'
+    );
+    if (Array.isArray(list) && seeds.length > 0) {
+      let changed = false;
+      for (const seed of seeds) {
+        const cleanNo = (seed.noSurat || '').replace(/\s+/g, '');
+        const exists = list.some(
+          (x) =>
+            x.id === seed.id ||
+            (cleanNo && (x.noSurat || '').replace(/\s+/g, '') === cleanNo)
+        );
+        if (!exists) {
+          const nextAgenda = String(list.length + 1);
+          list.push({ ...seed, noAgenda: nextAgenda });
+          changed = true;
+        }
+      }
+      if (changed) {
+        setToStorage(KEYS.SURATKELUAR, list);
+      }
+    }
+    localStorage.setItem(FLAG, '1');
+  } catch (e) {
+    console.error('Migrasi data Surat Pindah & Surat Tugas gagal:', e);
   }
 }
 

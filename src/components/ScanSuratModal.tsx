@@ -33,8 +33,8 @@ import {
   refineQuad,
 } from '../lib/docScan';
 import { buildPdf, PdfPage, OcrLine } from '../lib/pdfBuilder';
-import { compressCanvas, jpegToDataUrl, TARGET_BYTES } from '../lib/compress';
-import { ocrCanvas, parseSurat, suggestPdfName, SuratFields } from '../lib/suratOcr';
+import { compressCanvas, jpegToDataUrl, resizeCanvas, TARGET_BYTES } from '../lib/compress';
+import { ocrCanvas, parseSurat, suggestPdfName, SuratFields, terminateOcr } from '../lib/suratOcr';
 
 export interface ScanResult {
   pdf: Blob;
@@ -45,6 +45,8 @@ export interface ScanResult {
   pageCount: number;
   /** Terisi bila pembacaan teks gagal/dilewati; PDF tetap jadi. */
   ocrError?: string;
+  /** True bila pengguna mengaktifkan pembacaan teks OCR. */
+  ocrUsed?: boolean;
 }
 
 interface Props {
@@ -95,7 +97,7 @@ const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 // ---------------------------------------------------------------------------
 
 const CropEditor: React.FC<{ raw: HTMLCanvasElement; quad: Quad; onChange: (q: Quad) => void }> = ({ raw, quad, onChange }) => {
-  const url = useMemo(() => raw.toDataURL('image/jpeg', 0.9), [raw]);
+  const url = useMemo(() => raw.toDataURL('image/jpeg', 0.78), [raw]);
   const wrapRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const loupeRef = useRef<HTMLCanvasElement>(null);
@@ -286,8 +288,11 @@ export const ScanSuratModal: React.FC<Props> = ({ onClose, onDone }) => {
   const captureRef = useRef<() => void>(() => {});
   const pendingRef = useRef<HTMLCanvasElement[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const lastDetectedRef = useRef(false);
+  const lastStabilityRef = useRef(0);
 
   // pemrosesan
+  const [useOcr, setUseOcr] = useState(false);
   const [prog, setProg] = useState({ label: '', pct: 0 });
   const skipRef = useRef<(() => void) | null>(null);
 
@@ -295,8 +300,15 @@ export const ScanSuratModal: React.FC<Props> = ({ onClose, onDone }) => {
     autoRef.current = auto;
   }, [auto]);
 
+  useEffect(() => {
+    return () => {
+      pendingRef.current = [];
+      terminateOcr().catch(() => {});
+    };
+  }, []);
+
   const startDraft = (raw: HTMLCanvasElement, index: number | null = null, quad?: Quad) => {
-    const det = detectDocument(raw, raw.width, raw.height, { refineSide: 1400 });
+    const det = detectDocument(raw, raw.width, raw.height, { detectSide: 240, refineSide: 720 });
     setDraft({ raw, quad: quad || (det.found ? det.quad : defaultQuad(raw.width, raw.height)), found: det.found, index });
     setStep('crop');
   };
@@ -310,7 +322,7 @@ export const ScanSuratModal: React.FC<Props> = ({ onClose, onDone }) => {
     } catch {
       /* abaikan */
     }
-    const raw = toCanvas(v, v.videoWidth, v.videoHeight, 2600);
+    const raw = toCanvas(v, v.videoWidth, v.videoHeight, 1500);
     startDraft(raw);
   };
   captureRef.current = capture;
@@ -332,7 +344,7 @@ export const ScanSuratModal: React.FC<Props> = ({ onClose, onDone }) => {
       const v = videoRef.current;
       const ov = overlayRef.current;
       if (!v || !ov || !v.videoWidth || busyRef.current) return;
-      const r = detectDocument(v, v.videoWidth, v.videoHeight, { refineSide: 640 });
+      const r = detectDocument(v, v.videoWidth, v.videoHeight, { detectSide: 200, skipRefine: true });
       const cw = ov.clientWidth;
       const ch = ov.clientHeight;
       if (ov.width !== cw || ov.height !== ch) {
@@ -355,12 +367,19 @@ export const ScanSuratModal: React.FC<Props> = ({ onClose, onDone }) => {
         ctx.stroke();
       }
       const diag = Math.hypot(v.videoWidth, v.videoHeight);
-      if (r.found && lastQuad.current && quadsSimilar(r.quad, lastQuad.current, diag * 0.025)) stable.current++;
+      if (r.found && lastQuad.current && quadsSimilar(r.quad, lastQuad.current, diag * 0.03)) stable.current++;
       else stable.current = r.found ? 1 : 0;
       lastQuad.current = r.found ? r.quad : null;
-      setDetected(r.found);
-      setStability(Math.min(1, stable.current / 5));
-      if (autoRef.current && stable.current >= 5 && Date.now() > cooldown.current) captureRef.current();
+      const nextStab = Math.min(1, stable.current / 4);
+      if (lastDetectedRef.current !== r.found) {
+        lastDetectedRef.current = r.found;
+        setDetected(r.found);
+      }
+      if (lastStabilityRef.current !== nextStab) {
+        lastStabilityRef.current = nextStab;
+        setStability(nextStab);
+      }
+      if (autoRef.current && stable.current >= 4 && Date.now() > cooldown.current) captureRef.current();
     };
 
     (async () => {
@@ -370,7 +389,7 @@ export const ScanSuratModal: React.FC<Props> = ({ onClose, onDone }) => {
       }
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: facing }, width: { ideal: 3840 }, height: { ideal: 2160 } },
+          video: { facingMode: { ideal: facing }, width: { ideal: 1600 }, height: { ideal: 1200 } },
           audio: false,
         });
         if (cancelled) {
@@ -390,7 +409,7 @@ export const ScanSuratModal: React.FC<Props> = ({ onClose, onDone }) => {
           /* tidak semua perangkat mendukung */
         }
         setCamReady(true);
-        timer = window.setInterval(tick, 250);
+        timer = window.setInterval(tick, 450);
       } catch (e: any) {
         const name = e?.name || '';
         setCamError(
@@ -408,6 +427,8 @@ export const ScanSuratModal: React.FC<Props> = ({ onClose, onDone }) => {
       if (timer) window.clearInterval(timer);
       (stream || streamRef.current)?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
+      lastDetectedRef.current = false;
+      lastStabilityRef.current = 0;
       setTorch(false);
       setDetected(false);
       setStability(0);
@@ -431,7 +452,7 @@ export const ScanSuratModal: React.FC<Props> = ({ onClose, onDone }) => {
     try {
       const list = Array.from(files).filter((f) => f.type.startsWith('image/'));
       const canv: HTMLCanvasElement[] = [];
-      for (const f of list) canv.push(await loadImageFile(f));
+      for (const f of list) canv.push(await loadImageFile(f, 1500));
       if (!canv.length) return;
       pendingRef.current = canv.slice(1);
       startDraft(canv[0]);
@@ -448,7 +469,7 @@ export const ScanSuratModal: React.FC<Props> = ({ onClose, onDone }) => {
     setBusy(true);
     setTimeout(() => {
       try {
-        const cropped = warpToCanvas(draft.raw, draft.quad, 2000);
+        const cropped = warpToCanvas(draft.raw, draft.quad, 1450);
         if (draft.index !== null) {
           const idx = draft.index;
           setPages((prev) =>
@@ -499,7 +520,7 @@ export const ScanSuratModal: React.FC<Props> = ({ onClose, onDone }) => {
 
   // ---- ulasan halaman
   const cur = pages[sel];
-  const previewUrl = useMemo(() => (cur ? cur.final.toDataURL('image/jpeg', 0.85) : ''), [cur]);
+  const previewUrl = useMemo(() => (cur ? cur.final.toDataURL('image/jpeg', 0.78) : ''), [cur]);
 
   const setFilter = (f: FilterMode) => {
     setBusy(true);
@@ -550,73 +571,83 @@ export const ScanSuratModal: React.FC<Props> = ({ onClose, onDone }) => {
     onClose();
   };
 
-  // ---- selesai: baca teks (OCR) + buat PDF
+  // ---- selesai: buat PDF cepat (+ OCR opsional hanya halaman 1)
   const finish = async () => {
     if (!pages.length) return;
     setStep('process');
     const n = pages.length;
     let ocrError = '';
-    const ocrLines: (OcrLine[] | undefined)[] = [];
+    let firstOcrLines: OcrLine[] | undefined;
     let firstText = '';
     const skipPromise = new Promise<'skip'>((res) => {
       skipRef.current = () => res('skip');
     });
     try {
-      for (let i = 0; i < n; i++) {
-        const pg = pages[i];
-        setProg({ label: `Membaca halaman ${i + 1} dari ${n}…`, pct: i / n });
-        let lines: OcrLine[] | undefined;
-        if (!ocrError) {
-          try {
-            const r = await Promise.race([
-              ocrCanvas(applyFilter(pg.cropped, 'abu'), (info) => {
-                const st = info.status || '';
-                const label = /tesseract|core|initializ/i.test(st)
-                  ? 'Menyiapkan mesin baca teks (pertama kali agak lama)…'
-                  : /language|traineddata/i.test(st)
-                  ? 'Mengunduh data bahasa Indonesia…'
-                  : `Membaca halaman ${i + 1} dari ${n}…`;
-                setProg({ label, pct: (i + (/recogniz/i.test(st) ? info.progress : 0)) / n });
-              }),
-              skipPromise,
-            ]);
-            if (r === 'skip') {
-              ocrError = 'Pembacaan teks dilewati.';
-            } else {
-              lines = r.lines;
-              if (i === 0) firstText = r.text;
-            }
-          } catch (e: any) {
-            ocrError = e?.message || 'Pembacaan teks gagal.';
+      if (useOcr) {
+        setProg({ label: 'Membaca teks halaman 1…', pct: 0.15 });
+        try {
+          const ocrSrc = applyFilter(resizeCanvas(pages[0].cropped, 1200), 'abu');
+          const r = await Promise.race([
+            ocrCanvas(ocrSrc, (info) => {
+              const st = info.status || '';
+              const label = /tesseract|core|initializ/i.test(st)
+                ? 'Menyiapkan mesin baca teks…'
+                : /language|traineddata/i.test(st)
+                ? 'Mengunduh data bahasa Indonesia…'
+                : 'Membaca teks halaman 1…';
+              setProg({ label, pct: 0.15 + (/recogniz/i.test(st) ? info.progress * 0.55 : 0.05) });
+            }),
+            skipPromise,
+          ]);
+          if (r === 'skip') {
+            ocrError = 'Pembacaan teks dilewati.';
+          } else {
+            const scaleBack = pages[0].cropped.width / ocrSrc.width;
+            firstOcrLines = r.lines.map((l) => ({
+              ...l,
+              x0: l.x0 * scaleBack,
+              y0: l.y0 * scaleBack,
+              x1: l.x1 * scaleBack,
+              y1: l.y1 * scaleBack,
+            }));
+            firstText = r.text;
           }
+        } catch (e: any) {
+          ocrError = e?.message || 'Pembacaan teks gagal.';
+        } finally {
+          terminateOcr().catch(() => {});
         }
-        setProg({ label: 'Menyusun halaman PDF…', pct: (i + 0.9) / n });
-        ocrLines.push(lines);
       }
-      // Batas total PDF 200 KB: anggaran per halaman dihitung setelah dikurangi struktur PDF + lapisan teks OCR.
-      setProg({ label: 'Mengompres PDF (maks. 200 KB)…', pct: 0.95 });
+
+      // Batas total PDF 200 KB: anggaran per halaman dihitung setelah dikurangi struktur PDF.
+      setProg({ label: 'Mengompres & menyusun PDF ringan…', pct: 0.8 });
       const fields = firstText ? parseSurat(firstText) : {};
       const pdfName = suggestPdfName(fields);
-      const textBytes = ocrLines.reduce((t, ls) => t + (ls || []).reduce((a, l) => a + (l.text?.length || 0) + 45, 0), 0);
-      const overhead = 1800 + n * 700 + textBytes;
-      let share = Math.max(8 * 1024, (TARGET_BYTES * 0.985 - overhead) / n);
+      const textBytes = (firstOcrLines || []).reduce((a, l) => a + (l.text?.length || 0) + 45, 0);
+      const overhead = 1600 + n * 700 + textBytes;
+      let share = Math.max(8 * 1024, (TARGET_BYTES * 0.98 - overhead) / n);
       let bytes: Uint8Array = new Uint8Array(0);
-      for (let attempt = 0; attempt < 5; attempt++) {
+      for (let attempt = 0; attempt < 3; attempt++) {
         const outPages: PdfPage[] = [];
+        const startSide = share < 50 * 1024 ? 1050 : share < 90 * 1024 ? 1250 : 1450;
         for (let i = 0; i < n; i++) {
           const src = pages[i].final;
-          const c = await compressCanvas(src, share);
+          const c = await compressCanvas(src, share, { startSide });
           const k = c.w / src.width;
-          const lines = ocrLines[i]?.map((l) => ({ ...l, x0: l.x0 * k, y0: l.y0 * k, x1: l.x1 * k, y1: l.y1 * k }));
+          const lines =
+            i === 0 && firstOcrLines
+              ? firstOcrLines.map((l) => ({ ...l, x0: l.x0 * k, y0: l.y0 * k, x1: l.x1 * k, y1: l.y1 * k }))
+              : undefined;
           outPages.push({ jpeg: c.bytes, w: c.w, h: c.h, lines });
         }
         bytes = buildPdf(outPages, { title: pdfName.replace(/\.pdf$/i, ''), subject: fields.perihal || '' });
         if (bytes.length <= TARGET_BYTES) break;
-        share *= (TARGET_BYTES * 0.97) / bytes.length;
+        share *= (TARGET_BYTES * 0.95) / bytes.length;
       }
+      setProg({ label: 'Menyiapkan pratinjau…', pct: 0.96 });
       const pdf = new Blob([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer], { type: 'application/pdf' });
-      const thumb = await jpegToDataUrl((await compressCanvas(pages[0].final, TARGET_BYTES, { startSide: 1400 })).bytes);
-      onDone({ pdf, pdfName, thumb, fields, pageCount: n, ocrError: ocrError || undefined });
+      const thumb = await jpegToDataUrl((await compressCanvas(pages[0].final, 70 * 1024, { startSide: 900 })).bytes);
+      onDone({ pdf, pdfName, thumb, fields, pageCount: n, ocrError: ocrError || undefined, ocrUsed: useOcr });
     } catch (e: any) {
       setStep('review');
       setCamError(e?.message || 'Gagal membuat PDF.');
@@ -813,7 +844,7 @@ export const ScanSuratModal: React.FC<Props> = ({ onClose, onDone }) => {
             <button
               type="button"
               onClick={() => {
-                const det = detectDocument(draft.raw, draft.raw.width, draft.raw.height, { refineSide: 1400 });
+                const det = detectDocument(draft.raw, draft.raw.width, draft.raw.height, { detectSide: 240, refineSide: 720 });
                 setDraft({ ...draft, quad: det.found ? det.quad : defaultQuad(draft.raw.width, draft.raw.height), found: det.found });
               }}
               className="px-4 py-2 rounded-xl bg-white/15 text-xs font-semibold cursor-pointer"
@@ -823,7 +854,7 @@ export const ScanSuratModal: React.FC<Props> = ({ onClose, onDone }) => {
             <button
               type="button"
               onClick={() => {
-                const r = refineQuad(draft.raw, draft.raw.width, draft.raw.height, draft.quad, 1600);
+                const r = refineQuad(draft.raw, draft.raw.width, draft.raw.height, draft.quad, 900);
                 if (r) setDraft({ ...draft, quad: r });
                 else onSnapFail();
               }}
@@ -935,12 +966,20 @@ export const ScanSuratModal: React.FC<Props> = ({ onClose, onDone }) => {
               </button>
             </div>
 
+            <label className="flex items-center justify-center gap-2 text-[11px] text-neutral-300 cursor-pointer select-none">
+              <input type="checkbox" checked={useOcr} onChange={(e) => setUseOcr(e.target.checked)} />
+              <span>Baca teks otomatis hal. 1 (OCR — lebih lambat &amp; butuh internet)</span>
+            </label>
+
             <button
               type="button"
               onClick={finish}
               className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-sm flex items-center justify-center gap-2 cursor-pointer"
             >
-              <FileText className="w-4 h-4" /> Selesai: baca surat &amp; buat PDF ({pages.length} hal.)
+              <FileText className="w-4 h-4" />{' '}
+              {useOcr
+                ? `Selesai: Baca Teks & Buat PDF (${pages.length} hal.)`
+                : `Selesai: Buat PDF Cepat (${pages.length} hal.)`}
             </button>
           </div>
         </>
@@ -954,16 +993,20 @@ export const ScanSuratModal: React.FC<Props> = ({ onClose, onDone }) => {
           <div className="w-64 h-2 bg-white/15 rounded-full overflow-hidden">
             <div className="h-full bg-emerald-400 transition-all" style={{ width: `${Math.round(clamp(prog.pct, 0, 1) * 100)}%` }} />
           </div>
-          <p className="text-[11px] text-neutral-400 max-w-xs">
-            Teks surat dibaca di perangkat ini untuk mengisi nomor surat, tanggal, perihal, dan pengirim secara otomatis.
-          </p>
-          <button
-            type="button"
-            onClick={() => skipRef.current?.()}
-            className="text-[11px] underline text-neutral-300 hover:text-white cursor-pointer"
-          >
-            Lewati pembacaan teks (langsung buat PDF)
-          </button>
+          {useOcr && (
+            <>
+              <p className="text-[11px] text-neutral-400 max-w-xs">
+                Teks surat dibaca di perangkat ini untuk mengisi nomor surat, tanggal, perihal, dan pengirim secara otomatis.
+              </p>
+              <button
+                type="button"
+                onClick={() => skipRef.current?.()}
+                className="text-[11px] underline text-neutral-300 hover:text-white cursor-pointer"
+              >
+                Lewati pembacaan teks (langsung buat PDF)
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

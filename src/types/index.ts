@@ -255,6 +255,37 @@ export interface SppdData {
   keterangan: string;
 }
 
+export interface PindahData {
+  nssSekolah?: string;
+  siswaNama: string;
+  ttl: string;
+  nisn: string;
+  kelas: string;
+  jenisKelamin: string;
+  alamatSiswa: string;
+  ortuNama: string;
+  ortuAlamat: string;
+  sekolahTujuan: string;
+  alasanPindah: string;
+}
+
+export interface SuratTugasData {
+  pemberiNama: string;
+  pemberiNip: string;
+  pemberiPangkat: string;
+  pemberiJabatan: string;
+  pemberiUnitKerja: string;
+  pegawaiNama: string;
+  pegawaiNip: string;
+  pegawaiJabatan: string;
+  pegawaiUnitKerja: string;
+  untukUraian: string;
+  hariTanggal: string;
+  waktu: string;
+  tempat: string;
+  penutup: string;
+}
+
 export interface SuratKeluar {
   id: string;
   noAgenda: string;
@@ -278,6 +309,8 @@ export interface SuratKeluar {
   mode?: 'standar' | 'kustom';
   isiHtml?: string;
   sppdData?: SppdData;
+  pindahData?: PindahData;
+  tugasData?: SuratTugasData;
   lampiranPdf?: string;
   lampiranPdfName?: string;
   createdAt?: number;

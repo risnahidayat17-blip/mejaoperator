@@ -357,8 +357,12 @@ function quadValid(q: Quad, frameArea: number): boolean {
 }
 
 export interface DetectOptions {
-  /** Sisi terpanjang gambar untuk penajaman sudut (makin besar makin presisi, makin lambat). Bawaan 960. */
+  /** Sisi terpanjang gambar untuk deteksi awal (bawaan 240). */
+  detectSide?: number;
+  /** Sisi terpanjang gambar untuk penajaman sudut (makin besar makin presisi, makin lambat). Bawaan 720. */
   refineSide?: number;
+  /** Lewati penajaman sub-piksel (cepat untuk pratinjau kamera langsung). */
+  skipRefine?: boolean;
 }
 
 /**
@@ -372,7 +376,7 @@ export interface DetectOptions {
 export function detectDocument(src: Drawable, srcW: number, srcH: number, opts: DetectOptions = {}): DetectResult {
   const fallback: DetectResult = { quad: defaultQuad(srcW, srcH), found: false, confidence: 0 };
   if (!srcW || !srcH) return fallback;
-  const gr = grab(src, srcW, srcH, 320);
+  const gr = grab(src, srcW, srcH, opts.detectSide ?? 240);
   if (!gr) return fallback;
   const { w, h, rgba } = gr;
   const N = w * h;
@@ -454,8 +458,10 @@ export function detectDocument(src: Drawable, srcW: number, srcH: number, opts: 
 
   const inv = 1 / gr.scale;
   let quad = best.quad.map((p) => ({ x: p.x * inv, y: p.y * inv })) as Quad;
-  const refined = refineQuad(src, srcW, srcH, quad, opts.refineSide ?? 960);
-  if (refined) quad = refined;
+  if (!opts.skipRefine) {
+    const refined = refineQuad(src, srcW, srcH, quad, opts.refineSide ?? 720);
+    if (refined) quad = refined;
+  }
   quad = quad.map((p) => ({ x: clampN(p.x, 0, srcW), y: clampN(p.y, 0, srcH) })) as Quad;
   return { quad, found: true, confidence: Math.min(1, best.score) };
 }
@@ -527,7 +533,7 @@ function fitLine(pts: Pt[], wts: number[]): Line | null {
  * Pertajam posisi 4 sudut: cari tepi kertas di sepanjang tiap sisi pada resolusi `side`, luruskan dengan regresi,
  * lalu hitung sudut sebagai perpotongan garis. Mengembalikan null bila tepi tidak cukup jelas.
  */
-export function refineQuad(src: Drawable, srcW: number, srcH: number, quad: Quad, side = 960): Quad | null {
+export function refineQuad(src: Drawable, srcW: number, srcH: number, quad: Quad, side = 720): Quad | null {
   const gr = grab(src, srcW, srcH, side);
   if (!gr) return null;
   const { w, h, scale } = gr;
@@ -664,7 +670,7 @@ function solveHomography(dst: Pt[], src: Pt[]): number[] {
   return A.map((row) => row[8]);
 }
 
-export function outputSizeForQuad(q: Quad, maxSide = 1754): { w: number; h: number } {
+export function outputSizeForQuad(q: Quad, maxSide = 1450): { w: number; h: number } {
   let w = Math.max(dist(q[0], q[1]), dist(q[3], q[2]));
   let h = Math.max(dist(q[0], q[3]), dist(q[1], q[2]));
   w = Math.max(w, 32);
@@ -679,7 +685,7 @@ export function outputSizeForQuad(q: Quad, maxSide = 1754): { w: number; h: numb
 }
 
 /** Luruskan area di dalam `quad` menjadi gambar persegi panjang (koreksi perspektif, interpolasi bilinear). */
-export function warpToCanvas(src: HTMLCanvasElement, quad: Quad, maxSide = 1754): HTMLCanvasElement {
+export function warpToCanvas(src: HTMLCanvasElement, quad: Quad, maxSide = 1450): HTMLCanvasElement {
   const { w: W, h: H } = outputSizeForQuad(quad, maxSide);
   const sctx = src.getContext('2d', { willReadFrequently: true })!;
   const sw = src.width;
@@ -700,30 +706,46 @@ export function warpToCanvas(src: HTMLCanvasElement, quad: Quad, maxSide = 1754)
     ],
     quad
   );
+  const h0 = hm[0];
+  const h1 = hm[1];
+  const h2 = hm[2];
+  const h3 = hm[3];
+  const h4 = hm[4];
+  const h5 = hm[5];
+  const h6 = hm[6];
+  const h7 = hm[7];
+  const swMax = sw - 1.001;
+  const shMax = sh - 1.001;
+  const sw4 = sw * 4;
   for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
+    const py = y + 0.5;
+    const rowU = h1 * py + h2;
+    const rowV = h4 * py + h5;
+    const rowD = h7 * py + 1;
+    let oi = y * W * 4;
+    for (let x = 0; x < W; x++, oi += 4) {
       const px = x + 0.5;
-      const py = y + 0.5;
-      const dn = hm[6] * px + hm[7] * py + 1;
-      let u = (hm[0] * px + hm[1] * py + hm[2]) / dn - 0.5;
-      let v = (hm[3] * px + hm[4] * py + hm[5]) / dn - 0.5;
+      const dn = h6 * px + rowD;
+      let u = (h0 * px + rowU) / dn - 0.5;
+      let v = (h3 * px + rowV) / dn - 0.5;
       if (u < 0) u = 0;
-      else if (u > sw - 1.001) u = sw - 1.001;
+      else if (u > swMax) u = swMax;
       if (v < 0) v = 0;
-      else if (v > sh - 1.001) v = sh - 1.001;
+      else if (v > shMax) v = shMax;
       const x0 = u | 0;
       const y0 = v | 0;
       const fx = u - x0;
       const fy = v - y0;
-      const i00 = (y0 * sw + x0) * 4;
+      const i00 = y0 * sw4 + x0 * 4;
       const i10 = i00 + 4;
-      const i01 = i00 + sw * 4;
+      const i01 = i00 + sw4;
       const i11 = i01 + 4;
-      const w00 = (1 - fx) * (1 - fy);
-      const w10 = fx * (1 - fy);
-      const w01 = (1 - fx) * fy;
+      const fx1 = 1 - fx;
+      const fy1 = 1 - fy;
+      const w00 = fx1 * fy1;
+      const w10 = fx * fy1;
+      const w01 = fx1 * fy;
       const w11 = fx * fy;
-      const oi = (y * W + x) * 4;
       o[oi] = sd[i00] * w00 + sd[i10] * w10 + sd[i01] * w01 + sd[i11] * w11;
       o[oi + 1] = sd[i00 + 1] * w00 + sd[i10 + 1] * w10 + sd[i01 + 1] * w01 + sd[i11 + 1] * w11;
       o[oi + 2] = sd[i00 + 2] * w00 + sd[i10 + 2] * w10 + sd[i01 + 2] * w01 + sd[i11 + 2] * w11;
@@ -738,29 +760,64 @@ export function warpToCanvas(src: HTMLCanvasElement, quad: Quad, maxSide = 1754)
 // Filter (seperti "Magic Color", "Abu-abu", "Hitam Putih" di CamScanner)
 // ---------------------------------------------------------------------------
 
-/** Rata-rata abu-abu pada jendela persegi (radius r) memakai integral image. */
+/** Rata-rata abu-abu pada jendela persegi (radius r) memakai integral image Uint32 (hemat memori). */
 function localMean(gray: Float32Array, w: number, h: number, r: number): Float32Array {
   const iw = w + 1;
-  const integ = new Float64Array(iw * (h + 1));
+  const integ = new Uint32Array(iw * (h + 1));
   for (let y = 0; y < h; y++) {
     let row = 0;
+    const base = y * w;
+    const curRow = (y + 1) * iw;
+    const prevRow = y * iw;
     for (let x = 0; x < w; x++) {
-      row += gray[y * w + x];
-      integ[(y + 1) * iw + (x + 1)] = integ[y * iw + (x + 1)] + row;
+      row += gray[base + x] | 0;
+      integ[curRow + x + 1] = integ[prevRow + x + 1] + row;
     }
   }
   const out = new Float32Array(w * h);
   for (let y = 0; y < h; y++) {
-    const y0 = Math.max(0, y - r);
-    const y1 = Math.min(h, y + r + 1);
+    const y0 = y > r ? y - r : 0;
+    const y1 = y + r + 1 < h ? y + r + 1 : h;
+    const dy = y1 - y0;
+    const row0 = y0 * iw;
+    const row1 = y1 * iw;
+    const outRow = y * w;
     for (let x = 0; x < w; x++) {
-      const x0 = Math.max(0, x - r);
-      const x1 = Math.min(w, x + r + 1);
-      const s = integ[y1 * iw + x1] - integ[y0 * iw + x1] - integ[y1 * iw + x0] + integ[y0 * iw + x0];
-      out[y * w + x] = s / ((x1 - x0) * (y1 - y0));
+      const x0 = x > r ? x - r : 0;
+      const x1 = x + r + 1 < w ? x + r + 1 : w;
+      const s = integ[row1 + x1] - integ[row0 + x1] - integ[row1 + x0] + integ[row0 + x0];
+      out[outRow + x] = s / ((x1 - x0) * dy);
     }
   }
   return out;
+}
+
+/** Hitung rata-rata pencahayaan pada skala 1/4 agar jauh lebih ringan & halus untuk penghilangan bayangan. */
+function coarseMean(gray: Float32Array, w: number, h: number, radiusFull: number): { grid: Float32Array; mw: number; mh: number } {
+  const step = 4;
+  const mw = Math.max(4, Math.ceil(w / step));
+  const mh = Math.max(4, Math.ceil(h / step));
+  const small = new Float32Array(mw * mh);
+  for (let sy = 0; sy < mh; sy++) {
+    const yStart = sy * step;
+    const yEnd = Math.min(h, yStart + step);
+    for (let sx = 0; sx < mw; sx++) {
+      const xStart = sx * step;
+      const xEnd = Math.min(w, xStart + step);
+      let sum = 0;
+      let cnt = 0;
+      for (let yy = yStart; yy < yEnd; yy++) {
+        const row = yy * w;
+        for (let xx = xStart; xx < xEnd; xx++) {
+          sum += gray[row + xx];
+          cnt++;
+        }
+      }
+      small[sy * mw + sx] = sum / (cnt || 1);
+    }
+  }
+  const mr = Math.max(4, Math.round(radiusFull / step));
+  return { grid: localMean(small, mw, mh, mr), mw, mh };
 }
 
 export function applyFilter(src: HTMLCanvasElement, mode: FilterMode): HTMLCanvasElement {
@@ -776,33 +833,60 @@ export function applyFilter(src: HTMLCanvasElement, mode: FilterMode): HTMLCanva
   }
   const img = src.getContext('2d', { willReadFrequently: true })!.getImageData(0, 0, w, h);
   const d = img.data;
-  const gray = new Float32Array(w * h);
-  for (let i = 0, p = 0; i < gray.length; i++, p += 4) gray[i] = 0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2];
+  const N = w * h;
+  const gray = new Float32Array(N);
+  for (let i = 0, p = 0; i < N; i++, p += 4) gray[i] = 0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2];
 
   if (mode === 'bw') {
-    const m = localMean(gray, w, h, Math.max(10, Math.round(Math.max(w, h) / 40)));
-    for (let i = 0, p = 0; i < gray.length; i++, p += 4) {
+    const m = localMean(gray, w, h, Math.max(8, Math.round(Math.max(w, h) / 40)));
+    for (let i = 0, p = 0; i < N; i++, p += 4) {
       const v = gray[i] < m[i] * 0.9 - 4 ? 0 : 255;
       d[p] = d[p + 1] = d[p + 2] = v;
       d[p + 3] = 255;
     }
   } else {
-    const m = localMean(gray, w, h, Math.max(16, Math.round(Math.max(w, h) / 10)));
-    for (let i = 0, p = 0; i < gray.length; i++, p += 4) {
-      const k = Math.min(3, 246 / Math.max(m[i], 40));
-      const stretch = (v: number) => {
-        const t = (v * k - 38) * (255 / (236 - 38));
-        return t < 0 ? 0 : t > 255 ? 255 : t;
-      };
-      if (mode === 'abu') {
-        const v = stretch(gray[i]);
-        d[p] = d[p + 1] = d[p + 2] = v;
-      } else {
-        d[p] = stretch(d[p]);
-        d[p + 1] = stretch(d[p + 1]);
-        d[p + 2] = stretch(d[p + 2]);
+    const { grid, mw, mh } = coarseMean(gray, w, h, Math.max(16, Math.round(Math.max(w, h) / 10)));
+    const scale = 255 / (236 - 38);
+    const mwMax = mw - 1;
+    const mhMax = mh - 1;
+    for (let y = 0; y < h; y++) {
+      const gy = (y + 0.5) / 4 - 0.5;
+      const y0 = gy < 0 ? 0 : gy > mhMax ? mhMax : gy | 0;
+      const y1 = y0 < mhMax ? y0 + 1 : y0;
+      const fy = gy < 0 ? 0 : gy > mhMax ? 0 : gy - y0;
+      const fy1 = 1 - fy;
+      const r0 = y0 * mw;
+      const r1 = y1 * mw;
+      let i = y * w;
+      let p = i * 4;
+      for (let x = 0; x < w; x++, i++, p += 4) {
+        const gx = (x + 0.5) / 4 - 0.5;
+        const x0 = gx < 0 ? 0 : gx > mwMax ? mwMax : gx | 0;
+        const x1 = x0 < mwMax ? x0 + 1 : x0;
+        const fx = gx < 0 ? 0 : gx > mwMax ? 0 : gx - x0;
+        const fx1 = 1 - fx;
+        const mean =
+          grid[r0 + x0] * fx1 * fy1 +
+          grid[r0 + x1] * fx * fy1 +
+          grid[r1 + x0] * fx1 * fy +
+          grid[r1 + x1] * fx * fy;
+        const k = 246 / (mean > 40 ? mean : 40);
+        const kk = k < 3 ? k : 3;
+        if (mode === 'abu') {
+          let t = (gray[i] * kk - 38) * scale;
+          if (t < 0) t = 0;
+          else if (t > 255) t = 255;
+          d[p] = d[p + 1] = d[p + 2] = t;
+        } else {
+          let t0 = (d[p] * kk - 38) * scale;
+          let t1 = (d[p + 1] * kk - 38) * scale;
+          let t2 = (d[p + 2] * kk - 38) * scale;
+          d[p] = t0 < 0 ? 0 : t0 > 255 ? 255 : t0;
+          d[p + 1] = t1 < 0 ? 0 : t1 > 255 ? 255 : t1;
+          d[p + 2] = t2 < 0 ? 0 : t2 > 255 ? 255 : t2;
+        }
+        d[p + 3] = 255;
       }
-      d[p + 3] = 255;
     }
   }
   octx.putImageData(img, 0, 0);
@@ -822,7 +906,7 @@ export function rotateCanvas(src: HTMLCanvasElement, deg: 90 | 180 | 270): HTMLC
 }
 
 /** Salin sumber apa pun ke canvas dengan sisi terpanjang dibatasi `maxSide`. */
-export function toCanvas(src: Drawable, srcW: number, srcH: number, maxSide = 2600): HTMLCanvasElement {
+export function toCanvas(src: Drawable, srcW: number, srcH: number, maxSide = 1500): HTMLCanvasElement {
   const k = Math.max(srcW, srcH) > maxSide ? maxSide / Math.max(srcW, srcH) : 1;
   const c = document.createElement('canvas');
   c.width = Math.max(1, Math.round(srcW * k));
@@ -832,7 +916,7 @@ export function toCanvas(src: Drawable, srcW: number, srcH: number, maxSide = 26
 }
 
 /** Muat berkas gambar (foto galeri) dengan orientasi EXIF yang benar. */
-export async function loadImageFile(file: File, maxSide = 2600): Promise<HTMLCanvasElement> {
+export async function loadImageFile(file: File, maxSide = 1500): Promise<HTMLCanvasElement> {
   if (typeof createImageBitmap === 'function') {
     try {
       const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' } as ImageBitmapOptions);

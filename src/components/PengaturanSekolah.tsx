@@ -1164,13 +1164,15 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                   value={formData.formatNoSurat || ''}
                   onChange={(e) => handleFieldChange('formatNoSurat', e.target.value)}
                   disabled={!isOperator}
-                  placeholder="Contoh: 421.2/{no:3}/SD/{tahun}"
+                  placeholder="Contoh: 421.2/{no:3}/SD/{romawi}/{tahun}"
                   className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-mono font-bold text-[#0B6B58] disabled:bg-[#E8EFEC] disabled:cursor-not-allowed"
                 />
                 <p className="text-[11px] text-[#566A6E] mt-1">
                   Tag yang didukung:{' '}
                   <code className="font-bold text-[#0B6B58]">{'{no:3}'}</code> (001, 002),{' '}
                   <code className="font-bold text-[#0B6B58]">{'{no}'}</code> (1, 2),{' '}
+                  <code className="font-bold text-[#0B6B58]">{'{romawi}'}</code> (bulan Romawi I–XII sesuai titimangsa),{' '}
+                  <code className="font-bold text-[#0B6B58]">{'{bulan}'}</code> (01–12),{' '}
                   <code className="font-bold text-[#0B6B58]">{'{tahun}'}</code> (2026).
                 </p>
               </div>

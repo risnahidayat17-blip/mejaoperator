@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { SchoolConfig, SuratKeluar as ISuratKeluar, Siswa, Guru, LetterTemplate, SppdData } from '../types';
+import { SchoolConfig, SuratKeluar as ISuratKeluar, Siswa, Guru, LetterTemplate, SppdData, PindahData, SuratTugasData } from '../types';
 import {
   getSuratKeluar,
   saveSuratKeluar,
@@ -91,6 +91,61 @@ function cleanNip(nip?: string): string {
   return digits ? `NIP. ${digits}` : nip;
 }
 
+const ROMAN_MONTHS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+
+function getYearAndRomanMonth(tgl?: string): { year: string; monthPad: string; roman: string } {
+  const m = /^(\d{4})-(\d{2})/.exec(String(tgl || '').trim());
+  if (m) {
+    const year = m[1];
+    const monthNum = Math.min(12, Math.max(1, Number(m[2]) || 1));
+    return {
+      year,
+      monthPad: String(monthNum).padStart(2, '0'),
+      roman: ROMAN_MONTHS[monthNum - 1],
+    };
+  }
+  const now = new Date();
+  const year = String(now.getFullYear());
+  const monthNum = now.getMonth() + 1;
+  return {
+    year,
+    monthPad: String(monthNum).padStart(2, '0'),
+    roman: ROMAN_MONTHS[monthNum - 1],
+  };
+}
+
+function syncNoSuratWithDate(currentNo: string, nextTgl: string, prevTgl?: string): string {
+  if (!currentNo.trim()) return currentNo;
+  const { year: newYear, roman: newRoman } = getYearAndRomanMonth(nextTgl);
+  const { year: oldYear, roman: oldRoman } = getYearAndRomanMonth(prevTgl || nextTgl);
+
+  let updated = currentNo;
+  let replacedRoman = false;
+
+  const beforeYearRegex = /([/\-]\s*)(XII|XI|IX|VIII|VII|VI|IV|V|III|II|I|X)(\s*\/\s*(?:19|20)\d{2}\b)/i;
+  if (beforeYearRegex.test(updated)) {
+    updated = updated.replace(beforeYearRegex, `$1${newRoman}$3`);
+    replacedRoman = true;
+  } else if (oldRoman) {
+    const oldRomanSegRegex = new RegExp(`([/\\-]\\s*)${oldRoman}(\\s*(?=[/\\-]|$))`, 'i');
+    if (oldRomanSegRegex.test(updated)) {
+      updated = updated.replace(oldRomanSegRegex, `$1${newRoman}$2`);
+      replacedRoman = true;
+    }
+  }
+
+  if (newYear !== oldYear) {
+    updated = updated.replace(/([/\-\s])((?:19|20)\d{2})(\s*)$/, `$1${newYear}$3`);
+  } else if (!replacedRoman) {
+    const standaloneRomanRegex = /([/\-]\s*)(XII|XI|IX|VIII|VII|VI|IV|V|III|II|I|X)(\s*)$/i;
+    if (standaloneRomanRegex.test(updated)) {
+      updated = updated.replace(standaloneRomanRegex, `$1${newRoman}$3`);
+    }
+  }
+
+  return updated;
+}
+
 const SPPD_JENIS = 'SPPD (Surat Perintah Perjalanan Dinas)';
 
 function defaultSppdData(cfg: SchoolConfig): SppdData {
@@ -107,6 +162,44 @@ function defaultSppdData(cfg: SchoolConfig): SppdData {
     maksud: '',
     bebanBiaya: `Atas beban Dinas / Lembaga : ${cfg.namaSekolah || 'SDN 2 Cempaka'}`,
     keterangan: 'Lihat sebelah',
+  };
+}
+
+function defaultPindahData(cfg: SchoolConfig, s?: Siswa, formatTgl?: (t?: string) => string): PindahData {
+  const ttl = s
+    ? `${s.tempatLahir || cfg.kabupaten || 'Cirebon'}, ${formatTgl ? formatTgl(s.tglLahir) : s.tglLahir || '-'}`
+    : '';
+  return {
+    nssSekolah: cfg.nss || '101021734018',
+    siswaNama: s ? s.nama.toUpperCase() : '',
+    ttl,
+    nisn: s?.nisn || '',
+    kelas: s?.kelas ? angkaKeKata(s.kelas) : '',
+    jenisKelamin: s?.jk || 'L',
+    alamatSiswa: s?.alamat || `Desa ${cfg.desa || 'Cempaka'} Kec. ${cfg.kecamatan || 'Talun'} Kabupaten ${cfg.kabupaten || 'Cirebon'}`,
+    ortuNama: s?.namaAyah || s?.namaIbu || '',
+    ortuAlamat: s?.alamat || `Desa ${cfg.desa || 'Cempaka'} Kec. ${cfg.kecamatan || 'Talun'} Kabupaten ${cfg.kabupaten || 'Cirebon'}`,
+    sekolahTujuan: s?.tujuanMutasi || '',
+    alasanPindah: s?.alasanMutasi || 'Mengikuti Orang tua',
+  };
+}
+
+function defaultTugasData(cfg: SchoolConfig): SuratTugasData {
+  return {
+    pemberiNama: cfg.kepsek || 'H. KAERUDIN, M.Pd.',
+    pemberiNip: cfg.nipKepsek || '19720904 199412 1 001',
+    pemberiPangkat: 'Pembina Tk.I ( IV/b )',
+    pemberiJabatan: 'Kepala SD',
+    pemberiUnitKerja: cfg.namaSekolah || 'SD Negeri 2 Cempaka',
+    pegawaiNama: '',
+    pegawaiNip: '',
+    pegawaiJabatan: 'Guru Kelas',
+    pegawaiUnitKerja: `${cfg.namaSekolah || 'SD Negeri 2 Cempaka'} ${cfg.kecamatan || 'Talun'}`,
+    untukUraian: '',
+    hariTanggal: '',
+    waktu: '',
+    tempat: '',
+    penutup: 'Surat Perintah ini diberikan kepada yang bersangkutan untuk diketahui dan dilaksanakan sebagaimana mestinya.',
   };
 }
 
@@ -157,7 +250,10 @@ export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast 
   const [jabatanTtd, setJabatanTtd] = useState('Kepala Sekolah');
   const [kopOption, setKopOption] = useState('Dengan kop sekolah');
   const [sppdData, setSppdData] = useState<SppdData>(() => defaultSppdData(config));
+  const [pindahData, setPindahData] = useState<PindahData>(() => defaultPindahData(config));
+  const [tugasData, setTugasData] = useState<SuratTugasData>(() => defaultTugasData(config));
   const [selectedGuruId, setSelectedGuruId] = useState('');
+  const [selectedGuruTugasId, setSelectedGuruTugasId] = useState('');
 
   // Surat kustom (ketik bebas / impor Word)
   const [mode, setMode] = useState<'standar' | 'kustom'>('standar');
@@ -213,14 +309,17 @@ export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast 
   };
 
   const generateAutoNoSurat = (tgl: string) => {
-    const format = config.formatNoSurat || '421.2/{no:3}/SD/2026';
-    const year = tgl.slice(0, 4) || '2026';
+    const format = config.formatNoSurat || '421.2/{no:3}/SD/{romawi}/{tahun}';
+    const { year, monthPad, roman } = getYearAndRomanMonth(tgl);
     const nextNo = suratList.length + 1;
     const noPadded = String(nextNo).padStart(3, '0');
     return format
-      .replace('{no:3}', noPadded)
-      .replace('{no}', String(nextNo))
-      .replace('{tahun}', year);
+      .replace(/\{no:3\}/g, noPadded)
+      .replace(/\{no\}/g, String(nextNo))
+      .replace(/\{romawi\}/g, roman)
+      .replace(/\{bulan_romawi\}/g, roman)
+      .replace(/\{bulan\}/g, monthPad)
+      .replace(/\{tahun\}/g, year);
   };
 
   const openEditor = (surat?: ISuratKeluar | null) => {
@@ -245,7 +344,11 @@ export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast 
       setMode(surat.mode || 'standar');
       setIsiHtml(surat.isiHtml || '');
       setSppdData(surat.sppdData || defaultSppdData(config));
+      const matchedStudent = siswaList.find((x) => x.id === surat.siswaId);
+      setPindahData(surat.pindahData || defaultPindahData(config, matchedStudent, formatTanggalIndo));
+      setTugasData(surat.tugasData || defaultTugasData(config));
       setSelectedGuruId('');
+      setSelectedGuruTugasId('');
       setTplId('');
       setEditorKey((k) => k + 1);
     } else {
@@ -266,7 +369,10 @@ export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast 
       setMode('standar');
       setIsiHtml('');
       setSppdData(defaultSppdData(config));
+      setPindahData(defaultPindahData(config, firstSiswa, formatTanggalIndo));
+      setTugasData(defaultTugasData(config));
       setSelectedGuruId('');
+      setSelectedGuruTugasId('');
       setTplId('');
       setEditorKey((k) => k + 1);
 
@@ -301,6 +407,22 @@ export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast 
     }
   };
 
+  const handleSelectGuruTugas = (gId: string) => {
+    setSelectedGuruTugasId(gId);
+    const g = guruList.find((x) => x.id === gId);
+    if (!g) return;
+    setTugasData((prev) => ({
+      ...prev,
+      pegawaiNama: formatGelarInText(g.nama),
+      pegawaiNip: g.nip || '-',
+      pegawaiJabatan: g.jabatan || g.jenisGtk || 'Guru Kelas',
+    }));
+    if (!perihal.trim() || /^Surat Tugas/i.test(perihal)) {
+      setPerihal(`Surat Tugas — ${formatGelarInText(g.nama)}`);
+    }
+    setTujuan(formatGelarInText(g.nama));
+  };
+
   const handleSelectSiswa = (sId: string, currentJenis: string) => {
     setSiswaId(sId);
     const s = siswaList.find((x) => x.id === sId);
@@ -313,28 +435,20 @@ export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast 
       );
       setPenutup('Demikian surat keterangan ini dibuat untuk digunakan sebagaimana mestinya.');
     } else if (currentJenis === 'Surat keterangan pindah siswa') {
+      const pd = defaultPindahData(config, s, formatTanggalIndo);
+      setPindahData((prev) => ({
+        ...pd,
+        sekolahTujuan: s.tujuanMutasi || prev.sekolahTujuan || 'Sekolah Dasar Tujuan',
+        alasanPindah: s.alasanMutasi || prev.alasanPindah || 'Mengikuti Orang tua',
+      }));
       setPerihal(`Surat keterangan pindah siswa a.n. ${s.nama}`);
+      setTujuan(s.tujuanMutasi || '');
       setIsi(
-        `Yang bertanda tangan di bawah ini, Kepala Sekolah Dasar Negeri 2 Cempaka, Kecamatan ${
-          config.kecamatan || 'Talun'
-        } Kabupaten ${config.kabupaten || 'Cirebon'}, menerangkan bahwa :
-
-Nama : ${s.nama.toUpperCase()}
-Tempat, Tanggal Lahir : ${s.tempatLahir || '-'}, ${s.tglLahir || '-'}
-NISN : ${s.nisn || '-'}
-Kelas : ${angkaKeKata(s.kelas)}
-Jenis Kelamin : ${s.jk === 'L' ? 'Laki-laki' : 'Perempuan'}
-Alamat : ${s.alamat || '-'}
-
-Sesuai permintaan pindah oleh orang tua :
-Nama : ${s.namaAyah || s.namaIbu || '-'}
-Alamat : ${s.alamat || '-'}
-
-Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan alasan ${
-          s.alasanMutasi || 'Mengikuti kepindahan tugas dinas orang tua'
+        `${s.nama.toUpperCase()} mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan alasan ${
+          s.alasanMutasi || 'Mengikuti Orang tua'
         }.`
       );
-      setPenutup('Demikian surat keterangan ini dibuat untuk digunakan sebagaimana mestinya.');
+      setPenutup('Setelah anak diterima di sekolah ini, isian dibawah ini harap dikirim kembali pada kami.');
     }
   };
 
@@ -344,7 +458,9 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
       onToast('Perihal surat wajib diisi.', true);
       return;
     }
-    if (!noSurat.trim()) {
+    const isPindah = mode === 'standar' && jenis === 'Surat keterangan pindah siswa';
+    const isTugas = mode === 'standar' && jenis === 'Surat tugas';
+    if (!noSurat.trim() && !isPindah) {
       onToast('Nomor surat wajib diisi.', true);
       return;
     }
@@ -361,6 +477,12 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
     const sppdSummary = isSppd
       ? `${sppdData.maksud || 'Perjalanan Dinas'} di ${sppdData.ke || '-'} (${sppdData.lamaHari || '-'}, ${sppdData.tanggalPerjalanan || '-'})`
       : '';
+    const pindahSummary = isPindah
+      ? `${pindahData.siswaNama || 'Siswa'} pindah ke ${pindahData.sekolahTujuan || '-'} (${pindahData.alasanPindah || '-'})`
+      : '';
+    const tugasSummary = isTugas
+      ? `${tugasData.pegawaiNama || 'Pegawai'}: ${tugasData.untukUraian || '-'} di ${tugasData.tempat || '-'}`
+      : '';
 
     const record: ISuratKeluar = {
       id: editingSurat ? editingSurat.id : `sk_${Date.now()}`,
@@ -370,20 +492,42 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
       jenis: isKustom ? 'Surat kustom' : jenis,
       siswaId: siswaId || undefined,
       sifat,
-      tempat: isSppd ? (tempat || sppdData.dari || 'Talun') : tempat,
+      tempat: isSppd ? (tempat || sppdData.dari || 'Talun') : isTugas ? (tempat || 'Cempaka') : tempat,
       perihal: perihal.trim(),
-      tujuan: isSppd ? (sppdData.ke || tujuan).trim() : tujuan.trim(),
+      tujuan: isSppd
+        ? (sppdData.ke || tujuan).trim()
+        : isPindah
+        ? (pindahData.sekolahTujuan || tujuan).trim()
+        : isTugas
+        ? (tugasData.pegawaiNama ? `${tugasData.pegawaiNama} (${tugasData.tempat || '-'})` : tujuan).trim()
+        : tujuan.trim(),
       pembuka,
-      isi: isKustom ? htmlToPlainText(cleanHtml).slice(0, 2000) : isSppd ? sppdSummary : isi,
-      penutup,
+      isi: isKustom
+        ? htmlToPlainText(cleanHtml).slice(0, 2000)
+        : isSppd
+        ? sppdSummary
+        : isPindah
+        ? pindahSummary
+        : isTugas
+        ? tugasSummary
+        : isi,
+      penutup: isTugas ? tugasData.penutup : penutup,
       penandatangan,
       nipTtd,
-      jabatanTtd: isSppd ? (jabatanTtd || 'Pejabat yang memberi perintah') : jabatanTtd,
+      jabatanTtd: isSppd
+        ? (jabatanTtd || 'Pejabat yang memberi perintah')
+        : isPindah
+        ? (jabatanTtd || 'Kepala SDN 2 Cempaka,')
+        : isTugas
+        ? (jabatanTtd || `Kepala ${config.namaSekolah || 'SD Negeri 2 Cempaka'} Kecamatan ${config.kecamatan || 'Talun'},`)
+        : jabatanTtd,
       kop: kopOption,
       ukuranKertas: paperSize,
       mode: isKustom ? 'kustom' : 'standar',
       isiHtml: isKustom ? cleanHtml : undefined,
       sppdData: isSppd ? { ...sppdData } : undefined,
+      pindahData: isPindah ? { ...pindahData } : undefined,
+      tugasData: isTugas ? { ...tugasData } : undefined,
       lampiranPdf: editingSurat?.lampiranPdf,
       lampiranPdfName: editingSurat?.lampiranPdfName,
       createdAt: editingSurat ? editingSurat.createdAt : Date.now(),
@@ -612,10 +756,12 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
 
   const renderSuratContent = (s: ISuratKeluar) => {
     const isAktif = s.jenis === 'Surat keterangan aktif siswa';
+    const isPindah = s.jenis === 'Surat keterangan pindah siswa' || Boolean(s.pindahData);
+    const isTugas = s.jenis === 'Surat tugas' || Boolean(s.tugasData);
     const isSppd = s.jenis === SPPD_JENIS || Boolean(s.sppdData);
     const student = siswaList.find((x) => x.id === s.siswaId);
     const dateFormatted = formatTanggalIndo(s.tglSurat);
-    const isLegal = isSppd || (s.ukuranKertas || paperSize) === 'Legal';
+    const isLegal = isSppd || isPindah || (s.ukuranKertas || paperSize) === 'Legal';
 
     if (s.mode === 'kustom') {
       return (
@@ -879,7 +1025,258 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
       >
         {s.kop !== 'Tanpa kop' && <KopSuratHD config={config} />}
 
-        {isAktif ? (
+        {isPindah ? (
+          (() => {
+            const pd = s.pindahData || defaultPindahData(config, student, formatTanggalIndo);
+            const nssDigits = (pd.nssSekolah || config.nss || '101021734018').replace(/\D/g, '').padEnd(12, ' ').slice(0, 12).split('');
+            return (
+              <div
+                className="space-y-3"
+                style={{ fontFamily: "'Times New Roman', Times, serif", fontSize: '13px', color: '#000000' }}
+              >
+                {/* NSS 12 kotak */}
+                <div className="flex items-center justify-end gap-2 mt-1">
+                  <span className="font-bold text-[12.5px]">NSS :</span>
+                  <div className="inline-flex border border-black">
+                    {nssDigits.map((d, idx) => (
+                      <div
+                        key={idx}
+                        className={`w-[20px] h-[20px] flex items-center justify-center text-[11px] font-bold ${
+                          idx > 0 ? 'border-l border-black' : ''
+                        }`}
+                      >
+                        {d.trim()}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Judul */}
+                <div className="text-center pt-1 pb-2">
+                  <h2
+                    className="text-[14.5px] font-bold underline uppercase tracking-wide"
+                    style={{ textUnderlineOffset: '3px' }}
+                  >
+                    SURAT KETERANGAN
+                  </h2>
+                  <div className="text-[13px] mt-0.5">Nomor : {s.noSurat || ''}</div>
+                </div>
+
+                <div className="leading-relaxed">
+                  Yang bertandatangan di bawah ini, Kepala Sekolah Dasar Negeri 2 Cempaka, Kecamatan{' '}
+                  {config.kecamatan || 'Talun'} Kabupaten {config.kabupaten || 'Cirebon'}, menerangkan bahwa :
+                </div>
+
+                {/* Data Siswa */}
+                <div className="pl-8 grid grid-cols-[165px_14px_1fr] gap-y-0.5 leading-relaxed">
+                  <span>Nama</span>
+                  <span>:</span>
+                  <span className="font-bold uppercase">{pd.siswaNama || student?.nama || '-'}</span>
+                  <span>Tempat, Tanggal Lahir</span>
+                  <span>:</span>
+                  <span>{pd.ttl || '-'}</span>
+                  <span>NISN</span>
+                  <span>:</span>
+                  <span>{pd.nisn || student?.nisn || '-'}</span>
+                  <span>Kelas</span>
+                  <span>:</span>
+                  <span>{pd.kelas || '-'}</span>
+                  <span>Jenis Kelamin</span>
+                  <span>:</span>
+                  <span>{pd.jenisKelamin || 'L'}</span>
+                  <span>Alamat</span>
+                  <span>:</span>
+                  <span>{pd.alamatSiswa || '-'}</span>
+                </div>
+
+                <div className="pt-1">Sesuai permintaan pindah oleh orang tua :</div>
+
+                {/* Data Orang Tua */}
+                <div className="pl-8 grid grid-cols-[165px_14px_1fr] gap-y-0.5 leading-relaxed">
+                  <span>Nama</span>
+                  <span>:</span>
+                  <span>{pd.ortuNama || '-'}</span>
+                  <span>Alamat</span>
+                  <span>:</span>
+                  <span>{pd.ortuAlamat || '-'}</span>
+                </div>
+
+                <div className="pt-1 leading-relaxed">
+                  Telah mengajukan pindah ke {pd.sekolahTujuan || s.tujuan || '-'} dengan alasan{' '}
+                  {pd.alasanPindah || 'Mengikuti Orang tua'}.
+                </div>
+
+                {/* Tanda tangan Kepsek */}
+                <div className="pt-3 ml-auto w-[250px] text-left leading-normal">
+                  <div>
+                    {s.tempat || config.kabupaten || 'Cirebon'}, {dateFormatted}
+                  </div>
+                  <div>{s.jabatanTtd || 'Kepala SDN 2 Cempaka,'}</div>
+                  <div className="h-16" />
+                  <div className="font-bold underline" style={{ textUnderlineOffset: '2px' }}>
+                    {formatGelarInText(s.penandatangan || config.kepsek)}
+                  </div>
+                  <div className="text-[12.5px]">{cleanNip(s.nipTtd || config.nipKepsek)}</div>
+                </div>
+
+                {/* Garis potong putus-putus */}
+                <div className="border-t border-dashed border-black my-4" />
+
+                {/* Lembar Balasan Sekolah Tujuan */}
+                <div className="space-y-3 pt-0.5">
+                  <div>Setelah anak diterima di sekolah ini, isian dibawah ini harap dikirim kembali pada kami.</div>
+
+                  <div className="flex items-center justify-end gap-2">
+                    <span className="font-bold text-[12.5px]">NSS :</span>
+                    <div className="inline-flex border border-black">
+                      {Array.from({ length: 12 }).map((_, idx) => (
+                        <div
+                          key={idx}
+                          className={`w-[20px] h-[20px] ${idx > 0 ? 'border-l border-black' : ''}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pl-8 grid grid-cols-[165px_14px_1fr] gap-y-0.5 leading-relaxed">
+                    <span>Nama Sekolah</span>
+                    <span>:</span>
+                    <span>…………………………………………………….</span>
+                    <span>Status Sekolah</span>
+                    <span>:</span>
+                    <span>…………………………………………………….</span>
+                    <span>Alamat</span>
+                    <span>:</span>
+                    <span>…………………………………………………….</span>
+                    <span>Nama Siswa</span>
+                    <span>:</span>
+                    <span>…………………………………………………….</span>
+                    <span>Diterima di kelas</span>
+                    <span>:</span>
+                    <span>…………………………………………………….</span>
+                    <span>Diterima tanggal</span>
+                    <span>:</span>
+                    <span>…………………………………………………….</span>
+                  </div>
+
+                  <div className="pt-4 ml-auto w-[250px] text-left leading-normal">
+                    <div>…………………, ………………………</div>
+                    <div>Kepala Sekolah,</div>
+                    <div className="h-14" />
+                    <div>……………………………</div>
+                    <div>NIP.</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()
+        ) : isTugas ? (
+          (() => {
+            const td = s.tugasData || defaultTugasData(config);
+            return (
+              <div
+                className="space-y-3.5"
+                style={{ fontFamily: "'Times New Roman', Times, serif", fontSize: '13.5px', color: '#000000' }}
+              >
+                <div className="text-center mt-4 mb-5">
+                  <h2
+                    className="text-[15.5px] font-bold underline uppercase tracking-wide"
+                    style={{ textUnderlineOffset: '3px' }}
+                  >
+                    SURAT TUGAS
+                  </h2>
+                  <div className="text-[13.5px] mt-0.5">Nomor : {s.noSurat || ''}</div>
+                </div>
+
+                <div className="leading-relaxed">
+                  Kepala {config.namaSekolah || 'SD Negeri 2 Cempaka'} Kecamatan {config.kecamatan || 'Talun'} Kabupaten{' '}
+                  {config.kabupaten || 'Cirebon'}, dengan ini memberikan tugas kepada :
+                </div>
+
+                <div className="pl-10 grid grid-cols-[165px_14px_1fr] gap-y-1 leading-relaxed">
+                  <span className="tracking-wide">N a m a</span>
+                  <span>:</span>
+                  <span>{formatGelarInText(td.pemberiNama || s.penandatangan || config.kepsek)}</span>
+                  <span>NIP</span>
+                  <span>:</span>
+                  <span>{td.pemberiNip || s.nipTtd || config.nipKepsek}</span>
+                  <span>Pangkat/Gol.Ruang</span>
+                  <span>:</span>
+                  <span>{td.pemberiPangkat || 'Pembina Tk.I ( IV/b )'}</span>
+                  <span>Jabatan</span>
+                  <span>:</span>
+                  <span>{td.pemberiJabatan || 'Kepala SD'}</span>
+                  <span>Unit Kerja</span>
+                  <span>:</span>
+                  <span>{td.pemberiUnitKerja || config.namaSekolah || 'SD Negeri 2 Cempaka'}</span>
+                </div>
+
+                <div className="text-center font-bold py-2 tracking-wide">MENUGASKAN :</div>
+
+                <div>Kepada :</div>
+                <div className="pl-10 grid grid-cols-[165px_14px_1fr] gap-y-1 leading-relaxed">
+                  <span className="tracking-wide">N a m a</span>
+                  <span>:</span>
+                  <span>{formatGelarInText(td.pegawaiNama) || '-'}</span>
+                  <span>NIP</span>
+                  <span>:</span>
+                  <span>{td.pegawaiNip || '-'}</span>
+                  <span>Jabatan</span>
+                  <span>:</span>
+                  <span>{td.pegawaiJabatan || '-'}</span>
+                  <span>Unit Kerja</span>
+                  <span>:</span>
+                  <span>{td.pegawaiUnitKerja || '-'}</span>
+                </div>
+
+                <div className="pt-2">Untuk :</div>
+                <div className="pl-10 space-y-2.5 leading-relaxed">
+                  <div className="indent-10 text-justify">{td.untukUraian || s.isi}</div>
+                  <div className="grid grid-cols-[135px_14px_1fr] gap-y-1.5">
+                    <span>Hari dan Tanggal</span>
+                    <span>:</span>
+                    <span className="whitespace-pre-line">{td.hariTanggal || '-'}</span>
+                    <span>Waktu</span>
+                    <span>:</span>
+                    <span>{td.waktu || '-'}</span>
+                    <span>Tempat</span>
+                    <span>:</span>
+                    <span>{td.tempat || '-'}</span>
+                  </div>
+                </div>
+
+                <div className="pt-2 indent-10 text-justify leading-relaxed">
+                  {td.penutup ||
+                    s.penutup ||
+                    'Surat Perintah ini diberikan kepada yang bersangkutan untuk diketahui dan dilaksanakan sebagaimana mestinya.'}
+                </div>
+
+                <div className="pt-6 ml-auto w-[275px] text-left leading-normal">
+                  <div className="grid grid-cols-[110px_12px_1fr]">
+                    <span>Dikeluarkan di</span>
+                    <span>:</span>
+                    <span>{s.tempat || 'Cempaka'}</span>
+                    <span>Pada tanggal</span>
+                    <span>:</span>
+                    <span>{dateFormatted}</span>
+                  </div>
+                  <div className="mt-3">
+                    {s.jabatanTtd || (
+                      <>
+                        Kepala {config.namaSekolah || 'SD Negeri 2 Cempaka'}
+                        <br />
+                        Kecamatan {config.kecamatan || 'Talun'},
+                      </>
+                    )}
+                  </div>
+                  <div className="h-16" />
+                  <div className="font-bold">{formatGelarInText(s.penandatangan || config.kepsek)}</div>
+                  <div className="font-bold text-[13px]">{cleanNip(s.nipTtd || config.nipKepsek)}</div>
+                </div>
+              </div>
+            );
+          })()
+        ) : isAktif ? (
           <div
             className="space-y-4"
             style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '13.5px', color: '#000000' }}
@@ -1081,7 +1478,7 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
                     <div className="text-[11px] text-[#566A6E]">Penandatangan: {s.penandatangan}</div>
                   </td>
                   <td className="py-3 px-4">
-                    <div className="font-mono font-bold text-[#13262A]">{s.noSurat}</div>
+                    <div className="font-mono font-bold text-[#13262A]">{s.noSurat || '-'}</div>
                     <div className="text-[11px] text-[#566A6E]">{s.tglSurat}</div>
                   </td>
                   <td className="py-3 px-4 text-[#566A6E]">{s.tujuan || '-'}</td>
@@ -1221,6 +1618,20 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
                         if (!perihal.trim() || /^Surat keterangan/i.test(perihal)) {
                           setPerihal(`SPPD Perjalanan Dinas — ${sppdData.pegawaiNama || config.kepsek}`);
                         }
+                      } else if (val === 'Surat tugas') {
+                        setPaperSize('A4');
+                        setJabatanTtd(`Kepala ${config.namaSekolah || 'SD Negeri 2 Cempaka'} Kecamatan ${config.kecamatan || 'Talun'},`);
+                        setTempat(config.desa || 'Cempaka');
+                        setSifat('Penting');
+                        if (!perihal.trim() || /^Surat keterangan/i.test(perihal)) {
+                          setPerihal(`Surat Tugas${tugasData.pegawaiNama ? ` — ${tugasData.pegawaiNama}` : ''}`);
+                        }
+                      } else if (val === 'Surat keterangan pindah siswa') {
+                        setPaperSize('Legal');
+                        setTempat(config.kabupaten || 'Cirebon');
+                        setJabatanTtd('Kepala SDN 2 Cempaka,');
+                        if (siswaId) handleSelectSiswa(siswaId, val);
+                        else setPerihal('Surat keterangan pindah siswa');
                       } else if (t) {
                         setPaperSize(t.ukuranKertas || 'A4');
                         if (t.pembuka) setPembuka(t.pembuka);
@@ -1232,10 +1643,8 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
                         setPaperSize('A4');
                         setPembuka('Yang bertanda tangan di bawah ini:');
                         setPenutup('Demikian surat keterangan ini dibuat untuk digunakan sebagaimana mestinya.');
-                      } else if (val === 'Surat keterangan pindah siswa') {
-                        setPaperSize('Legal');
                       }
-                      if (siswaId) handleSelectSiswa(siswaId, val);
+                      if (siswaId && val !== 'Surat keterangan pindah siswa') handleSelectSiswa(siswaId, val);
                     }}
                     className="w-full px-3 py-2 text-xs border border-[#D3DDD9] rounded-lg bg-white font-bold text-[#0B6B58]"
                   >
@@ -1244,7 +1653,10 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
                         Surat Keterangan Aktif Siswa (A4 Presisi)
                       </option>
                       <option value="Surat keterangan pindah siswa">
-                        Surat Keterangan Pindah Siswa (Legal / F4)
+                        Surat Keterangan Pindah Siswa + Lembar Balasan (Legal / F4)
+                      </option>
+                      <option value="Surat tugas">
+                        Surat Tugas / Diklat Guru (A4 Presisi)
                       </option>
                       <option value={SPPD_JENIS}>
                         SPPD — Surat Perintah Perjalanan Dinas (2 Halaman)
@@ -1257,6 +1669,7 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
                             !t.isiHtml &&
                             t.judul !== 'Surat keterangan aktif siswa' &&
                             t.judul !== 'Surat keterangan pindah siswa' &&
+                            t.judul !== 'Surat tugas' &&
                             t.judul !== SPPD_JENIS
                         )
                         .map((t) => (
@@ -1515,7 +1928,7 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
                       value={noSurat}
                       onChange={(e) => setNoSurat(e.target.value)}
                       required
-                      placeholder="Contoh: 421.2/045/SD/2026"
+                      placeholder="Contoh: 421.2/045/SD/XI/2026"
                       className="w-full px-3 py-2 text-xs border border-[#D3DDD9] rounded-lg font-mono font-bold"
                     />
                   </div>
@@ -1524,7 +1937,11 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
                     <input
                       type="date"
                       value={tglSurat}
-                      onChange={(e) => setTglSurat(e.target.value)}
+                      onChange={(e) => {
+                        const nextTgl = e.target.value;
+                        setNoSurat((prev) => syncNoSuratWithDate(prev, nextTgl, tglSurat));
+                        setTglSurat(nextTgl);
+                      }}
                       className="w-full px-3 py-2 text-xs border border-[#D3DDD9] rounded-lg"
                     />
                   </div>
@@ -1680,7 +2097,251 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
                   </div>
                 )}
 
-                {mode === 'standar' && jenis !== SPPD_JENIS && (
+                {mode === 'standar' && jenis === 'Surat keterangan pindah siswa' && (
+                  <div className="p-3.5 bg-[#DAEEE7]/50 border border-[#0B6B58]/30 rounded-xl space-y-2.5 text-xs">
+                    <div className="font-bold text-[#0B6B58]">Rincian Surat Keterangan Pindah &amp; Lembar Balasan</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">NSS Sekolah (12 digit)</label>
+                        <input
+                          type="text"
+                          value={pindahData.nssSekolah || ''}
+                          onChange={(e) => setPindahData({ ...pindahData, nssSekolah: e.target.value })}
+                          placeholder="101021734018"
+                          className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">Nama Siswa</label>
+                        <input
+                          type="text"
+                          value={pindahData.siswaNama}
+                          onChange={(e) => setPindahData({ ...pindahData, siswaNama: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white font-bold"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">Tempat, Tanggal Lahir</label>
+                        <input
+                          type="text"
+                          value={pindahData.ttl}
+                          onChange={(e) => setPindahData({ ...pindahData, ttl: e.target.value })}
+                          placeholder="Cirebon, 10 Oktober 2016"
+                          className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">NISN</label>
+                        <input
+                          type="text"
+                          value={pindahData.nisn}
+                          onChange={(e) => setPindahData({ ...pindahData, nisn: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white font-mono"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">Kelas</label>
+                        <input
+                          type="text"
+                          value={pindahData.kelas}
+                          onChange={(e) => setPindahData({ ...pindahData, kelas: e.target.value })}
+                          placeholder="IV (Empat)"
+                          className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">Jenis Kelamin</label>
+                        <input
+                          type="text"
+                          value={pindahData.jenisKelamin}
+                          onChange={(e) => setPindahData({ ...pindahData, jenisKelamin: e.target.value })}
+                          placeholder="L / P"
+                          className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-[#566A6E] mb-1">Alamat Siswa</label>
+                      <input
+                        type="text"
+                        value={pindahData.alamatSiswa}
+                        onChange={(e) => setPindahData({ ...pindahData, alamatSiswa: e.target.value })}
+                        className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">Nama Orang Tua</label>
+                        <input
+                          type="text"
+                          value={pindahData.ortuNama}
+                          onChange={(e) => setPindahData({ ...pindahData, ortuNama: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">Alamat Orang Tua</label>
+                        <input
+                          type="text"
+                          value={pindahData.ortuAlamat}
+                          onChange={(e) => setPindahData({ ...pindahData, ortuAlamat: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">Pindah ke Sekolah</label>
+                        <input
+                          type="text"
+                          value={pindahData.sekolahTujuan}
+                          onChange={(e) => setPindahData({ ...pindahData, sekolahTujuan: e.target.value })}
+                          placeholder="SLB-B Beringin Bhakti Kecamatan Talun..."
+                          className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">Alasan Pindah</label>
+                        <input
+                          type="text"
+                          value={pindahData.alasanPindah}
+                          onChange={(e) => setPindahData({ ...pindahData, alasanPindah: e.target.value })}
+                          placeholder="Mengikuti Orang tua"
+                          className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {mode === 'standar' && jenis === 'Surat tugas' && (
+                  <div className="p-3.5 bg-[#DAEEE7]/50 border border-[#0B6B58]/30 rounded-xl space-y-2.5 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-[#0B6B58]">Rincian Surat Tugas</span>
+                      <select
+                        value={selectedGuruTugasId}
+                        onChange={(e) => handleSelectGuruTugas(e.target.value)}
+                        className="px-2.5 py-1 text-[11px] border border-[#D3DDD9] rounded-lg bg-white font-semibold max-w-[210px]"
+                      >
+                        <option value="">-- Pilih Pegawai Ditugaskan --</option>
+                        {guruList.map((g) => (
+                          <option key={g.id} value={g.id}>
+                            {g.nama} ({g.jabatan || g.jenisGtk})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">Pemberi Tugas (Kepala Sekolah)</label>
+                        <input
+                          type="text"
+                          value={tugasData.pemberiNama}
+                          onChange={(e) => setTugasData({ ...tugasData, pemberiNama: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">Pangkat/Gol.Ruang Pemberi Tugas</label>
+                        <input
+                          type="text"
+                          value={tugasData.pemberiPangkat}
+                          onChange={(e) => setTugasData({ ...tugasData, pemberiPangkat: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">Nama Pegawai Ditugaskan</label>
+                        <input
+                          type="text"
+                          value={tugasData.pegawaiNama}
+                          onChange={(e) => setTugasData({ ...tugasData, pegawaiNama: e.target.value })}
+                          placeholder="WIDIYAWATI, S.Pd.I."
+                          className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white font-semibold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">NIP Pegawai</label>
+                        <input
+                          type="text"
+                          value={tugasData.pegawaiNip}
+                          onChange={(e) => setTugasData({ ...tugasData, pegawaiNip: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white font-mono"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">Jabatan Pegawai</label>
+                        <input
+                          type="text"
+                          value={tugasData.pegawaiJabatan}
+                          onChange={(e) => setTugasData({ ...tugasData, pegawaiJabatan: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">Unit Kerja Pegawai</label>
+                        <input
+                          type="text"
+                          value={tugasData.pegawaiUnitKerja}
+                          onChange={(e) => setTugasData({ ...tugasData, pegawaiUnitKerja: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-[#566A6E] mb-1">Untuk (Uraian Tugas / Diklat)</label>
+                      <textarea
+                        value={tugasData.untukUraian}
+                        onChange={(e) => setTugasData({ ...tugasData, untukUraian: e.target.value })}
+                        rows={2}
+                        placeholder="Mengikuti Program Pengembangan Kompetensi..."
+                        className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-[#566A6E] mb-1">Hari dan Tanggal</label>
+                      <textarea
+                        value={tugasData.hariTanggal}
+                        onChange={(e) => setTugasData({ ...tugasData, hariTanggal: e.target.value })}
+                        rows={2}
+                        placeholder="Senin – Jumat, 9 – 20 November 2026..."
+                        className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">Waktu</label>
+                        <input
+                          type="text"
+                          value={tugasData.waktu}
+                          onChange={(e) => setTugasData({ ...tugasData, waktu: e.target.value })}
+                          placeholder="09.30 – 12.30 WIB"
+                          className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-[#566A6E] mb-1">Tempat</label>
+                        <input
+                          type="text"
+                          value={tugasData.tempat}
+                          onChange={(e) => setTugasData({ ...tugasData, tempat: e.target.value })}
+                          placeholder="SD Negeri 1 Kerandon Kec. Talun"
+                          className="w-full px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {mode === 'standar' && jenis !== SPPD_JENIS && jenis !== 'Surat keterangan pindah siswa' && jenis !== 'Surat tugas' && (
                   <>
                 {jenis !== 'Surat keterangan aktif siswa' && (
                   <div>
@@ -1777,7 +2438,7 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
                     id: 'live_preview',
                     noAgenda: '1',
                     tglSurat,
-                    noSurat: noSurat || '421.2/.../SD/2026',
+                    noSurat: noSurat || `421.2/.../SD/${getYearAndRomanMonth(tglSurat).roman}/${getYearAndRomanMonth(tglSurat).year}`,
                     jenis,
                     siswaId,
                     tempat,
@@ -1794,6 +2455,8 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
                     mode,
                     isiHtml,
                     sppdData: jenis === SPPD_JENIS ? sppdData : undefined,
+                    pindahData: jenis === 'Surat keterangan pindah siswa' ? pindahData : undefined,
+                    tugasData: jenis === 'Surat tugas' ? tugasData : undefined,
                   })}
                 </div>
               </div>
@@ -1879,7 +2542,7 @@ Telah mengajukan pindah ke ${s.tujuanMutasi || 'Sekolah Dasar Tujuan'} dengan al
               <div className="flex items-center gap-2">
                 <a
                   href={pdfViewer.url}
-                  download={pdfViewer.fileName || 'SPPD.pdf'}
+                  download={pdfViewer.fileName || 'Dokumen.pdf'}
                   className="px-3 py-1.5 text-xs bg-[#0B6B58] hover:bg-[#095747] text-white font-semibold rounded-lg flex items-center gap-1.5 transition"
                 >
                   <FileDown className="w-3.5 h-3.5" /> Unduh PDF
