@@ -2379,7 +2379,7 @@ export function getKeuangan(): KeuanganState {
 
 export function saveKeuangan(keuangan: KeuanganState): void {
   setToStorage(KEYS.KEUANGAN, keuangan);
-  recordActivity('Keuangan', `Simpan pemutakhiran BKU & Kwitansi (${keuangan.bku?.length || 0} transaksi)`, false, 'update');
+  recordActivity('Keuangan', `Simpan pemutakhiran BKU & Dokumen SPJ (${keuangan.bku?.length || 0} transaksi)`, false, 'update');
 }
 
 // Backup & Export / Import

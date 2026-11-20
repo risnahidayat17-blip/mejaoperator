@@ -1051,3 +1051,50 @@ h1, h2, h3, h4 {
   }
 }
 
+/* ===== SPJ Keuangan A4 (Nota Pesanan, BAST, Model A2, Tanda Terima Honor, Dokumentasi, Invoice) ===== */
+.spj-a4-sheet {
+  width: 210mm;
+  min-height: 297mm;
+  box-sizing: border-box;
+  padding: 13mm 15mm;
+  background: #ffffff;
+  color: #000000;
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 11pt;
+  line-height: 1.4;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+.spj-a4-sheet--sans {
+  font-family: Arial, Helvetica, sans-serif;
+}
+.spj-a4-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.spj-a4-table th,
+.spj-a4-table td {
+  border: 0.75pt solid #111111;
+  padding: 5px 7px;
+  vertical-align: top;
+}
+.spj-a4-table th {
+  background: #f1f5f9;
+  font-weight: 700;
+  text-align: center;
+}
+@media print {
+  body.printing-portal #app-print-portal .spj-a4-sheet {
+    width: 100% !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+  }
+  body.printing-portal #app-print-portal .spj-a4-sheet + .spj-a4-sheet {
+    margin-top: 0 !important;
+    break-before: page !important;
+    page-break-before: always !important;
+    padding-top: var(--print-pt, 12mm) !important;
+  }
+}

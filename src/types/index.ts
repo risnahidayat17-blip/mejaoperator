@@ -473,6 +473,86 @@ export interface ArsipLaporan {
   updatedAt?: number;
 }
 
+export type SpjDocType =
+  | 'kwitansi'
+  | 'nota_pesanan'
+  | 'bast'
+  | 'model_a2'
+  | 'tanda_terima_honor'
+  | 'dokumentasi'
+  | 'invoice';
+
+export interface SpjItemRow {
+  nama: string;
+  vol: string;
+  satuan: string;
+  harga: number;
+}
+
+export interface SpjHonorRow {
+  nama: string;
+  jabatan: string;
+  vol: string;
+  satuanHonor: number;
+  pph: number;
+}
+
+export interface SpjFotoItem {
+  url: string;
+  caption?: string;
+}
+
+export interface KeuanganEditRow {
+  noKw?: string;
+  tgl?: string;
+  penerima?: string;
+  alamatPenerima?: string;
+  npwpPenerima?: string;
+  telpPenerima?: string;
+  jabatanPenerima?: string;
+  untuk?: string;
+  kodeRek?: string;
+  pelaksanaNama?: string;
+  pelaksanaNip?: string;
+  // Rincian barang/jasa bersama (Nota Pesanan, BAST, Invoice)
+  items?: SpjItemRow[];
+  // Nota Pesanan
+  noPesanan?: string;
+  tglPesanan?: string;
+  batasWaktu?: string;
+  catatanPesanan?: string;
+  // BAST
+  noBast?: string;
+  tglBast?: string;
+  catatanBast?: string;
+  // Model A2
+  noA2?: string;
+  tglA2?: string;
+  kodeKegiatan?: string;
+  ppn?: number;
+  pph?: number;
+  jenisPph?: string;
+  // Tanda Terima Honor
+  noHonor?: string;
+  tglHonor?: string;
+  honorJudul?: string;
+  honorRows?: SpjHonorRow[];
+  // Dokumentasi Kegiatan
+  dokJudul?: string;
+  dokTanggal?: string;
+  dokTempat?: string;
+  dokPelaksana?: string;
+  dokCatatan?: string;
+  dokFoto?: SpjFotoItem[];
+  // Invoice
+  noInvoice?: string;
+  tglInvoice?: string;
+  jatuhTempo?: string;
+  metodeBayar?: string;
+  ppnInvoice?: number;
+  statusInvoice?: string;
+}
+
 export interface KeuanganState {
   settings: {
     bendaharaNama: string;
@@ -480,6 +560,8 @@ export interface KeuanganState {
     sumberDana: string;
     kota: string;
     prefix: string;
+    pemdaTitle?: string;
+    tahunAnggaran?: string;
     ukuranKwitansi?: 'kecil' | 'sedang';
     warnaKwitansi?: 'biru' | 'hijau' | 'kuning' | 'merah' | 'ungu' | 'abu';
     previewGambar?: boolean;
@@ -493,13 +575,7 @@ export interface KeuanganState {
     pengeluaran: number;
     kodeRek?: string;
   }>;
-  edits: Record<string, {
-    noKw?: string;
-    tgl?: string;
-    penerima?: string;
-    untuk?: string;
-    kodeRek?: string;
-  }>;
+  edits: Record<string, KeuanganEditRow>;
   fileName?: string;
 }
 

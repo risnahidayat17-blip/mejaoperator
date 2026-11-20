@@ -5,9 +5,17 @@
 
 import React, { useState, useEffect, useRef, useMemo, useId } from 'react';
 import { createPortal } from 'react-dom';
-import { SchoolConfig, KeuanganState } from '../types';
+import { SchoolConfig, KeuanganState, KeuanganEditRow, SpjDocType } from '../types';
 import { getKeuangan, saveKeuangan, subscribeToStorage } from '../lib/storage';
-import { triggerGooglePrint } from '../lib/print';
+import { triggerGooglePrint, printDomElement } from '../lib/print';
+import {
+  SPJ_DOC_TABS,
+  DOC_ICON_MAP,
+  SpjDocSheet,
+  SpjDocEditor,
+  computeSpjValues,
+  SPJ_A4_PRINT_OPTIONS,
+} from './SpjKeuanganDocs';
 import {
   Upload,
   Printer,
@@ -15,6 +23,7 @@ import {
   Eye,
   EyeOff,
   Palette,
+  Layers,
 } from 'lucide-react';
 
 interface LaporanKeuanganProps {
@@ -758,9 +767,12 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
   const [confirmClear, setConfirmClear] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [previewScale, setPreviewScale] = useState(1);
+  const [activeDoc, setActiveDoc] = useState<SpjDocType>('kwitansi');
+  const [printBundleMode, setPrintBundleMode] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewContainerRef = useRef<HTMLDivElement>(null);
+  const spjPrintSourceRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     return subscribeToStorage(() => setState(getKeuangan()));
@@ -791,8 +803,9 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
   const showPrintArt = state.settings.printGambar === true;
 
   const activeSize = KWITANSI_SIZES[sizeKey];
-  const naturalWidth = activeSize.widthMm * MM_TO_PX_96DPI;
-  const naturalHeight = activeSize.heightMm * MM_TO_PX_96DPI;
+  const isKwitansiDoc = activeDoc === 'kwitansi';
+  const naturalWidth = (isKwitansiDoc ? activeSize.widthMm : 210) * MM_TO_PX_96DPI;
+  const naturalHeight = (isKwitansiDoc ? activeSize.heightMm : 297) * MM_TO_PX_96DPI;
 
   // Adjust preview scaling dynamically to active sheet dimensions
   useEffect(() => {
@@ -807,7 +820,7 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [hasData, naturalWidth]);
+  }, [hasData, naturalWidth, activeDoc]);
 
   const getComputedRowValues = (row: KeuanganState['bku'][0], index: number) => {
     const edit = state.edits[row.id] || {};
@@ -820,7 +833,7 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
     };
   };
 
-  const updateRowEdit = (rowId: string, patch: Partial<{ noKw: string; tgl: string; penerima: string; untuk: string; kodeRek: string }>) => {
+  const updateRowEdit = (rowId: string, patch: Partial<KeuanganEditRow>) => {
     saveState({
       ...state,
       edits: {
@@ -906,29 +919,52 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
 
   const printItems = checkedIds.size > 0 ? bku.filter((r) => checkedIds.has(r.id)) : selectedRow ? [selectedRow] : [];
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     if (!printItems.length) {
-      onToast('Pilih kwitansi yang akan dicetak.', true);
+      onToast('Pilih transaksi BKU yang akan dicetak.', true);
       return;
     }
-    triggerGooglePrint({
-      pageCss: `@page{size:${activeSize.widthMm}mm ${activeSize.heightMm}mm;margin:0}`,
-      bodyClass: 'printing-kwitansi',
-      targetRoot: document.getElementById('kw-print-root') || document.body,
+    if (activeDoc === 'kwitansi') {
+      triggerGooglePrint({
+        pageCss: `@page{size:${activeSize.widthMm}mm ${activeSize.heightMm}mm;margin:0}`,
+        bodyClass: 'printing-kwitansi',
+        targetRoot: document.getElementById('kw-print-root') || document.body,
+      });
+      return;
+    }
+    setPrintBundleMode(false);
+    await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+    await printDomElement(spjPrintSourceRef.current, SPJ_A4_PRINT_OPTIONS);
+  };
+
+  const handlePrintBundleSpj = async () => {
+    if (!printItems.length) {
+      onToast('Pilih transaksi BKU yang akan dicetak.', true);
+      return;
+    }
+    setPrintBundleMode(true);
+    await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+    await printDomElement(spjPrintSourceRef.current, {
+      ...SPJ_A4_PRINT_OPTIONS,
+      onCleanup: () => setPrintBundleMode(false),
     });
   };
 
   const selectedIndex = selectedRow ? bku.findIndex((r) => r.id === selectedRow.id) : -1;
   const computedSelected = selectedRow ? getComputedRowValues(selectedRow, selectedIndex) : null;
+  const computedSpjSelected = selectedRow
+    ? computeSpjValues(selectedRow, selectedIndex, state.edits[selectedRow.id], state.settings, config)
+    : null;
+  const activeTabMeta = SPJ_DOC_TABS.find((t) => t.id === activeDoc) || SPJ_DOC_TABS[0];
 
   return (
     <div className="space-y-5">
       {/* Top Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#13262A] font-display">Laporan Keuangan & Kwitansi BOS</h1>
+          <h1 className="text-2xl font-bold text-[#13262A] font-display">Laporan Keuangan &amp; SPJ BKU BOS</h1>
           <p className="text-xs text-[#566A6E] mt-1">
-            Import buku kas umum (BKU), konversi otomatis ke kwitansi standar BOS, dan cetak massal.
+            Import buku kas umum (BKU), kelola Kwitansi, Nota Pesanan, BAST, Model A2, Tanda Terima Honor, Dokumentasi Kegiatan &amp; Invoice terhubung otomatis.
           </p>
         </div>
 
@@ -1058,196 +1094,228 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
 
           {/* Right: Live Preview & Editor */}
           <div className="bg-white border border-[#D3DDD9] rounded-xl p-4 min-w-0">
+            {/* Document Type Switcher Bar (Connected to BKU) */}
+            <div className="flex items-center gap-1.5 flex-wrap pb-3 mb-3 border-b border-[#E4EBE8]">
+              {SPJ_DOC_TABS.map((tab) => {
+                const isActive = activeDoc === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveDoc(tab.id)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer whitespace-nowrap ${
+                      isActive
+                        ? 'bg-[#0B6B58] border-[#0B6B58] text-white shadow-xs'
+                        : 'bg-[#F8FAF9] border-[#D3DDD9] text-[#566A6E] hover:bg-white hover:text-[#13262A]'
+                    }`}
+                  >
+                    {DOC_ICON_MAP[tab.id]}
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
             <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-bold text-sm text-[#13262A]">
-                  Preview Kwitansi &middot; {selectedIndex + 1} dari {bku.length}
+                  {activeTabMeta.label} &middot; {selectedIndex + 1} dari {bku.length}
                 </span>
                 <span className="text-[11px] font-medium text-[#566A6E] bg-[#F1F4F2] px-2 py-0.5 rounded-md whitespace-nowrap">
-                  {activeSize.mmLabel}
+                  {isKwitansiDoc ? activeSize.mmLabel : activeTabMeta.paperLabel}
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={handlePrint}
-                className="px-4 py-2 text-xs font-semibold rounded-lg bg-[#0B6B58] hover:bg-[#095747] text-white cursor-pointer shadow-xs flex items-center gap-1.5 whitespace-nowrap"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                {checkedIds.size > 0 ? `Cetak ${checkedIds.size} terpilih` : 'Cetak Kwitansi Ini'}
-              </button>
-            </div>
-
-            {/* Pengaturan Ukuran, Warna & Gambar Preview / Print */}
-            <div className="mb-3 p-3 rounded-xl bg-[#F8FAF9] border border-[#D3DDD9] flex flex-wrap items-center justify-between gap-3 text-xs">
-              {/* Pilihan Ukuran */}
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] font-semibold text-[#566A6E]">Ukuran:</span>
-                <div className="inline-flex rounded-lg border border-[#D3DDD9] bg-white p-0.5">
-                  {(Object.keys(KWITANSI_SIZES) as KwitansiSizeKey[]).map((key) => {
-                    const spec = KWITANSI_SIZES[key];
-                    const active = sizeKey === key;
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => updateSettings({ ukuranKwitansi: key })}
-                        className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition cursor-pointer whitespace-nowrap ${
-                          active
-                            ? 'bg-[#0B6B58] text-white shadow-xs'
-                            : 'text-[#566A6E] hover:text-[#13262A]'
-                        }`}
-                      >
-                        {spec.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Pilihan Warna Kwitansi */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] font-semibold text-[#566A6E] flex items-center gap-1">
-                  <Palette className="w-3.5 h-3.5 text-[#0B6B58]" />
-                  Warna:
-                </span>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {(Object.keys(KWITANSI_COLORS) as KwitansiColorKey[]).map((key) => {
-                    const p = KWITANSI_COLORS[key];
-                    const active = colorKey === key;
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        title={p.label}
-                        onClick={() => updateSettings({ warnaKwitansi: key })}
-                        className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[11px] font-medium transition cursor-pointer whitespace-nowrap ${
-                          active
-                            ? 'bg-white border-[#0B6B58] text-[#13262A] ring-1 ring-[#0B6B58]/30 shadow-xs'
-                            : 'bg-white/70 border-[#D3DDD9] text-[#566A6E] hover:bg-white'
-                        }`}
-                      >
-                        <span
-                          className="w-3 h-3 rounded-full border border-black/15 shrink-0"
-                          style={{ backgroundColor: p.swatch }}
-                        />
-                        <span>{p.label.split(' ')[0]}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Toggle Gambar di Preview & Saat Print */}
-              <div className="flex items-center gap-2 flex-wrap w-full pt-2 border-t border-[#E4EBE8]">
-                <span className="text-[11px] font-semibold text-[#566A6E]">Gambar Kwitansi:</span>
+                {!isKwitansiDoc && (
+                  <button
+                    type="button"
+                    onClick={handlePrintBundleSpj}
+                    title="Cetak seluruh 6 dokumen SPJ A4 (Nota Pesanan, BAST, Model A2, Tanda Terima Honor, Dokumentasi, Invoice)"
+                    className="px-3 py-2 text-xs font-semibold rounded-lg bg-white border border-[#0B6B58] text-[#0B6B58] hover:bg-emerald-50 cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    Cetak Paket SPJ A4
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => updateSettings({ previewGambar: !showPreviewArt })}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition cursor-pointer whitespace-nowrap ${
-                    showPreviewArt
-                      ? 'bg-emerald-50 border-[#0B6B58]/40 text-[#0B6B58]'
-                      : 'bg-white border-[#D3DDD9] text-[#566A6E]'
-                  }`}
+                  onClick={handlePrint}
+                  className="px-4 py-2 text-xs font-semibold rounded-lg bg-[#0B6B58] hover:bg-[#095747] text-white cursor-pointer shadow-xs flex items-center gap-1.5 whitespace-nowrap"
                 >
-                  {showPreviewArt ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                  Preview: {showPreviewArt ? 'Dengan Gambar' : 'Tanpa Gambar'}
+                  <Printer className="w-3.5 h-3.5" />
+                  {checkedIds.size > 0
+                    ? `Cetak ${checkedIds.size} terpilih`
+                    : `Cetak ${activeTabMeta.shortLabel} Ini`}
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => updateSettings({ printGambar: !showPrintArt })}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition cursor-pointer whitespace-nowrap ${
-                    showPrintArt
-                      ? 'bg-emerald-50 border-[#0B6B58]/40 text-[#0B6B58]'
-                      : 'bg-white border-[#D3DDD9] text-[#566A6E]'
-                  }`}
-                >
-                  {showPrintArt ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                  Saat Print: {showPrintArt ? 'Ikut Gambar' : 'Tanpa Gambar (Blangko)'}
-                </button>
-
-                <span className="text-[11px] text-[#566A6E] ml-auto">
-                  {showPrintArt
-                    ? 'Cetak penuh dengan gambar & warna latar (kertas polos).'
-                    : 'Print hanya mencetak teks & kolom (gambar hanya tampil di preview).'}
-                </span>
               </div>
             </div>
+
+            {/* Pengaturan Ukuran, Warna & Gambar Preview / Print (khusus Kwitansi BOS) */}
+            {isKwitansiDoc && (
+              <div className="mb-3 p-3 rounded-xl bg-[#F8FAF9] border border-[#D3DDD9] flex flex-wrap items-center justify-between gap-3 text-xs">
+                {/* Pilihan Ukuran */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] font-semibold text-[#566A6E]">Ukuran:</span>
+                  <div className="inline-flex rounded-lg border border-[#D3DDD9] bg-white p-0.5">
+                    {(Object.keys(KWITANSI_SIZES) as KwitansiSizeKey[]).map((key) => {
+                      const spec = KWITANSI_SIZES[key];
+                      const active = sizeKey === key;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => updateSettings({ ukuranKwitansi: key })}
+                          className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition cursor-pointer whitespace-nowrap ${
+                            active
+                              ? 'bg-[#0B6B58] text-white shadow-xs'
+                              : 'text-[#566A6E] hover:text-[#13262A]'
+                          }`}
+                        >
+                          {spec.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Pilihan Warna Kwitansi */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] font-semibold text-[#566A6E] flex items-center gap-1">
+                    <Palette className="w-3.5 h-3.5 text-[#0B6B58]" />
+                    Warna:
+                  </span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {(Object.keys(KWITANSI_COLORS) as KwitansiColorKey[]).map((key) => {
+                      const p = KWITANSI_COLORS[key];
+                      const active = colorKey === key;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          title={p.label}
+                          onClick={() => updateSettings({ warnaKwitansi: key })}
+                          className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[11px] font-medium transition cursor-pointer whitespace-nowrap ${
+                            active
+                              ? 'bg-white border-[#0B6B58] text-[#13262A] ring-1 ring-[#0B6B58]/30 shadow-xs'
+                              : 'bg-white/70 border-[#D3DDD9] text-[#566A6E] hover:bg-white'
+                          }`}
+                        >
+                          <span
+                            className="w-3 h-3 rounded-full border border-black/15 shrink-0"
+                            style={{ backgroundColor: p.swatch }}
+                          />
+                          <span>{p.label.split(' ')[0]}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Toggle Gambar di Preview & Saat Print */}
+                <div className="flex items-center gap-2 flex-wrap w-full pt-2 border-t border-[#E4EBE8]">
+                  <span className="text-[11px] font-semibold text-[#566A6E]">Gambar Kwitansi:</span>
+                  <button
+                    type="button"
+                    onClick={() => updateSettings({ previewGambar: !showPreviewArt })}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition cursor-pointer whitespace-nowrap ${
+                      showPreviewArt
+                        ? 'bg-emerald-50 border-[#0B6B58]/40 text-[#0B6B58]'
+                        : 'bg-white border-[#D3DDD9] text-[#566A6E]'
+                    }`}
+                  >
+                    {showPreviewArt ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                    Preview: {showPreviewArt ? 'Dengan Gambar' : 'Tanpa Gambar'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => updateSettings({ printGambar: !showPrintArt })}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition cursor-pointer whitespace-nowrap ${
+                      showPrintArt
+                        ? 'bg-emerald-50 border-[#0B6B58]/40 text-[#0B6B58]'
+                        : 'bg-white border-[#D3DDD9] text-[#566A6E]'
+                    }`}
+                  >
+                    {showPrintArt ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                    Saat Print: {showPrintArt ? 'Ikut Gambar' : 'Tanpa Gambar (Blangko)'}
+                  </button>
+
+                  <span className="text-[11px] text-[#566A6E] ml-auto">
+                    {showPrintArt
+                      ? 'Cetak penuh dengan gambar & warna latar (kertas polos).'
+                      : 'Print hanya mencetak teks & kolom (gambar hanya tampil di preview).'}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Scaled Sheet Container */}
             <div ref={previewContainerRef} className="w-full bg-[#F1F4F2] rounded-lg overflow-hidden p-2 border border-[#E2E8E5]">
-              <div
-                className="shadow-sm"
-                style={{ width: naturalWidth * previewScale, height: naturalHeight * previewScale, margin: '0 auto' }}
-              >
-                <div style={{ transform: `scale(${previewScale})`, transformOrigin: 'top left', width: naturalWidth }}>
-                  <KwitansiView
-                    config={config}
-                    settings={state.settings}
-                    row={selectedRow}
-                    v={computedSelected}
-                    sizeKey={sizeKey}
-                    colorKey={colorKey}
-                    showArt={showPreviewArt}
-                  />
+              {isKwitansiDoc ? (
+                <div
+                  className="shadow-sm"
+                  style={{ width: naturalWidth * previewScale, height: naturalHeight * previewScale, margin: '0 auto' }}
+                >
+                  <div style={{ transform: `scale(${previewScale})`, transformOrigin: 'top left', width: naturalWidth }}>
+                    <KwitansiView
+                      config={config}
+                      settings={state.settings}
+                      row={selectedRow}
+                      v={computedSelected}
+                      sizeKey={sizeKey}
+                      colorKey={colorKey}
+                      showArt={showPreviewArt}
+                    />
+                  </div>
                 </div>
-              </div>
+              ) : (
+                computedSpjSelected && (
+                  <div
+                    className="shadow-sm bg-white"
+                    style={{
+                      width: naturalWidth * previewScale,
+                      minHeight: naturalHeight * previewScale,
+                      margin: '0 auto',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <div
+                      style={{
+                        zoom: previewScale,
+                        width: naturalWidth,
+                      }}
+                    >
+                      <SpjDocSheet
+                        docType={activeDoc}
+                        config={config}
+                        settings={state.settings}
+                        row={selectedRow}
+                        v={computedSpjSelected}
+                      />
+                    </div>
+                  </div>
+                )
+              )}
             </div>
 
-            {/* Row Form Inputs */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-4 text-xs">
-              <div>
-                <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">No. Kwitansi</label>
-                <input
-                  value={computedSelected.noKw}
-                  onChange={(e) => updateRowEdit(selectedRow.id, { noKw: e.target.value })}
-                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">Tanggal Kwitansi</label>
-                <input
-                  type="date"
-                  value={computedSelected.tgl}
-                  onChange={(e) => updateRowEdit(selectedRow.id, { tgl: e.target.value })}
-                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">Kode Rekening</label>
-                <input
-                  value={computedSelected.kodeRek}
-                  onChange={(e) => updateRowEdit(selectedRow.id, { kodeRek: e.target.value })}
-                  placeholder="mis. 5.1.02.01.01.0026"
-                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white font-mono"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">Penerima (Toko / Orang)</label>
-                <input
-                  value={computedSelected.penerima}
-                  onChange={(e) => updateRowEdit(selectedRow.id, { penerima: e.target.value })}
-                  placeholder="Nama toko / penerima uang"
-                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
-                />
-              </div>
-              <div className="md:col-span-4">
-                <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">Untuk Pembayaran</label>
-                <textarea
-                  value={computedSelected.untuk}
-                  onChange={(e) => updateRowEdit(selectedRow.id, { untuk: e.target.value })}
-                  rows={2}
-                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
-                />
-              </div>
-            </div>
+            {/* Unified BKU-Connected Form Inputs */}
+            {computedSpjSelected && (
+              <SpjDocEditor
+                docType={activeDoc}
+                row={selectedRow}
+                v={computedSpjSelected}
+                edit={state.edits[selectedRow.id] || {}}
+                onPatch={(patch) => updateRowEdit(selectedRow.id, patch)}
+                onToast={onToast}
+              />
+            )}
 
             {/* Collapsible Global Settings */}
-            <details className="mt-3 text-xs">
+            <details className="mt-4 text-xs">
               <summary className="font-semibold text-[#0B6B58] cursor-pointer">
-                Pengaturan Bendahara & Sumber Dana
+                Pengaturan Bendahara, Pemda &amp; Sumber Dana
               </summary>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 p-3 bg-[#F8FAF9] rounded-xl border border-[#D3DDD9]">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3 p-3 bg-[#F8FAF9] rounded-xl border border-[#D3DDD9]">
                 <div>
                   <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">Nama Bendahara</label>
                   <input
@@ -1273,10 +1341,28 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">Kota / Tempat Kwitansi</label>
+                  <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">Kota / Tempat Surat</label>
                   <input
                     value={state.settings.kota}
                     onChange={(e) => updateSettings({ kota: e.target.value })}
+                    className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">Prefix Penomoran SPJ</label>
+                  <input
+                    value={state.settings.prefix}
+                    onChange={(e) => updateSettings({ prefix: e.target.value })}
+                    placeholder="BOSP"
+                    className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">Tahun Anggaran (Opsional)</label>
+                  <input
+                    value={state.settings.tahunAnggaran ?? ''}
+                    onChange={(e) => updateSettings({ tahunAnggaran: e.target.value })}
+                    placeholder="Otomatis dari tanggal BKU"
                     className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
                   />
                 </div>
@@ -1286,7 +1372,31 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
         </div>
       )}
 
-      {/* Printing Portal */}
+      {/* Hidden offscreen A4 SPJ print source cloned by printDomElement */}
+      <div className="hidden" aria-hidden="true">
+        <div ref={spjPrintSourceRef}>
+          {activeDoc !== 'kwitansi' &&
+            printItems.flatMap((r) => {
+              const idx = bku.findIndex((item) => item.id === r.id);
+              const v = computeSpjValues(r, idx, state.edits[r.id], state.settings, config);
+              const docsToRender: Exclude<SpjDocType, 'kwitansi'>[] = printBundleMode
+                ? ['nota_pesanan', 'bast', 'model_a2', 'tanda_terima_honor', 'dokumentasi', 'invoice']
+                : [activeDoc];
+              return docsToRender.map((doc) => (
+                <SpjDocSheet
+                  key={`${r.id}-${doc}`}
+                  docType={doc}
+                  config={config}
+                  settings={state.settings}
+                  row={r}
+                  v={v}
+                />
+              ));
+            })}
+        </div>
+      </div>
+
+      {/* Kwitansi Printing Portal */}
       {createPortal(
         <div id="kw-print-root">
           {printItems.map((r) => (
