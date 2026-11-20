@@ -12,14 +12,10 @@ import { getKeuangan, saveKeuangan, subscribeToStorage } from '../lib/storage';
 import { triggerGooglePrint, printDomElement } from '../lib/print';
 import {
   SPJ_DOC_TABS,
-  SPJ_KATEGORI_META,
   DOC_ICON_MAP,
   SpjDocSheet,
   SpjDocEditor,
   computeSpjValues,
-  detectSpjKategori,
-  getAllowedDocTabs,
-  getBundleDocsForKategori,
   SPJ_A4_PRINT_OPTIONS,
 } from './SpjKeuanganDocs';
 import {
@@ -1235,18 +1231,7 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
   const computedSpjSelected = selectedRow
     ? computeSpjValues(selectedRow, selectedIndex, state.edits[selectedRow.id], state.settings, config)
     : null;
-  const allowedTabs = computedSpjSelected
-    ? getAllowedDocTabs(computedSpjSelected.kategori)
-    : SPJ_DOC_TABS;
-  const activeTabMeta = allowedTabs.find((t) => t.id === activeDoc) || allowedTabs[0];
-
-  useEffect(() => {
-    if (!computedSpjSelected) return;
-    const allowed = getAllowedDocTabs(computedSpjSelected.kategori);
-    if (!allowed.some((t) => t.id === activeDoc)) {
-      setActiveDoc(computedSpjSelected.kategori === 'barang_jasa' ? 'nota_pesanan' : 'tanda_terima_honor');
-    }
-  }, [computedSpjSelected?.kategori, activeDoc]);
+  const activeTabMeta = SPJ_DOC_TABS.find((t) => t.id === activeDoc) || SPJ_DOC_TABS[0];
 
   return (
     <div className="space-y-5">
@@ -1348,44 +1333,35 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
             </div>
 
             <div className="kw-list divide-y divide-gray-100">
-              {filteredBku.map((r) => {
-                const kat = state.edits[r.id]?.kategoriSpj ?? detectSpjKategori(state.edits[r.id]?.untuk ?? r.uraian, state.edits[r.id]?.kodeRek ?? r.kodeRek);
-                const katMeta = SPJ_KATEGORI_META[kat];
-                return (
-                  <div
-                    key={r.id}
-                    onClick={() => setSelectedId(r.id)}
-                    className={`flex gap-2.5 px-3 py-2.5 cursor-pointer transition ${
-                      r.id === selectedId ? 'bg-[#E8EFEC]' : 'hover:bg-gray-50'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checkedIds.has(r.id)}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={() => toggleCheck(r.id)}
-                      className="mt-0.5 accent-[#0B6B58]"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[11px] text-[#566A6E]">
-                        {r.tgl ? formatTglIndo(r.tgl) : 'Tanpa tanggal'}
-                        {r.noBukti ? ` \xB7 ${r.noBukti}` : ''}
-                      </div>
-                      <div className="text-xs font-semibold text-[#13262A] leading-snug line-clamp-2">
-                        {r.uraian}
-                      </div>
-                      <div className="flex items-center justify-between gap-2 mt-1">
-                        <span className="text-xs font-mono font-bold text-[#0B6B58]">
-                          {formatRupiah(r.pengeluaran)}
-                        </span>
-                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border whitespace-nowrap ${katMeta.badgeCls}`}>
-                          {katMeta.shortLabel}
-                        </span>
-                      </div>
+              {filteredBku.map((r) => (
+                <div
+                  key={r.id}
+                  onClick={() => setSelectedId(r.id)}
+                  className={`flex gap-2.5 px-3 py-2.5 cursor-pointer transition ${
+                    r.id === selectedId ? 'bg-[#E8EFEC]' : 'hover:bg-gray-50'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checkedIds.has(r.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={() => toggleCheck(r.id)}
+                    className="mt-0.5 accent-[#0B6B58]"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] text-[#566A6E]">
+                      {r.tgl ? formatTglIndo(r.tgl) : 'Tanpa tanggal'}
+                      {r.noBukti ? ` \xB7 ${r.noBukti}` : ''}
+                    </div>
+                    <div className="text-xs font-semibold text-[#13262A] leading-snug line-clamp-2">
+                      {r.uraian}
+                    </div>
+                    <div className="text-xs font-mono font-bold text-[#0B6B58] mt-0.5">
+                      {formatRupiah(r.pengeluaran)}
                     </div>
                   </div>
-                );
-              })}
+                </div>
+              ))}
               {filteredBku.length === 0 && (
                 <div className="p-6 text-center text-xs text-[#566A6E]">Tidak ada hasil.</div>
               )}
@@ -1394,9 +1370,9 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
 
           {/* Right: Live Preview & Editor */}
           <div className="bg-white border border-[#D3DDD9] rounded-xl p-4 min-w-0">
-            {/* Document Type Switcher Bar (Filtered by Transaction Category) */}
+            {/* Document Type Switcher Bar (Connected to BKU) */}
             <div className="flex items-center gap-1.5 flex-wrap pb-3 mb-3 border-b border-[#E4EBE8]">
-              {allowedTabs.map((tab) => {
+              {SPJ_DOC_TABS.map((tab) => {
                 const isActive = activeDoc === tab.id;
                 return (
                   <button
@@ -1414,15 +1390,6 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
                   </button>
                 );
               })}
-              {computedSpjSelected && (
-                <span
-                  className={`ml-auto text-[11px] font-semibold px-2.5 py-1 rounded-lg border whitespace-nowrap ${
-                    SPJ_KATEGORI_META[computedSpjSelected.kategori].badgeCls
-                  }`}
-                >
-                  {SPJ_KATEGORI_META[computedSpjSelected.kategori].label}
-                </span>
-              )}
             </div>
 
             <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
@@ -1439,11 +1406,7 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
                   <button
                     type="button"
                     onClick={handlePrintBundleSpj}
-                    title={
-                      computedSpjSelected
-                        ? SPJ_KATEGORI_META[computedSpjSelected.kategori].desc
-                        : 'Cetak seluruh dokumen SPJ A4 sesuai kategori transaksi'
-                    }
+                    title="Cetak seluruh 6 dokumen SPJ A4 (Nota Pesanan, BAST, Model A2, Tanda Terima Honor, Dokumentasi, Invoice)"
                     className="px-3 py-2 text-xs font-semibold rounded-lg bg-white border border-[#0B6B58] text-[#0B6B58] hover:bg-emerald-50 cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
                   >
                     <Layers className="w-3.5 h-3.5" />
@@ -1688,17 +1651,13 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
       {/* Hidden offscreen A4 SPJ print source cloned by printDomElement */}
       <div className="hidden" aria-hidden="true">
         <div ref={spjPrintSourceRef}>
-          {(printBundleMode || activeDoc !== 'kwitansi') &&
+          {activeDoc !== 'kwitansi' &&
             printItems.flatMap((r) => {
               const idx = bku.findIndex((item) => item.id === r.id);
               const v = computeSpjValues(r, idx, state.edits[r.id], state.settings, config);
               const docsToRender: Exclude<SpjDocType, 'kwitansi'>[] = printBundleMode
-                ? getBundleDocsForKategori(v.kategori)
-                : v.kategori !== 'barang_jasa' && (activeDoc === 'nota_pesanan' || activeDoc === 'bast' || activeDoc === 'invoice')
-                  ? []
-                  : activeDoc === 'kwitansi'
-                    ? []
-                    : [activeDoc];
+                ? ['nota_pesanan', 'bast', 'model_a2', 'tanda_terima_honor', 'dokumentasi', 'invoice']
+                : [activeDoc];
               return docsToRender.map((doc) => (
                 <SpjDocSheet
                   key={`${r.id}-${doc}`}

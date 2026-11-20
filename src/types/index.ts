@@ -482,8 +482,6 @@ export type SpjDocType =
   | 'dokumentasi'
   | 'invoice';
 
-export type SpjKategori = 'barang_jasa' | 'honor' | 'lembur' | 'sppd';
-
 export interface SpjItemRow {
   nama: string;
   vol: string;
@@ -505,7 +503,6 @@ export interface SpjFotoItem {
 }
 
 export interface KeuanganEditRow {
-  kategoriSpj?: SpjKategori;
   noKw?: string;
   tgl?: string;
   penerima?: string;
