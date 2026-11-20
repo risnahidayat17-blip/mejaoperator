@@ -5,6 +5,8 @@
 
 import React, { useState, useEffect, useRef, useMemo, useId } from 'react';
 import { createPortal } from 'react-dom';
+import * as pdfjsLib from 'pdfjs-dist';
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { SchoolConfig, KeuanganState, KeuanganEditRow, SpjDocType } from '../types';
 import { getKeuangan, saveKeuangan, subscribeToStorage } from '../lib/storage';
 import { triggerGooglePrint, printDomElement } from '../lib/print';
@@ -25,6 +27,8 @@ import {
   Palette,
   Layers,
 } from 'lucide-react';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 interface LaporanKeuanganProps {
   role: 'operator' | 'guru';
@@ -382,14 +386,286 @@ function parseBkuTable(rows: any[][]) {
   return records;
 }
 
+interface PdfTextItem {
+  x: number;
+  y: number;
+  w: number;
+  s: string;
+}
+
+interface PdfColDef {
+  name: string;
+  xMid: number;
+  boundLeft: number;
+  boundRight: number;
+}
+
+const PDF_ALL_COL_PATTERNS: [string, RegExp][] = [
+  ['tgl', /\b(tanggal|tgl)\b/],
+  ['kodeRek', /kode rekening|kode rek|kode akun|\brekening\b/],
+  ['noBku', /\bno bku\b/],
+  ['noBukti', /\b(no bukti|bukti|kwitansi|nota)\b/],
+  ['uraian', /uraian|keterangan|deskripsi/],
+  ['penerimaan', /penerimaan|debet|debit|masuk/],
+  ['pengeluaran', /pengeluaran|kredit|keluar|realisasi/],
+  ['saldo', /\bsaldo\b/],
+  ['no', /^no$/],
+];
+
+function groupPdfItemsByY(items: PdfTextItem[], yTol = 4): { y: number; items: PdfTextItem[] }[] {
+  const sorted = [...items].sort((a, b) => b.y - a.y || a.x - b.x);
+  const lines: { y: number; items: PdfTextItem[] }[] = [];
+  for (const it of sorted) {
+    const last = lines[lines.length - 1];
+    if (last && Math.abs(last.y - it.y) <= yTol) {
+      last.items.push(it);
+    } else {
+      lines.push({ y: it.y, items: [it] });
+    }
+  }
+  for (const ln of lines) ln.items.sort((a, b) => a.x - b.x);
+  return lines;
+}
+
+function detectPdfHeaderColumns(items: PdfTextItem[]): { cols: PdfColDef[]; headerBottomY: number } | null {
+  const bands = groupPdfItemsByY(items, 4.5);
+  for (let i = 0; i < Math.min(bands.length, 40); i++) {
+    // Merge up to 3 closely stacked header lines (e.g., "Kode\nRekening", "No.\nBukti")
+    const bandItems: PdfTextItem[] = [...bands[i].items];
+    let minY = bands[i].y;
+    for (let j = i + 1; j < Math.min(bands.length, i + 4); j++) {
+      if (bands[i].y - bands[j].y <= 18) {
+        bandItems.push(...bands[j].items);
+        minY = Math.min(minY, bands[j].y);
+      } else {
+        break;
+      }
+    }
+
+    const joined = normHeader(bandItems.map((b) => b.s).join(' '));
+    if (!(/uraian|keterangan|deskripsi/.test(joined) && /pengeluaran|kredit|keluar|realisasi/.test(joined))) {
+      continue;
+    }
+
+    // Group horizontally overlapping items inside the header band into column header labels
+    const xClusters: { xMin: number; xMax: number; parts: PdfTextItem[] }[] = [];
+    const sorted = [...bandItems].sort((a, b) => a.x - b.x);
+    for (const it of sorted) {
+      const itRight = it.x + Math.max(8, it.w);
+      const match = xClusters.find(
+        (c) => Math.max(c.xMin, it.x) <= Math.min(c.xMax, itRight) + 6
+      );
+      if (match) {
+        match.parts.push(it);
+        match.xMin = Math.min(match.xMin, it.x);
+        match.xMax = Math.max(match.xMax, itRight);
+      } else {
+        xClusters.push({ xMin: it.x, xMax: itRight, parts: [it] });
+      }
+    }
+
+    const colsRaw: { name: string; xMid: number; xMin: number; xMax: number }[] = [];
+    const usedNames = new Set<string>();
+    for (const c of xClusters) {
+      c.parts.sort((a, b) => b.y - a.y || a.x - b.x);
+      const label = normHeader(c.parts.map((p) => p.s).join(' '));
+      for (const [colName, rx] of PDF_ALL_COL_PATTERNS) {
+        if (!usedNames.has(colName) && rx.test(label)) {
+          usedNames.add(colName);
+          colsRaw.push({
+            name: colName,
+            xMid: (c.xMin + c.xMax) / 2,
+            xMin: c.xMin,
+            xMax: c.xMax,
+          });
+          break;
+        }
+      }
+    }
+
+    if (colsRaw.some((c) => c.name === 'uraian') && colsRaw.some((c) => c.name === 'pengeluaran')) {
+      colsRaw.sort((a, b) => a.xMid - b.xMid);
+      const cols: PdfColDef[] = colsRaw.map((c, idx) => {
+        const prev = colsRaw[idx - 1];
+        const next = colsRaw[idx + 1];
+        const boundLeft = prev ? (prev.xMid + c.xMid) / 2 : -Infinity;
+        const boundRight = next ? (c.xMid + next.xMid) / 2 : Infinity;
+        return { name: c.name, xMid: c.xMid, boundLeft, boundRight };
+      });
+      return { cols, headerBottomY: minY };
+    }
+  }
+  return null;
+}
+
+const PDF_DATE_CELL_RX = /^(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|\d{4}-\d{1,2}-\d{1,2})$/;
+const PDF_NUM_TOKEN_RX = /^-?(?:\d{1,3}(?:\.\d{3})+|\d+)(?:,\d{1,2})?$/;
+const PDF_FOOTER_RX = /^(kas di bendahara|mengetahui\s*:?|kepala\b|bendahara\b|jumlah seluruh|total seluruh|disetujui|#\s*seratus|a\.\s*tunai|b\.\s*bank|c\.\s*pajak)/i;
+
+async function parsePdfBkuRows(buffer: ArrayBuffer): Promise<any[][]> {
+  const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
+  const headerNames = ['Tanggal', 'No. Bukti', 'Kode Rekening', 'Uraian', 'Pengeluaran'];
+  const outRows: any[][] = [headerNames];
+  let activeCols: PdfColDef[] | null = null;
+
+  for (let p = 1; p <= doc.numPages; p++) {
+    const page = await doc.getPage(p);
+    const tc = await page.getTextContent();
+    const items: PdfTextItem[] = [];
+    for (const raw of tc.items as any[]) {
+      const s = String(raw?.str ?? '');
+      if (!s.trim()) continue;
+      items.push({
+        x: Number(raw.transform?.[4] ?? 0),
+        y: Number(raw.transform?.[5] ?? 0),
+        w: Number(raw.width ?? 0),
+        s,
+      });
+    }
+    if (!items.length) continue;
+
+    const detected = detectPdfHeaderColumns(items);
+    if (detected) activeCols = detected.cols.map((c) => ({ ...c }));
+    if (!activeCols) continue;
+
+    const bodyStartY = detected ? detected.headerBottomY - 4 : Infinity;
+    const bodyItems = items.filter((it) => it.y < bodyStartY);
+    const lines = groupPdfItemsByY(bodyItems, 4.5);
+
+    // Stop before footer block on this page
+    const validLines: { y: number; items: PdfTextItem[] }[] = [];
+    for (const ln of lines) {
+      const fullLineText = ln.items.map((i) => i.s).join(' ').trim();
+      if (/^\d+\/\d+$/.test(fullLineText) && ln.y < 40) continue; // page number like "1/1"
+      if (PDF_FOOTER_RX.test(fullLineText)) break;
+      validLines.push(ln);
+    }
+
+    // Calibrate left boundary of wide centered 'uraian' column from actual wrapped/long description items
+    const uraianIdx = activeCols.findIndex((c) => c.name === 'uraian');
+    if (uraianIdx > 0) {
+      const uCol = activeCols[uraianIdx];
+      const prevCol = activeCols[uraianIdx - 1];
+      let inferredLeft = uCol.boundLeft;
+      for (const ln of validLines) {
+        for (const it of ln.items) {
+          const mid = it.x + it.w / 2;
+          if (mid >= uCol.boundLeft && mid < uCol.boundRight && it.x > prevCol.xMid + 12) {
+            inferredLeft = Math.min(inferredLeft, it.x);
+          }
+        }
+      }
+      if (inferredLeft < uCol.boundLeft && inferredLeft > prevCol.xMid + 12) {
+        uCol.boundLeft = inferredLeft - 4;
+        prevCol.boundRight = uCol.boundLeft;
+      }
+    }
+
+    const findColIdx = (it: PdfTextItem): number => {
+      if (!activeCols) return -1;
+      const tokens = it.s.trim().split(/\s+/);
+      const isMergedNums = tokens.length >= 2 && tokens.every((t) => PDF_NUM_TOKEN_RX.test(t));
+      const probeX = isMergedNums ? it.x + 2 : it.x + it.w / 2;
+      for (let idx = 0; idx < activeCols.length; idx++) {
+        if (probeX >= activeCols[idx].boundLeft && probeX < activeCols[idx].boundRight) {
+          return idx;
+        }
+      }
+      // Nearest fallback
+      let bestIdx = 0;
+      let bestDist = Infinity;
+      activeCols.forEach((c, idx) => {
+        const d = Math.abs(probeX - c.xMid);
+        if (d < bestDist) {
+          bestDist = d;
+          bestIdx = idx;
+        }
+      });
+      return bestIdx;
+    };
+
+    // Find row anchors: lines with a date or a numeric amount in Penerimaan/Pengeluaran or "Saldo Awal"
+    const anchorIndices: number[] = [];
+    validLines.forEach((ln, idx) => {
+      let hasDate = false;
+      let hasAmount = false;
+      for (const it of ln.items) {
+        const colIdx = findColIdx(it);
+        const colName = activeCols?.[colIdx]?.name || '';
+        const txt = it.s.trim();
+        if (colName === 'tgl' && PDF_DATE_CELL_RX.test(txt)) hasDate = true;
+        if ((colName === 'pengeluaran' || colName === 'penerimaan') && /\d/.test(txt)) hasAmount = true;
+      }
+      if (hasDate || hasAmount) anchorIndices.push(idx);
+    });
+
+    if (!anchorIndices.length) continue;
+
+    // Group lines around each anchor using Y midpoints between consecutive anchors
+    const buckets: { y: number; items: PdfTextItem[] }[][] = anchorIndices.map(() => []);
+    for (let li = 0; li < validLines.length; li++) {
+      const ly = validLines[li].y;
+      let bestA = 0;
+      let bestDist = Infinity;
+      for (let ai = 0; ai < anchorIndices.length; ai++) {
+        const ay = validLines[anchorIndices[ai]].y;
+        const d = Math.abs(ly - ay);
+        if (d < bestDist) {
+          bestDist = d;
+          bestA = ai;
+        }
+      }
+      buckets[bestA].push(validLines[li]);
+    }
+
+    for (const bucket of buckets) {
+      bucket.sort((a, b) => b.y - a.y);
+      const cellMap: Record<string, string[]> = {};
+      for (const ln of bucket) {
+        for (const it of ln.items) {
+          const startIdx = findColIdx(it);
+          if (startIdx < 0 || !activeCols) continue;
+          const tokens = it.s.trim().split(/\s+/);
+          const isMergedNums = tokens.length >= 2 && tokens.every((t) => PDF_NUM_TOKEN_RX.test(t));
+          if (isMergedNums) {
+            tokens.forEach((tok, offset) => {
+              const targetCol = activeCols![startIdx + offset];
+              if (targetCol) {
+                (cellMap[targetCol.name] ||= []).push(tok);
+              }
+            });
+          } else {
+            const colName = activeCols[startIdx].name;
+            (cellMap[colName] ||= []).push(it.s.trim());
+          }
+        }
+      }
+
+      const tglStr = (cellMap.tgl || []).join(' ').trim();
+      const noBuktiStr = (cellMap.noBukti || cellMap.noBku || []).join(' ').trim();
+      const kodeRekStr = (cellMap.kodeRek || []).join(' ').trim();
+      const uraianStr = (cellMap.uraian || []).join(' ').replace(/\s+/g, ' ').trim();
+      const pengeluaranStr = (cellMap.pengeluaran || []).join(' ').trim();
+
+      if (uraianStr || pengeluaranStr) {
+        outRows.push([tglStr, noBuktiStr, kodeRekStr, uraianStr, pengeluaranStr]);
+      }
+    }
+  }
+
+  return outRows;
+}
+
 async function parseBkuFile(file: File) {
   const lower = file.name.toLowerCase();
   if (lower.endsWith('.xls')) {
-    throw new Error('Format .xls lama belum didukung. Simpan ulang BKU sebagai .xlsx atau .csv.');
+    throw new Error('Format .xls lama belum didukung. Simpan ulang BKU sebagai .xlsx, .csv, atau .pdf.');
   }
 
   let sheetsRows: any[][][];
-  if (lower.endsWith('.xlsx') || lower.endsWith('.xlsm')) {
+  if (lower.endsWith('.pdf') || file.type === 'application/pdf') {
+    sheetsRows = [await parsePdfBkuRows(await file.arrayBuffer())];
+  } else if (lower.endsWith('.xlsx') || lower.endsWith('.xlsm')) {
     sheetsRows = (await parseXlsxSheets(await file.arrayBuffer())).map((s) => s.rows);
   } else {
     sheetsRows = [parseDelimitedText(await file.text())];
@@ -994,7 +1270,7 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
       <input
         ref={fileInputRef}
         type="file"
-        accept=".xlsx,.xlsm,.csv,.tsv,.txt"
+        accept=".xlsx,.xlsm,.csv,.tsv,.txt,.pdf,application/pdf"
         className="hidden"
         onChange={(e) => {
           handleFileUpload(e.target.files?.[0]);
@@ -1022,7 +1298,7 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
         >
           <Upload className="w-10 h-10 mx-auto text-[#0B6B58]" />
           <h3 className="font-bold text-sm text-[#13262A] mt-2">Import Buku Kas Umum (BKU)</h3>
-          <p className="text-xs text-[#566A6E] mt-1">Klik atau seret file .xlsx / .csv ke sini</p>
+          <p className="text-xs text-[#566A6E] mt-1">Klik atau seret file .xlsx / .csv / .pdf ke sini</p>
           <p className="text-[11px] text-[#566A6E] mt-3">
             Kolom yang otomatis dibaca: <b>Tanggal</b> &middot; <b>No. Bukti</b> &middot; <b>Uraian</b> &middot; <b>Pengeluaran</b>
           </p>
