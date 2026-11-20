@@ -583,8 +583,8 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                 </div>
               </div>
 
-              {/* Layout & Height Controls */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-3 border-t border-[#D3DDD9]">
+              {/* Layout & Individual Logo Size Controls */}
+              <div className="space-y-4 pt-3 border-t border-[#D3DDD9]">
                 <div className="p-4 bg-[#F8FAF9] rounded-xl border border-[#D3DDD9] space-y-2.5">
                   <label className="text-xs font-bold text-[#13262A] flex items-center gap-1.5">
                     Tata Letak Penempatan Logo:
@@ -609,29 +609,111 @@ export const PengaturanSekolah: React.FC<PengaturanSekolahProps> = ({
                   </p>
                 </div>
 
-                <div className="p-4 bg-[#F8FAF9] rounded-xl border border-[#D3DDD9] space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-[#13262A] flex items-center gap-1.5">
-                      Tinggi Logo di Kop Surat:
-                    </label>
-                    <span className="font-mono text-xs font-bold text-[#0B6B58]">
-                      {formData.logoHeight || 100} px
-                    </span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Ukuran Logo Pemda */}
+                  <div className="p-4 bg-[#F8FAF9] rounded-xl border border-[#D3DDD9] space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-[#13262A]">
+                        Ukuran Logo Pemda:
+                      </label>
+                      <span className="font-mono text-xs font-bold text-[#0B6B58] bg-[#DAEEE7] px-2 py-0.5 rounded">
+                        {formData.logoPemdaHeight || formData.logoHeight || 100} px
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="50"
+                      max="150"
+                      step="2"
+                      value={formData.logoPemdaHeight || formData.logoHeight || 100}
+                      onChange={(e) => handleFieldChange('logoPemdaHeight', Number(e.target.value))}
+                      disabled={!isOperator}
+                      className="w-full accent-[#0B6B58] cursor-pointer disabled:cursor-not-allowed"
+                    />
+                    <div className="flex items-center justify-between text-[10px] text-[#566A6E]">
+                      <span>Kecil (50px)</span>
+                      <span>Standar (100px)</span>
+                      <span>Besar (150px)</span>
+                    </div>
+                    {isOperator && (
+                      <div className="flex items-center gap-1.5 pt-1">
+                        {[
+                          { label: 'Kecil', val: 72 },
+                          { label: 'Sedang', val: 100 },
+                          { label: 'Besar', val: 124 },
+                        ].map((p) => {
+                          const cur = formData.logoPemdaHeight || formData.logoHeight || 100;
+                          const active = cur === p.val;
+                          return (
+                            <button
+                              key={p.label}
+                              type="button"
+                              onClick={() => handleFieldChange('logoPemdaHeight', p.val)}
+                              className={`flex-1 py-1 text-[11px] font-semibold rounded border transition cursor-pointer ${
+                                active
+                                  ? 'bg-[#0B6B58] text-white border-[#0B6B58]'
+                                  : 'bg-white text-[#566A6E] border-[#D3DDD9] hover:bg-gray-50'
+                              }`}
+                            >
+                              {p.label} ({p.val}px)
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                  <input
-                    type="range"
-                    min="65"
-                    max="130"
-                    step="2"
-                    value={formData.logoHeight || 100}
-                    onChange={(e) => handleFieldChange('logoHeight', Number(e.target.value))}
-                    disabled={!isOperator}
-                    className="w-full accent-[#0B6B58] cursor-pointer disabled:cursor-not-allowed"
-                  />
-                  <div className="flex justify-between text-[10px] text-[#566A6E]">
-                    <span>Kompak (65px)</span>
-                    <span>Standar Proporsional (100px)</span>
-                    <span>Besar (130px)</span>
+
+                  {/* Ukuran Logo Sekolah */}
+                  <div className="p-4 bg-[#F8FAF9] rounded-xl border border-[#D3DDD9] space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-[#13262A]">
+                        Ukuran Logo Sekolah:
+                      </label>
+                      <span className="font-mono text-xs font-bold text-[#0B6B58] bg-[#DAEEE7] px-2 py-0.5 rounded">
+                        {formData.logoSekolahHeight || formData.logoHeight || 100} px
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="50"
+                      max="150"
+                      step="2"
+                      value={formData.logoSekolahHeight || formData.logoHeight || 100}
+                      onChange={(e) => handleFieldChange('logoSekolahHeight', Number(e.target.value))}
+                      disabled={!isOperator}
+                      className="w-full accent-[#0B6B58] cursor-pointer disabled:cursor-not-allowed"
+                    />
+                    <div className="flex items-center justify-between text-[10px] text-[#566A6E]">
+                      <span>Kecil (50px)</span>
+                      <span>Standar (100px)</span>
+                      <span>Besar (150px)</span>
+                    </div>
+                    {isOperator && (
+                      <div className="flex items-center gap-1.5 pt-1">
+                        {[
+                          { label: 'Kecil', val: 72 },
+                          { label: 'Sedang', val: 100 },
+                          { label: 'Besar', val: 124 },
+                        ].map((p) => {
+                          const cur = formData.logoSekolahHeight || formData.logoHeight || 100;
+                          const active = cur === p.val;
+                          return (
+                            <button
+                              key={p.label}
+                              type="button"
+                              onClick={() => handleFieldChange('logoSekolahHeight', p.val)}
+                              className={`flex-1 py-1 text-[11px] font-semibold rounded border transition cursor-pointer ${
+                                active
+                                  ? 'bg-[#0B6B58] text-white border-[#0B6B58]'
+                                  : 'bg-white text-[#566A6E] border-[#D3DDD9] hover:bg-gray-50'
+                              }`}
+                            >
+                              {p.label} ({p.val}px)
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

@@ -30,6 +30,7 @@ import {
   PanitiaUjianItem,
   PengawasSilangItem,
   RambuUjianItem,
+  PpdbParticipant,
 } from '../types';
 import {
   initialUsers,
@@ -91,6 +92,8 @@ export const KEYS = {
   POS_UJIAN_PENGAWAS: 'mo_pos_ujian_pengawas',
   POS_UJIAN_RAMBU: 'mo_pos_ujian_rambu',
   DAPODIK_WS: 'mo_dapodik_ws',
+  PPDB: 'mo_ppdb_participants',
+  PPDB_SHEET_URL: 'mo_ppdb_sheet_url',
 };
 
 const listeners = new Set<() => void>();
@@ -150,7 +153,7 @@ export function getFromStorage<T>(key: string, defaultValue: T): T {
 // - Perubahan dari perangkat lain diambil otomatis (saat dibuka, tiap 15 detik,
 //   dan saat jendela kembali aktif).
 // ---------------------------------------------------------------------------
-const SYNC_SKIP_KEYS = new Set<string>([KEYS.CURRENT_USER, KEYS.DAPODIK_WS]);
+const SYNC_SKIP_KEYS = new Set<string>([KEYS.CURRENT_USER, KEYS.DAPODIK_WS, KEYS.PPDB_SHEET_URL]);
 const TOMB_PREFIX = 'del:';
 const TOMB_LS_KEY = 'mo_tombstones';
 const TOMB_TTL_MS = 120 * 24 * 3600 * 1000;
@@ -495,10 +498,16 @@ export async function syncFromCloud(force = false): Promise<number> {
         if (localVal !== undefined && stableStringify(localVal) === stableStringify(row.data)) {
           // sama
         } else {
-          localStorage.setItem(key, JSON.stringify(row.data));
+          let payload = row.data;
+          if (key === KEYS.CFG && payload && typeof payload === 'object') {
+            const cfgData = { ...(payload as SchoolConfig) };
+            cfgData.formatNoSurat = normalizeFormatNoSurat(cfgData.formatNoSurat);
+            payload = cfgData;
+          }
+          localStorage.setItem(key, JSON.stringify(payload));
           changed++;
-          if (key === KEYS.CFG && (row.data as SchoolConfig)?.namaOperator) {
-            syncLocalOperatorsFromConfig(row.data as SchoolConfig);
+          if (key === KEYS.CFG && (payload as SchoolConfig)?.namaOperator) {
+            syncLocalOperatorsFromConfig(payload as SchoolConfig);
           }
         }
       }
@@ -823,7 +832,9 @@ function migrateDapodikSeed(): void {
   migrateSuratPindahTugasSeed();
   migrateKopDefaultSize();
   migrateFormatNoSuratRomawi();
+  migrateSuratKeluarRomawi();
   migrateMasaKerjaRefMei2026();
+  migrateLegacyPpdbStorage();
 }
 
 function migrateMasaKerjaRefMei2026(): void {
@@ -899,26 +910,206 @@ function migrateKopDefaultSize(): void {
   }
 }
 
+export const ROMAN_MONTHS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+
+export function getYearAndRomanMonth(
+  tgl?: string
+): { year: string; monthPad: string; roman: string; hasValidDate: boolean } {
+  const m = /^(\d{4})-(\d{2})(?:-\d{2})?$/.exec(String(tgl || '').trim());
+  if (m) {
+    const year = m[1];
+    const monthNum = Math.min(12, Math.max(1, Number(m[2]) || 1));
+    return {
+      year,
+      monthPad: String(monthNum).padStart(2, '0'),
+      roman: ROMAN_MONTHS[monthNum - 1],
+      hasValidDate: true,
+    };
+  }
+  const now = new Date();
+  const year = String(now.getFullYear());
+  const monthNum = now.getMonth() + 1;
+  return {
+    year,
+    monthPad: String(monthNum).padStart(2, '0'),
+    roman: ROMAN_MONTHS[monthNum - 1],
+    hasValidDate: false,
+  };
+}
+
+export function normalizeFormatNoSurat(fmt?: string): string {
+  const raw = String(fmt || '').trim();
+  if (!raw) return '421.2/{no:3}/SD/{romawi}/{tahun}';
+  if (/\{(?:romawi|bulan_romawi|bulan)\}/i.test(raw)) {
+    return raw;
+  }
+  if (/\/(?:SD[^/]*)\/(?:\{tahun\}|(?:19|20)\d{2})$/i.test(raw)) {
+    return raw.replace(/\/(\{tahun\}|(?:19|20)\d{2})$/i, '/{romawi}/{tahun}');
+  }
+  if (/([/\-]\s*)(?:XII|XI|IX|VIII|VII|VI|IV|V|III|II|I|X)(\s*\/\s*(?:\{tahun\}|(?:19|20)\d{2}))$/i.test(raw)) {
+    return raw.replace(
+      /([/\-]\s*)(?:XII|XI|IX|VIII|VII|VI|IV|V|III|II|I|X)(\s*\/\s*(?:\{tahun\}|(?:19|20)\d{2}))$/i,
+      '$1{romawi}/{tahun}'
+    );
+  }
+  return raw;
+}
+
+export function syncNoSuratRomanWithDate(currentNo: string, nextTgl: string, prevTgl?: string): string {
+  if (!currentNo.trim()) return currentNo;
+  const target = getYearAndRomanMonth(nextTgl);
+  if (!target.hasValidDate) return currentNo;
+  const { year: newYear, roman: newRoman } = target;
+  const { year: oldYear, roman: oldRoman } = getYearAndRomanMonth(prevTgl || nextTgl);
+
+  let updated = currentNo;
+  let replacedRoman = false;
+
+  const beforeYearRegex = /([/\-]\s*)(XII|XI|IX|VIII|VII|VI|IV|V|III|II|I|X)(\s*[/\-]\s*(?:19|20)\d{2}\b)/i;
+  if (beforeYearRegex.test(updated)) {
+    updated = updated.replace(beforeYearRegex, `$1${newRoman}$3`);
+    replacedRoman = true;
+  } else if (oldRoman) {
+    const oldRomanSegRegex = new RegExp(`([/\\-]\\s*)${oldRoman}(\\s*(?=[/\\-]|$))`, 'i');
+    if (oldRomanSegRegex.test(updated)) {
+      updated = updated.replace(oldRomanSegRegex, `$1${newRoman}$2`);
+      replacedRoman = true;
+    }
+  }
+
+  if (!replacedRoman && /\/\s*(?:19|20)\d{2}\s*$/.test(updated)) {
+    updated = updated.replace(/\/(\s*)((?:19|20)\d{2}\s*)$/, `/${newRoman}/$1$2`);
+    replacedRoman = true;
+  }
+
+  updated = updated.replace(/([/\-\s])((?:19|20)\d{2})(\s*)$/, (m, sep, yr, tail) =>
+    yr !== newYear || newYear !== oldYear ? `${sep}${newYear}${tail}` : m
+  );
+
+  if (!replacedRoman) {
+    const standaloneRomanRegex = /([/\-]\s*)(XII|XI|IX|VIII|VII|VI|IV|V|III|II|I|X)(\s*)$/i;
+    if (standaloneRomanRegex.test(updated)) {
+      updated = updated.replace(standaloneRomanRegex, `$1${newRoman}$3`);
+    }
+  }
+
+  return updated;
+}
+
 function migrateFormatNoSuratRomawi(): void {
-  const FLAG = 'mo_no_surat_romawi_v1';
+  const FLAG = 'mo_no_surat_romawi_v2';
   try {
     if (localStorage.getItem(FLAG)) return;
     const rawCfg = localStorage.getItem(KEYS.CFG);
     if (rawCfg) {
       const cfg = JSON.parse(rawCfg) as SchoolConfig;
-      const cur = String(cfg?.formatNoSurat || '').trim();
-      if (
-        !cur ||
-        cur === '421.2/{no:3}/SD/2026' ||
-        cur === '421.2/{no:3}/SD/{tahun}'
-      ) {
-        cfg.formatNoSurat = '421.2/{no:3}/SD/{romawi}/{tahun}';
+      const normalized = normalizeFormatNoSurat(cfg?.formatNoSurat);
+      if (normalized !== cfg?.formatNoSurat) {
+        cfg.formatNoSurat = normalized;
         setToStorage(KEYS.CFG, cfg);
       }
     }
     localStorage.setItem(FLAG, '1');
   } catch (e) {
     console.error('Migrasi format nomor surat romawi gagal:', e);
+  }
+}
+
+function migrateSuratKeluarRomawi(): void {
+  const FLAG = 'mo_sk_romawi_sync_v1';
+  try {
+    if (localStorage.getItem(FLAG)) return;
+    const rawSk = localStorage.getItem(KEYS.SURATKELUAR);
+    if (rawSk) {
+      const list: SuratKeluar[] = JSON.parse(rawSk);
+      if (Array.isArray(list)) {
+        let changed = false;
+        const nextList = list.map((s) => {
+          if (!s?.noSurat?.trim() || !s?.tglSurat) return s;
+          const synced = syncNoSuratRomanWithDate(s.noSurat, s.tglSurat, s.tglSurat);
+          if (synced !== s.noSurat) {
+            changed = true;
+            return { ...s, noSurat: synced, updatedAt: Date.now() };
+          }
+          return s;
+        });
+        if (changed) {
+          setToStorage(KEYS.SURATKELUAR, nextList);
+        }
+      }
+    }
+    localStorage.setItem(FLAG, '1');
+  } catch (e) {
+    console.error('Migrasi romawi nomor surat keluar gagal:', e);
+  }
+}
+
+function migrateLegacyPpdbStorage(): void {
+  const FLAG = 'mo_ppdb_legacy_migrated_v1';
+  try {
+    if (localStorage.getItem(FLAG)) return;
+    const rawOld = localStorage.getItem('ppdb_sdn2cempaka_data_v1');
+    const existing = getFromStorage<PpdbParticipant[]>(KEYS.PPDB, []);
+    if (rawOld && existing.length === 0) {
+      const parsed = JSON.parse(rawOld) as { participants?: Array<Record<string, string>> };
+      if (parsed && Array.isArray(parsed.participants) && parsed.participants.length > 0) {
+        const now = Date.now();
+        const migrated: PpdbParticipant[] = parsed.participants.map((r, idx) => ({
+          id: `ppdb_${now}_${idx}`,
+          nama_lengkap: String(r.nama_lengkap || ''),
+          nama_panggilan: String(r.nama_panggilan || ''),
+          jenis_kelamin: String(r.jenis_kelamin || ''),
+          tanggal_lahir: String(r.tanggal_lahir || ''),
+          tempat_lahir: String(r.tempat_lahir || ''),
+          agama: String(r.agama || ''),
+          kewarganegaraan: String(r.kewarganegaraan || ''),
+          anak_nomor_ke: String(r.anak_nomor_ke || ''),
+          saudara_kandung: String(r.saudara_kandung || ''),
+          saudara_tiri: String(r.saudara_tiri || ''),
+          saudara_angkat: String(r.saudara_angkat || ''),
+          bahasa_sehari_hari: String(r.bahasa_sehari_hari || ''),
+          berat_badan: String(r.berat_badan || ''),
+          tinggi_badan: String(r.tinggi_badan || ''),
+          golongan_darah: String(r.golongan_darah || ''),
+          penyakit: String(r.penyakit || ''),
+          alamat: String(r.alamat || ''),
+          alamat_2: String(r.alamat_2 || ''),
+          tempat_tinggal: String(r.tempat_tinggal || ''),
+          jarak_sekolah: String(r.jarak_sekolah || ''),
+          nama_ayah: String(r.nama_ayah || ''),
+          nama_ibu: String(r.nama_ibu || ''),
+          pendidikan_ayah: String(r.pendidikan_ayah || ''),
+          pendidikan_ibu: String(r.pendidikan_ibu || ''),
+          pekerjaan_orangtua: String(r.pekerjaan_orangtua || ''),
+          nama_wali: String(r.nama_wali || ''),
+          pendidikan_wali: String(r.pendidikan_wali || ''),
+          hubungan_wali: String(r.hubungan_wali || ''),
+          pekerjaan_wali: String(r.pekerjaan_wali || ''),
+          status_masuk: String(r.status_masuk || ''),
+          asal_anak: String(r.asal_anak || ''),
+          nama_tk: String(r.nama_tk || ''),
+          sttb: String(r.sttb || ''),
+          lama_belajar: String(r.lama_belajar || ''),
+          sekolah_asal: String(r.sekolah_asal || ''),
+          sekolah_asal_lokasi: String(r.sekolah_asal_lokasi || ''),
+          tanggal_pindahan: String(r.tanggal_pindahan || ''),
+          dari_kelas: String(r.dari_kelas || ''),
+          tanggal_diterima: String(r.tanggal_diterima || ''),
+          kelas_diterima: String(r.kelas_diterima || ''),
+          tanggal_surat: String(r.tanggal_surat || ''),
+          createdAt: now,
+          updatedAt: now,
+        }));
+        setToStorage(KEYS.PPDB, migrated);
+      }
+    }
+    const oldSheet = localStorage.getItem('ppdb_sdn2cempaka_sheet_url');
+    if (oldSheet && !localStorage.getItem(KEYS.PPDB_SHEET_URL)) {
+      localStorage.setItem(KEYS.PPDB_SHEET_URL, oldSheet);
+    }
+    localStorage.setItem(FLAG, '1');
+  } catch (e) {
+    console.error('Migrasi data PPDB lama gagal:', e);
   }
 }
 
@@ -1427,6 +1618,9 @@ export function getSchoolConfig(): SchoolConfig {
   if (cfg.logo && !cfg.logoPemda && !cfg.logoSekolah) {
     cfg.logoPemda = cfg.logo;
   }
+  cfg.formatNoSurat = normalizeFormatNoSurat(cfg.formatNoSurat);
+  if (!cfg.logoPemdaHeight) cfg.logoPemdaHeight = cfg.logoHeight || 100;
+  if (!cfg.logoSekolahHeight) cfg.logoSekolahHeight = cfg.logoHeight || 100;
   return cfg;
 }
 
@@ -2113,6 +2307,48 @@ export function saveArsipLaporanList(list: ArsipLaporan[]): boolean {
   return setToStorage(KEYS.ARSIPLAPORAN, list);
 }
 
+// PPDB (Formulir M 1)
+export function getPpdbParticipants(): PpdbParticipant[] {
+  const list = getFromStorage<PpdbParticipant[]>(KEYS.PPDB, []);
+  return Array.isArray(list) ? list : [];
+}
+
+export function savePpdbParticipantsList(list: PpdbParticipant[], activityLabel?: string, replaceCloud = false): boolean {
+  const now = Date.now();
+  const stamped = list.map((p) => ({
+    ...p,
+    id: p.id || `ppdb_${now}_${Math.random().toString(36).slice(2, 7)}`,
+    createdAt: p.createdAt || now,
+    updatedAt: p.updatedAt || now,
+  }));
+  if (replaceCloud) {
+    replaceKeys.add(KEYS.PPDB);
+  }
+  const ok = setToStorage(KEYS.PPDB, stamped);
+  if (ok && activityLabel) {
+    recordActivity('Formulir PPDB', activityLabel, false, 'update');
+  }
+  return ok;
+}
+
+export function getPpdbSheetUrl(): string {
+  try {
+    return localStorage.getItem(KEYS.PPDB_SHEET_URL) || '';
+  } catch {
+    return '';
+  }
+}
+
+export function savePpdbSheetUrl(url: string): void {
+  try {
+    if (url.trim()) {
+      localStorage.setItem(KEYS.PPDB_SHEET_URL, url.trim());
+    } else {
+      localStorage.removeItem(KEYS.PPDB_SHEET_URL);
+    }
+  } catch {}
+}
+
 // Keuangan
 const defaultKeuangan: KeuanganState = {
   settings: {
@@ -2175,6 +2411,7 @@ export function getAllExportableData(): Record<string, unknown> {
     [KEYS.POS_UJIAN_PANITIA]: getFromStorage(KEYS.POS_UJIAN_PANITIA, []),
     [KEYS.POS_UJIAN_PENGAWAS]: getFromStorage(KEYS.POS_UJIAN_PENGAWAS, []),
     [KEYS.POS_UJIAN_RAMBU]: getFromStorage(KEYS.POS_UJIAN_RAMBU, []),
+    [KEYS.PPDB]: getPpdbParticipants(),
   };
 }
 
@@ -2243,6 +2480,7 @@ export function resetToDefaults(): void {
   localStorage.removeItem(KEYS.ARSIPABSEN);
   localStorage.removeItem(KEYS.ARSIPLAPORAN);
   localStorage.removeItem(KEYS.KEUANGAN);
+  localStorage.removeItem(KEYS.PPDB);
   notifyListeners();
 }
 

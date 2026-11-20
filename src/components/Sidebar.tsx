@@ -26,6 +26,7 @@ import {
   ClipboardList,
   FolderArchive,
   Lock,
+  UserPlus,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -41,6 +42,7 @@ interface SidebarProps {
     berkas: number;
     arsipabsen: number;
     arsiplaporan: number;
+    ppdb: number;
   };
   onOpenSupabaseModal: () => void;
 }
@@ -70,6 +72,7 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
       items: [
         { id: 'dasbor', label: 'Dasbor Ringkasan', icon: <LayoutDashboard className="w-4 h-4" /> },
         { id: 'siswa', label: 'Data Siswa & Mutasi', icon: <Users className="w-4 h-4" />, count: counts.siswa, badge: 'Operator', operatorOnly: true },
+        { id: 'ppdb', label: 'Formulir PPDB (M 1)', icon: <UserPlus className="w-4 h-4" />, count: counts.ppdb },
         { id: 'guru', label: 'Guru dan Tendik', icon: <GraduationCap className="w-4 h-4" />, count: counts.guru },
         { id: 'bukuinduk', label: 'Buku Induk Siswa', icon: <BookOpen className="w-4 h-4" /> },
       ],

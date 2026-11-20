@@ -60,6 +60,8 @@ export interface SchoolConfig {
   logoSekolah?: string;
   tataLetakLogo?: 'kiri_kedua' | 'kiri_kanan' | 'kiri_pemda_saja' | 'kiri_sekolah_saja';
   logoHeight?: number;
+  logoPemdaHeight?: number;
+  logoSekolahHeight?: number;
   namaOperator?: string;
   nipOperator?: string;
   emailOperator?: string;
@@ -640,4 +642,55 @@ export interface PengawasSilangItem {
   peran?: string;  // 'Pengawas 1' | 'Pengawas 2' | 'Pengawas Cadangan'
   guruId?: string;
 }
+
+export interface PpdbParticipant {
+  id: string;
+  // A. Keterangan Anak
+  nama_lengkap: string;
+  nama_panggilan: string;
+  jenis_kelamin: string;
+  tanggal_lahir: string;
+  tempat_lahir: string;
+  agama: string;
+  kewarganegaraan: string;
+  anak_nomor_ke: string;
+  saudara_kandung: string;
+  saudara_tiri: string;
+  saudara_angkat: string;
+  bahasa_sehari_hari: string;
+  berat_badan: string;
+  tinggi_badan: string;
+  golongan_darah: string;
+  penyakit: string;
+  alamat: string;
+  alamat_2: string;
+  tempat_tinggal: string;
+  jarak_sekolah: string;
+  // B. Keterangan Orang Tua/Wali
+  nama_ayah: string;
+  nama_ibu: string;
+  pendidikan_ayah: string;
+  pendidikan_ibu: string;
+  pekerjaan_orangtua: string;
+  nama_wali: string;
+  pendidikan_wali: string;
+  hubungan_wali: string;
+  pekerjaan_wali: string;
+  // C. Asal Mula Anak
+  status_masuk: string;
+  asal_anak: string;
+  nama_tk: string;
+  sttb: string;
+  lama_belajar: string;
+  sekolah_asal: string;
+  sekolah_asal_lokasi: string;
+  tanggal_pindahan: string;
+  dari_kelas: string;
+  tanggal_diterima: string;
+  kelas_diterima: string;
+  tanggal_surat: string;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
 

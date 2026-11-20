@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Formulir Penerimaan Peserta Didik Baru - SD Negeri 2 Cempaka</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#eef1f5;color:#111;font-family:"Times New Roman",Times,serif}
+.container{max-width:1200px;margin:25px auto;padding:0 15px}
+.toolbar{background:#fff;padding:15px;border-radius:12px;box-shadow:0 2px 10px #0001;margin-bottom:18px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-family:Arial,Helvetica,sans-serif}
+button,.file-label{border:0;border-radius:8px;padding:11px 16px;font-weight:bold;cursor:pointer;background:#2563eb;color:#fff;font-family:Arial,Helvetica,sans-serif}
+button.secondary,.file-label.secondary{background:#475569}
+button.green{background:#16a34a}
+button.red{background:#dc2626}
+.file-label input{display:none}
+.status{margin-left:auto;font:12px Arial,Helvetica,sans-serif;color:#475569}
+.status.sync-status{margin-left:10px;font-weight:bold}
+
+.locked-banner{
+  background:#fff7ed;border:1px solid #fdba74;color:#9a3412;border-radius:10px;
+  padding:12px 16px;font:13px/1.5 Arial,Helvetica,sans-serif;margin-bottom:18px;
+  display:flex;align-items:flex-start;gap:10px;
+}
+.locked-banner .icon{font-size:18px}
+.locked-banner button{flex-shrink:0}
+
+.paper{
+  background:#fff;
+  width:210mm;
+  min-height:297mm;
+  margin:auto;
+  padding:12mm 18mm 12mm;
+  box-shadow:0 2px 12px #0002;
+  font-size:12pt;
+  line-height:1.12;
+  position:relative;
+}
+.paper-wrap{
+  display:flex;
+  align-items:flex-start;
+  justify-content:center;
+  gap:14px;
+}
+.paper-wrap .paper{margin:0}
+.side-nav{
+  position:sticky;
+  top:20px;
+  flex-shrink:0;
+  background:#fff;
+  border-radius:10px;
+  box-shadow:0 2px 10px #0002;
+  padding:10px 12px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-family:Arial,Helvetica,sans-serif;
+}
+.side-nav button{padding:9px 12px;font-size:14px}
+.side-nav .nav-count{
+  font-size:12.5px;font-weight:bold;color:#1e293b;white-space:nowrap;
+  min-width:52px;text-align:center;
+}
+.topline{position:relative;height:31mm;margin-bottom:1mm}
+.format{
+  position:absolute;left:0;top:0;
+  border:1px solid #111;padding:3px 18px;font-size:11pt;
+}
+.nss{position:absolute;right:0;top:0;text-align:center;font-size:11pt}
+.nss-title{margin-bottom:4px}
+.nss-boxes{display:flex}
+.nss-box{width:6mm;height:6mm;border:1px solid #111;border-right:0;display:flex;align-items:center;justify-content:center}
+.nss-box:last-child{border-right:1px solid #111}
+
+.school{text-align:left;width:70%;margin:0 auto 12mm;line-height:1.08}
+.school h1{
+  text-align:center;font-size:15pt;margin:0 0 7mm;font-weight:bold;
+}
+.school p{margin:1px 0;font-size:12pt}
+.school p .school-label{display:inline-block;width:40mm}
+.school p .colon{display:inline-block;width:6mm;text-align:center}
+
+.section{font-weight:bold;margin:0 0 5mm;text-transform:uppercase;font-size:12pt}
+.form-table{width:100%;border-collapse:collapse;font-size:12pt}
+.form-table td{padding:2px 0;vertical-align:top}
+.num{width:9mm;text-align:right;padding-right:4mm!important}
+.label{width:72mm}
+.sep{width:6mm;text-align:center}
+.value{width:auto}
+.dotted{
+  display:inline-block;
+  width:100%;
+  min-height:17px;
+  border-bottom:1px dotted #111;
+}
+.dotted.short{width:35mm}
+.dotted.medium{width:62mm}
+.dotted.long{width:105mm}
+.inline-line{display:flex;align-items:baseline;gap:5px}
+.choice{white-space:nowrap}
+.sub{padding-left:10mm!important}
+.note-line{padding-left:23mm!important}
+.page-break{break-before:page;page-break-before:always}
+
+.signature{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  margin-top:37mm;
+  text-align:center;
+  font-size:12pt;
+}
+.signature .date{grid-column:2;margin-bottom:8mm}
+.signature .head{font-weight:normal}
+.signature .signspace{height:27mm}
+.signature .name{font-weight:bold;text-decoration:underline}
+.signature .nip{margin-top:2px}
+.signature .parent-name{margin-top:0}
+.note{font-size:11pt;margin-top:23mm}
+
+/* Nilai data terkunci (preview) di dalam formulir */
+.fv{
+  display:inline-block;
+  width:100%;
+  min-height:17px;
+  vertical-align:bottom;
+  border-bottom:1px dotted #111;
+  padding:0 2px;
+  font-family:"Times New Roman",Times,serif;
+}
+.fv.small{width:35mm}
+.fv.medium{width:62mm}
+.inline-line .fv{flex:1;width:auto}
+.fv[data-name="nama_lengkap"],
+.fv[data-name="nama_ayah"],
+.fv[data-name="nama_ibu"]{font-weight:bold}
+
+@media(max-width:900px){
+  .paper{width:100%;padding:20px}
+  .school{width:100%}
+  .status{width:100%;margin-left:0}
+  .paper-wrap{flex-direction:column;align-items:stretch}
+  .side-nav{position:static;justify-content:center;order:-1}
+}
+@media print{
+  @page{size:A4 portrait;margin:10mm 12mm}
+  html,body{margin:0;padding:0;background:#fff}
+  .container{margin:0;padding:0;max-width:none}
+  .toolbar,.locked-banner,.modal-overlay,.side-nav{display:none!important}
+  .paper-wrap{display:block}
+  .paper{
+    box-shadow:none;
+    margin:0;
+    width:auto;
+    min-height:0;
+    padding:4mm 5mm 5mm;
+    font-size:11.5pt;
+    line-height:1.05;
+  }
+  .topline{height:27mm;margin-bottom:0}
+  .school{width:72%;margin:0 auto 7mm;line-height:1.02}
+  .school h1{font-size:14pt;margin:0 0 5mm}
+  .school p{font-size:11.5pt;margin:0}
+  .section{font-size:11.5pt;margin-bottom:3mm}
+  .form-table{font-size:11.5pt}
+  .form-table td{padding:1px 0}
+  .dotted{min-height:14px}
+  .inline-line{gap:4px}
+  .page-break{
+    break-before:page;
+    page-break-before:always;
+    height:0;
+    margin:0;
+    padding:0;
+  }
+  .signature{
+    margin-top:27mm;
+    font-size:11.5pt;
+  }
+  .signature .date{margin-bottom:5mm}
+  .signature .signspace{height:23mm}
+  .note{font-size:10.5pt;margin-top:14mm}
+}
+
+/* ===== Modal Kelola Data Peserta ===== */
+.modal-overlay{
+  display:none;position:fixed;inset:0;background:#0008;z-index:50;
+  align-items:center;justify-content:center;padding:20px;
+  font-family:Arial,Helvetica,sans-serif;
+}
+.modal-overlay.open{display:flex}
+.modal-box{
+  background:#fff;border-radius:12px;width:100%;max-width:96vw;max-height:92vh;
+  display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px #0005;
+}
+.modal-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 20px;border-bottom:1px solid #e2e8f0;gap:10px;flex-wrap:wrap;
+}
+.modal-header h2{margin:0;font-size:17px}
+.modal-header-actions{display:flex;gap:8px;flex-wrap:wrap}
+.modal-header-actions button{font-size:13px;padding:8px 12px}
+.modal-close{background:transparent;color:#475569;font-size:20px;padding:4px 10px;line-height:1}
+.modal-close:hover{color:#111}
+.modal-body{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.table-scroll{flex:1;overflow:auto;padding:0 4px}
+#participantTable{border-collapse:collapse;font-size:12.5px;width:max-content;min-width:100%}
+#participantTable thead th{
+  position:sticky;top:0;background:#1e293b;color:#fff;z-index:2;
+  padding:8px 6px;text-align:left;white-space:nowrap;font-weight:bold;border-right:1px solid #334155;
+}
+#participantTable thead th.col-num{position:sticky;left:0;z-index:3;background:#1e293b;text-align:center}
+#participantTable tbody td{
+  border:1px solid #e2e8f0;padding:0;vertical-align:middle;background:#fff;
+}
+#participantTable tbody td.col-num{
+  position:sticky;left:0;background:#f8fafc;z-index:1;text-align:center;font-weight:bold;
+  color:#475569;padding:6px;min-width:34px;border-right:2px solid #cbd5e1;
+}
+#participantTable tbody tr.active-row td{background:#eff6ff}
+#participantTable tbody tr.active-row td.col-num{background:#dbeafe}
+#participantTable tbody tr:hover td{background:#f1f5f9}
+#participantTable tbody tr.active-row:hover td{background:#dbeafe}
+#participantTable .group-row th{
+  position:sticky;top:33px;z-index:2;background:#2563eb;color:#fff;
+  text-transform:uppercase;font-size:11.5px;padding:5px 6px;border-right:1px solid #1e40af;
+}
+#participantTable input,#participantTable select{
+  width:100%;min-width:110px;border:0;padding:7px 6px;font-size:12.5px;
+  font-family:Arial,Helvetica,sans-serif;background:transparent;box-sizing:border-box;
+}
+#participantTable input:focus,#participantTable select:focus{
+  outline:2px solid #2563eb;outline-offset:-2px;background:#fff;
+}
+#participantTable td.col-action{position:sticky;right:0;background:#f8fafc;text-align:center;min-width:40px;border-left:2px solid #cbd5e1}
+#participantTable th.col-action{position:sticky;right:0;z-index:3;background:#1e293b;min-width:40px}
+.row-del-btn{background:#dc2626;color:#fff;border:0;border-radius:5px;padding:5px 7px;cursor:pointer;font-size:12px}
+.modal-footer{
+  padding:12px 20px;border-top:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;
+  gap:10px;font-size:12px;color:#475569;flex-wrap:wrap;
+}
+.modal-footer button{font-size:13px}
+.empty-hint{font-size:13px;color:#64748b;padding:16px}
+@media(max-width:700px){
+  .modal-box{max-width:100vw;max-height:100vh;border-radius:0}
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="toolbar">
+    <button onclick="window.print()">🖨 Cetak Formulir</button>
+    <button class="green" onclick="openModal()">🧑‍🎓 Kelola Data Peserta</button>
+    <label class="file-label secondary">📊 Import Excel<input id="excelFile" type="file" accept=".xlsx,.xls,.csv"></label>
+    <button class="secondary" onclick="downloadTemplate()">⬇ Template Excel</button>
+    <button class="secondary" onclick="exportExcel()">💾 Export Data ke Excel</button>
+    <button class="red" onclick="clearForm()">🗑 Hapus Semua Data</button>
+    <button class="secondary" onclick="configureSheet()">🔗 Hubungkan Google Sheet</button>
+    <button class="secondary" onclick="pullFromSheet(true)">🔄 Ambil Data Terbaru</button>
+    <span class="status" id="status"></span>
+    <span class="status sync-status" id="syncStatus"></span>
+  </div>
+
+  <div class="locked-banner">
+    <span class="icon">🔒</span>
+    <span>Formulir di bawah ini <strong>terkunci</strong> dan hanya menampilkan pratinjau dari data pusat peserta didik. Untuk menambah peserta baru atau mengubah data, klik tombol <strong>"🧑‍🎓 Kelola Data Peserta"</strong> di atas, lalu gunakan panel navigasi di samping formulir untuk berpindah antar peserta.</span>
+  </div>
+
+  <div class="paper-wrap">
+  <div class="paper">
+    <div class="topline">
+      <div class="format">Format : M 1</div>
+      <div class="nss">
+        <div class="nss-title">Nomor Statistik Sekolah</div>
+        <div class="nss-boxes">
+          <span class="nss-box">1</span><span class="nss-box">0</span><span class="nss-box">1</span>
+          <span class="nss-box">0</span><span class="nss-box">2</span><span class="nss-box">1</span>
+          <span class="nss-box">7</span><span class="nss-box">3</span><span class="nss-box">4</span>
+          <span class="nss-box">0</span><span class="nss-box">1</span><span class="nss-box">8</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="school">
+      <h1>FORMULIR PENERIMAAN PESERTA DIDIK BARU</h1>
+      <p><span class="school-label">Nama Sekolah</span><span class="colon">:</span> SD Negeri 2 Cempaka</p>
+      <p><span class="school-label">Status Sekolah</span><span class="colon">:</span> Negeri</p>
+      <p><span class="school-label">Desa</span><span class="colon">:</span> Cempaka</p>
+      <p><span class="school-label">Kecamatan</span><span class="colon">:</span> Talun</p>
+      <p><span class="school-label">Kabupaten</span><span class="colon">:</span> Cirebon</p>
+      <p><span class="school-label">Propinsi</span><span class="colon">:</span> Jawa Barat</p>
+      <p><span class="school-label">Tahun Pelajaran</span><span class="colon">:</span> 2026/2027</p>
+    </div>
+
+    <div class="section">A. KETERANGAN ANAK :</div>
+    <table class="form-table">
+      <tr><td class="num">1.</td><td class="label">Nama lengkap</td><td class="sep">:</td><td class="value"><span class="fv" data-name="nama_lengkap"></span></td></tr>
+      <tr><td class="num">2.</td><td class="label">Nama panggilan</td><td class="sep">:</td><td><span class="fv" data-name="nama_panggilan"></span></td></tr>
+      <tr><td class="num">3.</td><td class="label">Jenis Kelamin</td><td class="sep">:</td><td><span class="fv" data-name="jenis_kelamin"></span></td></tr>
+      <tr><td class="num">4.</td><td class="label">dilahirkan</td><td class="sep">:</td><td><div class="inline-line"><span>tanggal</span><span class="fv" data-name="tanggal_lahir"></span></div></td></tr>
+      <tr><td></td><td></td><td></td><td><div class="inline-line"><span>di</span><span class="fv" data-name="tempat_lahir"></span></div></td></tr>
+      <tr><td class="num">5.</td><td class="label">Agama</td><td class="sep">:</td><td><span class="fv" data-name="agama"></span></td></tr>
+      <tr><td class="num">6.</td><td class="label">kewarganegaraan</td><td class="sep">:</td><td><span class="fv" data-name="kewarganegaraan"></span></td></tr>
+      <tr><td class="num">7.</td><td class="label">Anak Nomor ke</td><td class="sep">:</td><td><span class="fv small" data-name="anak_nomor_ke"></span> (dari satu ibu)</td></tr>
+      <tr><td class="num">8.</td><td class="label">Banyaknya saudara kandung</td><td class="sep">:</td><td><span class="fv small" data-name="saudara_kandung"></span></td></tr>
+      <tr><td class="num">9.</td><td class="label">Banyaknya saudara tiri</td><td class="sep">:</td><td><span class="fv small" data-name="saudara_tiri"></span></td></tr>
+      <tr><td class="num">10.</td><td class="label">Banyaknya saudara angkat</td><td class="sep">:</td><td><span class="fv small" data-name="saudara_angkat"></span></td></tr>
+      <tr><td class="num">11.</td><td class="label">Bahasa sehari-hari</td><td class="sep">:</td><td><span class="fv" data-name="bahasa_sehari_hari"></span></td></tr>
+      <tr><td class="num">12.</td><td class="label">Berat badan</td><td class="sep">:</td><td><span class="fv small" data-name="berat_badan"></span>Kg.</td></tr>
+      <tr><td class="num">13.</td><td class="label">Tinggi Badan</td><td class="sep">:</td><td><span class="fv small" data-name="tinggi_badan"></span>Cm.</td></tr>
+      <tr><td class="num">14.</td><td class="label">Golongan Darah</td><td class="sep">:</td><td><span class="fv small" data-name="golongan_darah"></span></td></tr>
+      <tr><td class="num">15.</td><td class="label">Penyakit yang pernah diderita</td><td class="sep">:</td><td><span class="fv" data-name="penyakit"></span></td></tr>
+      <tr><td class="num">16.</td><td class="label">Alamat, No. telepon, tempat tinggal</td><td class="sep">:</td><td><span class="fv" data-name="alamat"></span></td></tr>
+      <tr><td></td><td></td><td></td><td><span class="fv" data-name="alamat_2"></span></td></tr>
+      <tr><td class="num">17.</td><td class="label">Bertempat tinggal pada</td><td class="sep">:</td><td><span class="fv" data-name="tempat_tinggal"></span></td></tr>
+      <tr><td class="num">18.</td><td class="label">Jarak tempat tinggal dengan sekolah</td><td class="sep">:</td><td><span class="fv" data-name="jarak_sekolah"></span></td></tr>
+    </table>
+
+    <div class="section" style="margin-top:6mm">B. KETERANGAN ORANG TUA/WALI</div>
+    <table class="form-table">
+      <tr><td class="num">19.</td><td class="label">Nama</td><td class="sep"></td><td>ayah kandung <span class="sep">:</span> <span class="fv" data-name="nama_ayah"></span></td></tr>
+      <tr><td></td><td></td><td></td><td>ibu kandung <span class="sep">:</span> <span class="fv" data-name="nama_ibu"></span></td></tr>
+      <tr><td class="num">20.</td><td class="label">Pendidikan tertinggi</td><td></td><td>ayah kandung <span class="sep">:</span> <span class="fv" data-name="pendidikan_ayah"></span></td></tr>
+      <tr><td></td><td></td><td></td><td>ibu kandung <span class="sep">:</span> <span class="fv" data-name="pendidikan_ibu"></span></td></tr>
+      <tr><td class="num">21.</td><td class="label">Pekerjaan</td><td class="sep">:</td><td><span class="fv" data-name="pekerjaan_orangtua"></span></td></tr>
+      <tr><td class="num">22.</td><td class="label">Nama Wali Murid (jika ada)</td><td class="sep">:</td><td><span class="fv" data-name="nama_wali"></span></td></tr>
+      <tr><td class="num">23.</td><td class="label">Pendidikan tertinggi</td><td class="sep">:</td><td><span class="fv" data-name="pendidikan_wali"></span></td></tr>
+      <tr><td class="num">24.</td><td class="label">Hubungan terhadap anak</td><td class="sep">:</td><td><span class="fv" data-name="hubungan_wali"></span></td></tr>
+      <tr><td class="num">25.</td><td class="label">Pekerjaan/jabatan</td><td class="sep">:</td><td><span class="fv" data-name="pekerjaan_wali"></span></td></tr>
+    </table>
+
+    <div class="page-break"></div>
+
+    <div class="section">C. ASAL MULA ANAK</div>
+    <table class="form-table">
+      <tr><td class="num">26.</td><td class="label">Masuk sekolah ini sebagai</td><td class="sep">:</td><td><span class="fv" data-name="status_masuk"></span></td></tr>
+      <tr><td></td><td></td><td></td><td>(jika pindahan teruskan no. 27)</td></tr>
+      <tr><td></td><td class="sub">a. Asal anak</td><td class="sep">:</td><td><span class="fv" data-name="asal_anak"></span></td></tr>
+      <tr><td></td><td class="sub">b. Nama taman kanak-kanak</td><td class="sep">:</td><td><span class="fv" data-name="nama_tk"></span></td></tr>
+      <tr><td></td><td class="sub">c. Tahun dan nomor STTB</td><td class="sep">:</td><td><span class="fv" data-name="sttb"></span></td></tr>
+      <tr><td></td><td class="sub">d. lama belajar</td><td class="sep">:</td><td><span class="fv small" data-name="lama_belajar"></span> tahun</td></tr>
+      <tr><td></td><td class="note-line">(lanjut ke nomor 28)</td><td></td><td></td></tr>
+      <tr><td class="num">27.</td><td class="label">Pindahan dari</td><td></td><td></td></tr>
+      <tr><td></td><td class="sub">a. Nama sekolah asal</td><td class="sep">:</td><td><span class="fv medium" data-name="sekolah_asal"></span> di <span class="fv medium" data-name="sekolah_asal_lokasi"></span></td></tr>
+      <tr><td></td><td class="sub">b. Tanggal</td><td class="sep">:</td><td><span class="fv" data-name="tanggal_pindahan"></span></td></tr>
+      <tr><td></td><td class="sub">c. Dari kelas</td><td class="sep">:</td><td><span class="fv small" data-name="dari_kelas"></span></td></tr>
+      <tr><td class="num">28.</td><td class="label">Diterima di sekolah ini</td><td></td><td></td></tr>
+      <tr><td></td><td class="sub">a. tanggal</td><td class="sep">:</td><td><span class="fv" data-name="tanggal_diterima"></span></td></tr>
+      <tr><td></td><td class="sub">b. di kelas</td><td class="sep">:</td><td><span class="fv small" data-name="kelas_diterima"></span></td></tr>
+    </table>
+
+    <div class="signature">
+      <div></div>
+      <div class="date">Talun, <span class="fv" data-name="tanggal_surat" style="width:42mm;display:inline-block"></span> 2026</div>
+      <div class="head">Kepala Sekolah,<div class="signspace"></div><div class="name">H. KAERUDIN, M.Pd</div><div class="nip">NIP. 19720904 199412 1 001</div></div>
+      <div class="head">Orang Tua/Wali<div class="signspace"></div><div class="parent-name">(....................................)</div></div>
+    </div>
+
+    <div class="note"><div>CATATAN :</div><div>*) CORET YANG TIDAK PERLU</div></div>
+  </div>
+
+  <div class="side-nav">
+    <button class="secondary" onclick="previousParticipant()" title="Peserta sebelumnya">◀</button>
+    <span class="nav-count" id="navCount">0 / 0</span>
+    <button class="secondary" onclick="nextParticipant()" title="Peserta berikutnya">▶</button>
+  </div>
+  </div>
+</div>
+
+<!-- ===== Modal Kelola Data Peserta ===== -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2>🧑‍🎓 Kelola Data Peserta Didik (Format Tabel)</h2>
+      <div class="modal-header-actions">
+        <button class="green" onclick="addParticipant()">➕ Tambah Baris</button>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="table-scroll">
+        <table id="participantTable">
+          <thead>
+            <tr class="group-row" id="tableGroupRow"></tr>
+            <tr id="tableHeadRow"></tr>
+          </thead>
+          <tbody id="participantTbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <span id="modalStatus"></span>
+      <span>💡 Klik baris untuk menampilkannya di formulir. Data tersimpan otomatis saat diketik.</span>
+      <button onclick="closeModal()">✔ Tutup & Tampilkan di Formulir</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* Definisi semua field data peserta didik, sesuai urutan pada formulir resmi */
+const fieldDefs=[
+ {group:'A. Keterangan Anak'},
+ {name:'nama_lengkap',label:'Nama Lengkap',type:'text'},
+ {name:'nama_panggilan',label:'Nama Panggilan',type:'text'},
+ {name:'jenis_kelamin',label:'Jenis Kelamin',type:'select',options:['Laki-laki','Perempuan']},
+ {name:'tanggal_lahir',label:'Tanggal Lahir',type:'date'},
+ {name:'tempat_lahir',label:'Tempat Lahir',type:'text'},
+ {name:'agama',label:'Agama',type:'text'},
+ {name:'kewarganegaraan',label:'Kewarganegaraan',type:'select',options:['WNI','WNA','WNI Keturunan']},
+ {name:'anak_nomor_ke',label:'Anak Nomor ke (dari satu ibu)',type:'text'},
+ {name:'saudara_kandung',label:'Banyaknya Saudara Kandung',type:'text'},
+ {name:'saudara_tiri',label:'Banyaknya Saudara Tiri',type:'text'},
+ {name:'saudara_angkat',label:'Banyaknya Saudara Angkat',type:'text'},
+ {name:'bahasa_sehari_hari',label:'Bahasa Sehari-hari',type:'text'},
+ {name:'berat_badan',label:'Berat Badan (Kg)',type:'text'},
+ {name:'tinggi_badan',label:'Tinggi Badan (Cm)',type:'text'},
+ {name:'golongan_darah',label:'Golongan Darah',type:'select',options:['A','B','AB','O']},
+ {name:'penyakit',label:'Penyakit yang Pernah Diderita',type:'text'},
+ {name:'alamat',label:'Alamat (baris 1)',type:'text'},
+ {name:'alamat_2',label:'Alamat (baris 2) / No. Telepon',type:'text'},
+ {name:'tempat_tinggal',label:'Bertempat Tinggal Pada',type:'select',options:['Orang tua','Menumpang','Asrama']},
+ {name:'jarak_sekolah',label:'Jarak Tempat Tinggal dengan Sekolah',type:'text'},
+
+ {group:'B. Keterangan Orang Tua/Wali'},
+ {name:'nama_ayah',label:'Nama Ayah Kandung',type:'text'},
+ {name:'nama_ibu',label:'Nama Ibu Kandung',type:'text'},
+ {name:'pendidikan_ayah',label:'Pendidikan Tertinggi Ayah',type:'text'},
+ {name:'pendidikan_ibu',label:'Pendidikan Tertinggi Ibu',type:'text'},
+ {name:'pekerjaan_orangtua',label:'Pekerjaan Orang Tua',type:'text'},
+ {name:'nama_wali',label:'Nama Wali Murid (jika ada)',type:'text'},
+ {name:'pendidikan_wali',label:'Pendidikan Tertinggi Wali',type:'text'},
+ {name:'hubungan_wali',label:'Hubungan Wali Terhadap Anak',type:'text'},
+ {name:'pekerjaan_wali',label:'Pekerjaan/Jabatan Wali',type:'text'},
+
+ {group:'C. Asal Mula Anak'},
+ {name:'status_masuk',label:'Masuk Sekolah Sebagai',type:'select',options:['Murid baru kelas I','Pindahan']},
+ {name:'asal_anak',label:'a. Asal Anak',type:'select',options:['Rumah tangga','Taman kanak-kanak']},
+ {name:'nama_tk',label:'b. Nama Taman Kanak-kanak',type:'text'},
+ {name:'sttb',label:'c. Tahun dan Nomor STTB',type:'text'},
+ {name:'lama_belajar',label:'d. Lama Belajar (tahun)',type:'text'},
+ {name:'sekolah_asal',label:'Nama Sekolah Asal (jika pindahan)',type:'text'},
+ {name:'sekolah_asal_lokasi',label:'Lokasi Sekolah Asal',type:'text'},
+ {name:'tanggal_pindahan',label:'Tanggal Pindahan',type:'date'},
+ {name:'dari_kelas',label:'Pindahan dari Kelas',type:'text'},
+ {name:'tanggal_diterima',label:'Tanggal Diterima di Sekolah Ini',type:'date'},
+ {name:'kelas_diterima',label:'Diterima di Kelas',type:'text'},
+ {name:'tanggal_surat',label:'Tanggal Surat (untuk tanda tangan)',type:'text'}
+];
+const fieldNames=fieldDefs.filter(f=>f.name).map(f=>f.name);
+
+const STORAGE_KEY='ppdb_sdn2cempaka_data_v1';
+const SHEET_URL_KEY='ppdb_sdn2cempaka_sheet_url';
+
+let participants=[];   // seluruh data pusat peserta didik
+let currentIndex=-1;   // indeks yang ditampilkan di formulir (preview) sekaligus baris aktif di tabel
+let sheetWebAppUrl=localStorage.getItem(SHEET_URL_KEY)||'';  // URL Web App Google Apps Script (backend bersama)
+let syncTimer=null;
+let isSyncing=false;
+
+/* ===== Cadangan lokal (per-browser), selalu jalan walau offline ===== */
+function saveLocalCache(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({participants,currentIndex}));
+  }catch(err){
+    console.warn('Gagal menyimpan data ke penyimpanan lokal:',err);
+  }
+}
+
+function loadFromStorage(){
+  try{
+    const raw=localStorage.getItem(STORAGE_KEY);
+    if(!raw) return false;
+    const saved=JSON.parse(raw);
+    if(saved && Array.isArray(saved.participants)){
+      participants=saved.participants;
+      currentIndex=(typeof saved.currentIndex==='number' && saved.currentIndex>=0 && saved.currentIndex<participants.length)
+        ? saved.currentIndex
+        : (participants.length?0:-1);
+      return true;
+    }
+  }catch(err){
+    console.warn('Gagal memuat data tersimpan:',err);
+  }
+  return false;
+}
+
+/* ===== Sinkron ke Google Sheet (penyimpanan bersama / server) ===== */
+function setSyncStatus(text){
+  const el=document.getElementById('syncStatus');
+  if(el) el.textContent=text;
+}
+
+function configureSheet(){
+  const url=prompt('Tempel "Web app URL" dari deployment Google Apps Script Anda:\n(https://script.google.com/macros/s/xxxxx/exec)', sheetWebAppUrl||'');
+  if(url===null) return; // dibatalkan
+  sheetWebAppUrl=url.trim();
+  try{ localStorage.setItem(SHEET_URL_KEY, sheetWebAppUrl); }catch(err){}
+  if(sheetWebAppUrl){
+    pullFromSheet(true);
+  }else{
+    setSyncStatus('Belum terhubung ke Google Sheet (mode lokal saja)');
+  }
+}
+
+async function pullFromSheet(showAlertOnError){
+  if(!sheetWebAppUrl){ setSyncStatus('Belum terhubung ke Google Sheet (mode lokal saja)'); return; }
+  setSyncStatus('🔄 Mengambil data terbaru dari Google Sheet...');
+  try{
+    const res=await fetch(sheetWebAppUrl,{method:'GET'});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    if(!data || data.ok===false) throw new Error(data && data.error ? data.error : 'Respon tidak valid');
+    if(Array.isArray(data.participants)){
+      participants=data.participants.map(r=>{
+        const p=emptyParticipant();
+        fieldNames.forEach(n=>{ if(r[n]!==undefined) p[n]=String(r[n]) });
+        return p;
+      });
+      currentIndex=participants.length?0:-1;
+      renderPreview(currentIndex>=0?participants[currentIndex]:null);
+      updateParticipantStatus();
+      renderParticipantTable();
+      saveLocalCache();
+      setSyncStatus(`✅ Tersinkron dari server (${participants.length} peserta)`);
+    }
+  }catch(err){
+    console.warn('Gagal mengambil data dari Google Sheet:',err);
+    setSyncStatus('⚠️ Gagal terhubung ke server, memakai data lokal terakhir');
+    if(showAlertOnError) alert('Gagal terhubung ke Google Sheet.\n\nPeriksa kembali URL Web App dan pastikan deployment diatur "Who has access: Anyone".\n\nDetail: '+err.message);
+  }
+}
+
+function queueSync(){
+  saveLocalCache();
+  if(!sheetWebAppUrl) return;
+  setSyncStatus('⏳ Menunggu sinkron ke server...');
+  clearTimeout(syncTimer);
+  syncTimer=setTimeout(pushToSheet,900);
+}
+
+async function pushToSheet(){
+  if(!sheetWebAppUrl) return;
+  if(isSyncing){ clearTimeout(syncTimer); syncTimer=setTimeout(pushToSheet,900); return; }
+  isSyncing=true;
+  setSyncStatus('🔄 Menyimpan ke Google Sheet...');
+  try{
+    const res=await fetch(sheetWebAppUrl,{
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({participants})
+    });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    if(!data || data.ok===false) throw new Error(data && data.error ? data.error : 'Respon tidak valid');
+    setSyncStatus(`✅ Tersimpan di server (${participants.length} peserta)`);
+  }catch(err){
+    console.warn('Gagal menyimpan ke Google Sheet:',err);
+    setSyncStatus('⚠️ Gagal sinkron ke server, data tetap tersimpan lokal');
+  }finally{
+    isSyncing=false;
+  }
+}
+
+function emptyParticipant(){
+  const o={};
+  fieldNames.forEach(n=>o[n]='');
+  return o;
+}
+
+function setStatus(t){document.getElementById('status').textContent=t}
+
+function formatDate(v){
+  if(!v) return '';
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  if(m) return `${m[3]}-${m[2]}-${m[1]}`;
+  return v;
+}
+
+const NAMA_BULAN=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+function formatDateLong(v){
+  if(!v) return '';
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  if(m){
+    const day=parseInt(m[3],10);
+    const month=NAMA_BULAN[parseInt(m[2],10)-1]||m[2];
+    return `${day} ${month} ${m[1]}`;
+  }
+  return v;
+}
+
+/* Formulir hanya membaca data, tidak pernah ditulis dari sini (terkunci) */
+const KEEP_UPPERCASE=['WNI','WNA']; // singkatan yang selalu tampil kapital penuh
+function toTitleCase(v){
+  if(v==null) return v;
+  const s=String(v);
+  if(!s.trim()) return s;
+  const lower=s.toLowerCase();
+  // huruf kapital di setiap awal kata, kecuali singkatan pada KEEP_UPPERCASE (mis. WNI, WNA)
+  return lower.replace(/[a-zà-ÿ]+/g, w => {
+    const upper=w.toUpperCase();
+    if(KEEP_UPPERCASE.includes(upper)) return upper;
+    return w.charAt(0).toUpperCase()+w.slice(1);
+  });
+}
+
+// Field yang harus tampil HURUF KAPITAL PENUH (bukan hanya awal kata): nama siswa, ayah, ibu
+const FULL_UPPERCASE_FIELDS=['nama_lengkap','nama_ayah','nama_ibu'];
+
+// Field bertipe tanggal: ditampilkan panjang, mis. "21 Maret 2002"
+const DATE_FIELDS=fieldDefs.filter(f=>f.type==='date').map(f=>f.name);
+
+function renderPreview(data){
+  document.querySelectorAll('.fv').forEach(el=>{
+    const n=el.dataset.name;
+    if(!data){el.textContent='';return}
+    const v=data[n]??'';
+    el.textContent = DATE_FIELDS.includes(n)
+      ? formatDateLong(v)              // tanggal: 21 Maret 2002
+      : FULL_UPPERCASE_FIELDS.includes(n)
+        ? String(v).toUpperCase()      // nama siswa / ayah / ibu: kapital semua + bold (lihat CSS)
+        : toTitleCase(v);              // field lain: kapital di setiap awal kata, WNI/WNA tetap kapital
+  });
+}
+
+function updateParticipantStatus(){
+  const total=participants.length;
+  const pos=currentIndex>=0?currentIndex+1:0;
+  const nc=document.getElementById('navCount');
+  if(nc) nc.textContent = total ? `${pos} / ${total}` : '0 / 0';
+}
+
+function showParticipant(index){
+  if(index<0||index>=participants.length)return;
+  currentIndex=index;
+  renderPreview(participants[currentIndex]);
+  updateParticipantStatus();
+}
+
+function previousParticipant(){
+  if(!participants.length){setStatus('Belum ada data peserta');return}
+  currentIndex = currentIndex<=0 ? participants.length-1 : currentIndex-1;
+  showParticipant(currentIndex);
+}
+function nextParticipant(){
+  if(!participants.length){setStatus('Belum ada data peserta');return}
+  currentIndex = currentIndex>=participants.length-1 ? 0 : currentIndex+1;
+  showParticipant(currentIndex);
+}
+
+/* ===== Modal: bangun tabel edit (format seperti import Excel) dari fieldDefs ===== */
+function groupedFieldDefs(){
+  const groups=[];
+  let current=null;
+  fieldDefs.forEach(f=>{
+    if(f.group){
+      current={group:f.group,fields:[]};
+      groups.push(current);
+    }else if(current){
+      current.fields.push(f);
+    }
+  });
+  return groups;
+}
+
+function buildTableHeader(){
+  const groupRow=document.getElementById('tableGroupRow');
+  const headRow=document.getElementById('tableHeadRow');
+  groupRow.innerHTML='';
+  headRow.innerHTML='';
+
+  const numTh=document.createElement('th');
+  numTh.className='col-num';
+  numTh.textContent='#';
+  numTh.rowSpan=2;
+  groupRow.appendChild(numTh);
+
+  groupedFieldDefs().forEach(g=>{
+    const gth=document.createElement('th');
+    gth.textContent=g.group;
+    gth.colSpan=g.fields.length;
+    groupRow.appendChild(gth);
+    g.fields.forEach(f=>{
+      const th=document.createElement('th');
+      th.textContent=f.label;
+      headRow.appendChild(th);
+    });
+  });
+
+  const actionTh=document.createElement('th');
+  actionTh.className='col-action';
+  actionTh.textContent='Aksi';
+  actionTh.rowSpan=2;
+  groupRow.appendChild(actionTh);
+}
+
+function participantLabel(p,i){
+  return (p.nama_lengkap && p.nama_lengkap.trim()) ? p.nama_lengkap : `Peserta ${i+1} (belum diisi nama)`;
+}
+
+function makeCellInput(f,p,i){
+  let input;
+  if(f.type==='select'){
+    input=document.createElement('select');
+    const optBlank=document.createElement('option');
+    optBlank.value='';optBlank.textContent='-- Pilih --';
+    input.appendChild(optBlank);
+    f.options.forEach(o=>{
+      const opt=document.createElement('option');
+      opt.value=o;opt.textContent=o;
+      input.appendChild(opt);
+    });
+  }else{
+    input=document.createElement('input');
+    input.type=f.type==='date'?'date':'text';
+  }
+  input.value=p[f.name]||'';
+  input.addEventListener('input',e=>onCellEdit(e,i,f.name));
+  input.addEventListener('change',e=>onCellEdit(e,i,f.name));
+  return input;
+}
+
+function onCellEdit(e,i,name){
+  if(i<0||i>=participants.length)return;
+  participants[i][name]=e.target.value;
+  if(i===currentIndex) renderPreview(participants[currentIndex]);
+  queueSync();
+}
+
+function renderParticipantTable(){
+  const tbody=document.getElementById('participantTbody');
+  tbody.innerHTML='';
+  if(!participants.length){
+    const tr=document.createElement('tr');
+    const td=document.createElement('td');
+    td.className='empty-hint';
+    td.colSpan=fieldNames.length+2;
+    td.textContent='Belum ada data peserta. Klik "➕ Tambah Baris" untuk mulai, atau import dari Excel.';
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
+  participants.forEach((p,i)=>{
+    const tr=document.createElement('tr');
+    tr.dataset.index=i;
+    if(i===currentIndex) tr.classList.add('active-row');
+
+    const numTd=document.createElement('td');
+    numTd.className='col-num';
+    numTd.textContent=i+1;
+    numTd.addEventListener('click',()=>selectRow(i));
+    tr.appendChild(numTd);
+
+    fieldDefs.filter(f=>f.name).forEach(f=>{
+      const td=document.createElement('td');
+      td.appendChild(makeCellInput(f,p,i));
+      tr.appendChild(td);
+    });
+
+    const actionTd=document.createElement('td');
+    actionTd.className='col-action';
+    const delBtn=document.createElement('button');
+    delBtn.className='row-del-btn';
+    delBtn.textContent='🗑';
+    delBtn.title='Hapus baris ini';
+    delBtn.addEventListener('click',()=>deleteParticipant(i));
+    actionTd.appendChild(delBtn);
+    tr.appendChild(actionTd);
+
+    tbody.appendChild(tr);
+  });
+}
+
+function updateActiveRowHighlight(){
+  document.querySelectorAll('#participantTbody tr').forEach(tr=>{
+    tr.classList.toggle('active-row', Number(tr.dataset.index)===currentIndex);
+  });
+}
+
+function selectRow(i){
+  if(i<0||i>=participants.length)return;
+  currentIndex=i;
+  renderPreview(participants[currentIndex]);
+  updateActiveRowHighlight();
+  updateParticipantStatus();
+  document.getElementById('modalStatus').textContent=`Dipilih untuk formulir: ${participantLabel(participants[i],i)}`;
+}
+
+function addParticipant(){
+  const p=emptyParticipant();
+  participants.push(p);
+  const i=participants.length-1;
+  if(currentIndex<0){ currentIndex=i; renderPreview(p); }
+  renderParticipantTable();
+  updateParticipantStatus();
+  queueSync();
+  document.getElementById('modalStatus').textContent=`Baris baru ditambahkan (${i+1})`;
+  const tbody=document.getElementById('participantTbody');
+  const newRow=tbody.querySelector(`tr[data-index="${i}"]`);
+  if(newRow){ newRow.scrollIntoView({block:'nearest'}); const firstInput=newRow.querySelector('input,select'); if(firstInput) firstInput.focus(); }
+}
+
+function deleteParticipant(i){
+  if(i===undefined) i=currentIndex;
+  if(i<0||i>=participants.length){alert('Pilih peserta yang ingin dihapus terlebih dahulu.');return}
+  if(!confirm(`Hapus data "${participantLabel(participants[i],i)}"? Tindakan ini tidak dapat dibatalkan.`))return;
+  participants.splice(i,1);
+  if(!participants.length){
+    currentIndex=-1;
+    renderPreview(null);
+    document.getElementById('modalStatus').textContent='Belum ada data peserta';
+  }else{
+    if(currentIndex>=participants.length) currentIndex=participants.length-1;
+    renderPreview(participants[currentIndex]);
+    document.getElementById('modalStatus').textContent=`Baris dihapus. Menampilkan: ${participantLabel(participants[currentIndex],currentIndex)}`;
+  }
+  renderParticipantTable();
+  updateParticipantStatus();
+  queueSync();
+}
+
+function openModal(){
+  document.getElementById('modalOverlay').classList.add('open');
+  if(currentIndex<0 && participants.length) currentIndex=0;
+  renderParticipantTable();
+  document.getElementById('modalStatus').textContent = participants.length
+    ? `Dipilih untuk formulir: ${participantLabel(participants[currentIndex],currentIndex)}`
+    : 'Belum ada data peserta. Klik "➕ Tambah Baris" untuk mulai.';
+}
+function closeModal(){
+  document.getElementById('modalOverlay').classList.remove('open');
+  if(currentIndex<0 && participants.length) currentIndex=0;
+  if(currentIndex>=0) renderPreview(participants[currentIndex]);
+  updateParticipantStatus();
+}
+document.getElementById('modalOverlay').addEventListener('click',e=>{
+  if(e.target.id==='modalOverlay') closeModal();
+});
+
+/* ===== Import / Export Excel ===== */
+function downloadTemplate(){
+  const ws=XLSX.utils.aoa_to_sheet([fieldNames,fieldNames.map(()=> '')]);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Data PPDB');
+  XLSX.writeFile(wb,'Template_Data_PPDB_SD_Negeri_2_Cempaka.xlsx');
+  setStatus('Template Excel dibuat');
+}
+
+document.getElementById('excelFile').addEventListener('change',function(ev){
+  const file=ev.target.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});
+      if(!rows.length){alert('Excel tidak memiliki data.');return}
+      participants=rows.map(r=>{
+        const p=emptyParticipant();
+        fieldNames.forEach(n=>{ if(r[n]!==undefined) p[n]=String(r[n]) });
+        return p;
+      });
+      currentIndex=0;
+      renderPreview(participants[0]);
+      updateParticipantStatus();
+      renderParticipantTable();
+      queueSync();
+      setStatus(`Peserta 1 dari ${participants.length} (data diimpor dari Excel)`);
+    }catch(err){alert('Gagal membaca Excel: '+err.message)}
+  };
+  reader.readAsArrayBuffer(file);
+  ev.target.value='';
+});
+
+function exportExcel(){
+  if(!participants.length){alert('Belum ada data peserta untuk diexport.');return}
+  const ws=XLSX.utils.json_to_sheet(participants,{header:fieldNames});
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Data PPDB');
+  XLSX.writeFile(wb,'Data_PPDB_SD_Negeri_2_Cempaka.xlsx');
+  setStatus(`${participants.length} peserta berhasil diexport ke Excel`);
+}
+
+function clearForm(){
+  if(!confirm('Hapus semua data peserta? Tindakan ini tidak dapat dibatalkan.'))return;
+  participants=[];
+  currentIndex=-1;
+  renderPreview(null);
+  updateParticipantStatus();
+  renderParticipantTable();
+  queueSync();
+}
+
+/* ===== Muat data tersimpan (jika ada) saat halaman dibuka, agar data tidak hilang ===== */
+const adaDataTersimpan=loadFromStorage();
+buildTableHeader();
+renderParticipantTable();
+renderPreview(currentIndex>=0 ? participants[currentIndex] : null);
+updateParticipantStatus();
+if(adaDataTersimpan && participants.length){
+  setStatus(`${participants.length} data peserta tersimpan dimuat kembali`);
+}
+if(sheetWebAppUrl){
+  pullFromSheet(false); // ambil versi terbaru dari server, menimpa cache lokal jika berhasil
+}else{
+  setSyncStatus('Belum terhubung ke Google Sheet (mode lokal saja)');
+}
+</script>
+</body>
+</html>

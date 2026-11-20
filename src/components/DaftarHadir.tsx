@@ -96,7 +96,8 @@ const DaftarHadirPages: React.FC<SheetProps> = ({ config, jenis, rows, year, mon
   const per = Math.min(6, Math.max(3, pertemuan));
   const cols = sem ? months.length * per : days;
 
-  const effectiveLogoH = sem ? 68 : (config.logoHeight || 85);
+  const maxCfgLogoH = Math.max(config.logoPemdaHeight || config.logoHeight || 100, config.logoSekolahHeight || config.logoHeight || 100);
+  const effectiveLogoH = sem ? 68 : maxCfgLogoH;
   const kopMM = pakaiKop ? ((effectiveLogoH + 24) * PX_MM) : 0;
 
   // ---- kapasitas halaman (mm)
@@ -218,7 +219,7 @@ const DaftarHadirPages: React.FC<SheetProps> = ({ config, jenis, rows, year, mon
             {pi === 0 ? (
               <>
                 {pakaiKop && (
-                  <KopSuratHD config={config} className="dh-kop" logoHeight={effectiveLogoH} />
+                  <KopSuratHD config={config} className="dh-kop" logoHeight={sem ? 68 : undefined} />
                 )}
                 <div className="dh-title">{meta.judul}</div>
                 <div className="dh-info">

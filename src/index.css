@@ -681,3 +681,373 @@ h1, h2, h3, h4 {
   body.printing-hadir .dh-table th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body.printing-hadir .dh-table .dh-off { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* ===== Formulir PPDB Format : M 1 ===== */
+.ppdb-paper {
+  background: #ffffff;
+  color: #111111;
+  width: 210mm;
+  max-width: 100%;
+  min-height: 297mm;
+  padding: 12mm 18mm 12mm;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+  font-family: "Times New Roman", Times, serif;
+  font-size: 12pt;
+  line-height: 1.15;
+  position: relative;
+  box-sizing: border-box;
+}
+.ppdb-topline {
+  position: relative;
+  height: 28mm;
+  margin-bottom: 1mm;
+}
+.ppdb-format-box {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border: 1px solid #111111;
+  padding: 3px 18px;
+  font-size: 11pt;
+}
+.ppdb-nss {
+  position: absolute;
+  right: 0;
+  top: 0;
+  text-align: center;
+  font-size: 11pt;
+}
+.ppdb-nss-title {
+  margin-bottom: 4px;
+}
+.ppdb-nss-boxes {
+  display: flex;
+}
+.ppdb-nss-box {
+  width: 6mm;
+  height: 6mm;
+  border: 1px solid #111111;
+  border-right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ppdb-nss-box:last-child {
+  border-right: 1px solid #111111;
+}
+.ppdb-school {
+  text-align: left;
+  width: 72%;
+  margin: 0 auto 10mm;
+  line-height: 1.15;
+}
+.ppdb-school h1 {
+  text-align: center;
+  font-size: 14.5pt;
+  margin: 0 0 6mm;
+  font-weight: 700;
+  font-family: "Times New Roman", Times, serif;
+  letter-spacing: 0;
+}
+.ppdb-school p {
+  margin: 2px 0;
+  font-size: 12pt;
+}
+.ppdb-school-label {
+  display: inline-block;
+  width: 40mm;
+}
+.ppdb-school-colon {
+  display: inline-block;
+  width: 6mm;
+  text-align: center;
+}
+.ppdb-section {
+  font-weight: 700;
+  margin: 0 0 4mm;
+  text-transform: uppercase;
+  font-size: 12pt;
+}
+.ppdb-form-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12pt;
+}
+.ppdb-form-table td {
+  padding: 2px 0;
+  vertical-align: top;
+}
+.ppdb-num {
+  width: 9mm;
+  text-align: right;
+  padding-right: 4mm !important;
+}
+.ppdb-label {
+  width: 72mm;
+}
+.ppdb-sep {
+  width: 6mm;
+  text-align: center;
+}
+.ppdb-inline-line {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.ppdb-sub {
+  padding-left: 10mm !important;
+}
+.ppdb-note-line {
+  padding-left: 23mm !important;
+}
+.ppdb-fv {
+  display: inline-block;
+  width: 100%;
+  min-height: 17px;
+  vertical-align: bottom;
+  border-bottom: 1px dotted #111111;
+  padding: 0 2px;
+  font-family: "Times New Roman", Times, serif;
+}
+.ppdb-fv.small {
+  width: 35mm;
+}
+.ppdb-fv.medium {
+  width: 56mm;
+}
+.ppdb-inline-line .ppdb-fv {
+  flex: 1;
+  width: auto;
+}
+.ppdb-fv-upper-bold {
+  font-weight: 700;
+}
+.ppdb-page-break {
+  border-top: 1px dashed #cbd5e1;
+  margin: 18px 0;
+  height: 0;
+}
+.ppdb-signature {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-top: 28mm;
+  text-align: center;
+  font-size: 12pt;
+}
+.ppdb-signature .ppdb-date {
+  grid-column: 2;
+  margin-bottom: 8mm;
+}
+.ppdb-signature .ppdb-signspace {
+  height: 25mm;
+}
+.ppdb-signature .ppdb-name {
+  font-weight: 700;
+  text-decoration: underline;
+}
+.ppdb-note {
+  font-size: 11pt;
+  margin-top: 18mm;
+}
+.ppdb-sheet-multi + .ppdb-sheet-multi {
+  margin-top: 24px;
+}
+
+@media (max-width: 900px) {
+  .ppdb-paper {
+    width: 100%;
+    padding: 18px;
+  }
+  .ppdb-school {
+    width: 100%;
+  }
+  .ppdb-label {
+    width: auto;
+  }
+}
+
+/* Modal spreadsheet table */
+.ppdb-grid-table {
+  border-collapse: collapse;
+  font-size: 12.5px;
+  width: max-content;
+  min-width: 100%;
+}
+.ppdb-grid-table thead tr.ppdb-group-row th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #0b6b58;
+  color: #ffffff;
+  text-transform: uppercase;
+  font-size: 11px;
+  padding: 6px 8px;
+  border-right: 1px solid #095747;
+  text-align: left;
+  white-space: nowrap;
+}
+.ppdb-grid-table thead tr.ppdb-head-row th {
+  position: sticky;
+  top: 29px;
+  background: #13262a;
+  color: #ffffff;
+  z-index: 2;
+  padding: 8px 6px;
+  text-align: left;
+  white-space: nowrap;
+  font-weight: 700;
+  border-right: 1px solid #2b4144;
+}
+.ppdb-grid-table thead th.ppdb-col-num {
+  position: sticky;
+  left: 0;
+  top: 0;
+  z-index: 4 !important;
+  background: #13262a !important;
+  text-align: center !important;
+  min-width: 38px;
+}
+.ppdb-grid-table thead th.ppdb-col-action {
+  position: sticky;
+  right: 0;
+  top: 0;
+  z-index: 4 !important;
+  background: #13262a !important;
+  text-align: center !important;
+  min-width: 48px;
+}
+.ppdb-grid-table tbody td {
+  border: 1px solid #e2e8f0;
+  padding: 0;
+  vertical-align: middle;
+  background: #ffffff;
+}
+.ppdb-grid-table tbody td.ppdb-col-num {
+  position: sticky;
+  left: 0;
+  background: #f8fafc;
+  z-index: 1;
+  text-align: center;
+  font-weight: 700;
+  color: #475569;
+  padding: 6px;
+  min-width: 38px;
+  border-right: 2px solid #cbd5e1;
+  cursor: pointer;
+}
+.ppdb-grid-table tbody td.ppdb-col-action {
+  position: sticky;
+  right: 0;
+  background: #f8fafc;
+  text-align: center;
+  min-width: 48px;
+  border-left: 2px solid #cbd5e1;
+  padding: 4px;
+}
+.ppdb-grid-table tbody tr.ppdb-active-row td {
+  background: #eff6ff;
+}
+.ppdb-grid-table tbody tr.ppdb-active-row td.ppdb-col-num {
+  background: #daeee7;
+  color: #0b6b58;
+}
+.ppdb-grid-table tbody tr:hover td {
+  background: #f1f5f9;
+}
+.ppdb-grid-table tbody tr.ppdb-active-row:hover td {
+  background: #e6f4ef;
+}
+.ppdb-grid-table input,
+.ppdb-grid-table select {
+  width: 100%;
+  min-width: 120px;
+  border: 0;
+  padding: 7px 8px;
+  font-size: 12.5px;
+  font-family: Arial, Helvetica, sans-serif;
+  background: transparent;
+  box-sizing: border-box;
+  color: #111827;
+}
+.ppdb-grid-table input:focus,
+.ppdb-grid-table select:focus {
+  outline: 2px solid #0b6b58;
+  outline-offset: -2px;
+  background: #ffffff;
+}
+
+@media print {
+  body.printing-portal #app-print-portal .ppdb-paper {
+    box-shadow: none !important;
+    margin: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    padding: 4mm 5mm 5mm !important;
+    font-size: 11.5pt !important;
+    line-height: 1.08 !important;
+  }
+  body.printing-portal #app-print-portal .ppdb-topline {
+    height: 26mm !important;
+    margin-bottom: 0 !important;
+  }
+  body.printing-portal #app-print-portal .ppdb-school {
+    width: 74% !important;
+    margin: 0 auto 7mm !important;
+    line-height: 1.05 !important;
+  }
+  body.printing-portal #app-print-portal .ppdb-school h1 {
+    font-size: 14pt !important;
+    margin: 0 0 5mm !important;
+  }
+  body.printing-portal #app-print-portal .ppdb-school p {
+    font-size: 11.5pt !important;
+    margin: 0 !important;
+  }
+  body.printing-portal #app-print-portal .ppdb-section {
+    font-size: 11.5pt !important;
+    margin-bottom: 3mm !important;
+  }
+  body.printing-portal #app-print-portal .ppdb-form-table {
+    font-size: 11.5pt !important;
+  }
+  body.printing-portal #app-print-portal .ppdb-form-table td {
+    padding: 1px 0 !important;
+  }
+  body.printing-portal #app-print-portal .ppdb-fv {
+    min-height: 14px !important;
+  }
+  body.printing-portal #app-print-portal .ppdb-page-break {
+    border-top: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: 0 !important;
+    break-after: page !important;
+    page-break-after: always !important;
+  }
+  body.printing-portal #app-print-portal .ppdb-page-break + .ppdb-page-2 {
+    margin-top: 0 !important;
+    padding-top: var(--print-pt, 10mm) !important;
+  }
+  body.printing-portal #app-print-portal .ppdb-signature {
+    margin-top: 25mm !important;
+    font-size: 11.5pt !important;
+  }
+  body.printing-portal #app-print-portal .ppdb-signature .ppdb-date {
+    margin-bottom: 5mm !important;
+  }
+  body.printing-portal #app-print-portal .ppdb-signature .ppdb-signspace {
+    height: 22mm !important;
+  }
+  body.printing-portal #app-print-portal .ppdb-note {
+    font-size: 10.5pt !important;
+    margin-top: 14mm !important;
+  }
+  body.printing-portal #app-print-portal .ppdb-sheet-multi + .ppdb-sheet-multi {
+    margin-top: 0 !important;
+    break-before: page !important;
+    page-break-before: always !important;
+    padding-top: var(--print-pt, 10mm) !important;
+  }
+}
+

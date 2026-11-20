@@ -98,7 +98,9 @@ export const initialSchoolConfig: SchoolConfig = {
   logoPemda: "",
   logoSekolah: "",
   tataLetakLogo: "kiri_kedua",
-  logoHeight: 100
+  logoHeight: 100,
+  logoPemdaHeight: 100,
+  logoSekolahHeight: 100
 };
 
 export const initialGurus: Guru[] = gtkDapodik;

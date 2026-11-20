@@ -39,6 +39,7 @@ import {
   KEYS,
   getArsipAbsen,
   getArsipLaporan,
+  getPpdbParticipants,
   syncFromCloud,
 } from './lib/storage';
 import { Header } from './components/Header';
@@ -65,6 +66,7 @@ const LaporanKeuangan = lazy(() => import('./components/LaporanKeuangan').then((
 const ProfilPengguna = lazy(() => import('./components/ProfilPengguna').then((m) => ({ default: m.ProfilPengguna })));
 const PengaturanSekolah = lazy(() => import('./components/PengaturanSekolah').then((m) => ({ default: m.PengaturanSekolah })));
 const PosUjian = lazy(() => import('./components/PosUjian').then((m) => ({ default: m.PosUjian })));
+const FormulirPpdb = lazy(() => import('./components/FormulirPpdb').then((m) => ({ default: m.FormulirPpdb })));
 const SupabaseSyncModal = lazy(() => import('./components/SupabaseSyncModal').then((m) => ({ default: m.SupabaseSyncModal })));
 
 export default function App() {
@@ -80,6 +82,7 @@ export default function App() {
   const [berkasList, setBerkasList] = useState<BerkasPenilaian[]>([]);
   const [arsipAbsenCount, setArsipAbsenCount] = useState<number>(0);
   const [arsipLaporanCount, setArsipLaporanCount] = useState<number>(0);
+  const [ppdbCount, setPpdbCount] = useState<number>(0);
 
   const [currentTab, setCurrentTab] = useState<string>('dasbor');
   const [toast, setToast] = useState<{ message: string; isError?: boolean } | null>(null);
@@ -121,6 +124,7 @@ export default function App() {
     syncSlice(KEYS.BERKAS, () => setBerkasList(getFromStorage(KEYS.BERKAS, [])));
     syncSlice(KEYS.ARSIPABSEN, () => setArsipAbsenCount(getArsipAbsen().length));
     syncSlice(KEYS.ARSIPLAPORAN, () => setArsipLaporanCount(getArsipLaporan().length));
+    syncSlice(KEYS.PPDB, () => setPpdbCount(getPpdbParticipants().length));
   };
 
   useEffect(() => {
@@ -168,6 +172,7 @@ export default function App() {
 
   const GURU_ALLOWED_TABS = new Set([
     'dasbor',
+    'ppdb',
     'guru',
     'bukuinduk',
     'posujian',
@@ -222,8 +227,9 @@ export default function App() {
       berkas: berkasList.length,
       arsipabsen: arsipAbsenCount,
       arsiplaporan: arsipLaporanCount,
+      ppdb: ppdbCount,
     }),
-    [siswaList, guruList, asetList, suratMasukList, suratKeluarList, berkasList, arsipAbsenCount, arsipLaporanCount]
+    [siswaList, guruList, asetList, suratMasukList, suratKeluarList, berkasList, arsipAbsenCount, arsipLaporanCount, ppdbCount]
   );
 
   // Login view if not authenticated
@@ -331,6 +337,9 @@ export default function App() {
                     onToast={showToast}
                     onNavigateToSurat={() => setCurrentTab('suratkeluar')}
                   />
+                )}
+                {currentTab === 'ppdb' && (
+                  <FormulirPpdb role={role} config={config} onToast={showToast} />
                 )}
                 {currentTab === 'guru' && (
                   <GuruTendik role={role} config={config} onToast={showToast} />

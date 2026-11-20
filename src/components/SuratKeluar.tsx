@@ -17,6 +17,9 @@ import {
   recordActivity,
   subscribeToStorage,
   subscribeToCloudChanges,
+  getYearAndRomanMonth,
+  normalizeFormatNoSurat,
+  syncNoSuratRomanWithDate,
 } from '../lib/storage';
 import { docxToHtml, sanitizeLetterHtml, htmlToPlainText, MAX_DOCX_BYTES } from '../lib/docx';
 import { printDomElement } from '../lib/print';
@@ -91,59 +94,12 @@ function cleanNip(nip?: string): string {
   return digits ? `NIP. ${digits}` : nip;
 }
 
-const ROMAN_MONTHS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
-
-function getYearAndRomanMonth(tgl?: string): { year: string; monthPad: string; roman: string } {
-  const m = /^(\d{4})-(\d{2})/.exec(String(tgl || '').trim());
-  if (m) {
-    const year = m[1];
-    const monthNum = Math.min(12, Math.max(1, Number(m[2]) || 1));
-    return {
-      year,
-      monthPad: String(monthNum).padStart(2, '0'),
-      roman: ROMAN_MONTHS[monthNum - 1],
-    };
-  }
-  const now = new Date();
-  const year = String(now.getFullYear());
-  const monthNum = now.getMonth() + 1;
-  return {
-    year,
-    monthPad: String(monthNum).padStart(2, '0'),
-    roman: ROMAN_MONTHS[monthNum - 1],
-  };
-}
-
-function syncNoSuratWithDate(currentNo: string, nextTgl: string, prevTgl?: string): string {
-  if (!currentNo.trim()) return currentNo;
-  const { year: newYear, roman: newRoman } = getYearAndRomanMonth(nextTgl);
-  const { year: oldYear, roman: oldRoman } = getYearAndRomanMonth(prevTgl || nextTgl);
-
-  let updated = currentNo;
-  let replacedRoman = false;
-
-  const beforeYearRegex = /([/\-]\s*)(XII|XI|IX|VIII|VII|VI|IV|V|III|II|I|X)(\s*\/\s*(?:19|20)\d{2}\b)/i;
-  if (beforeYearRegex.test(updated)) {
-    updated = updated.replace(beforeYearRegex, `$1${newRoman}$3`);
-    replacedRoman = true;
-  } else if (oldRoman) {
-    const oldRomanSegRegex = new RegExp(`([/\\-]\\s*)${oldRoman}(\\s*(?=[/\\-]|$))`, 'i');
-    if (oldRomanSegRegex.test(updated)) {
-      updated = updated.replace(oldRomanSegRegex, `$1${newRoman}$2`);
-      replacedRoman = true;
-    }
-  }
-
-  if (newYear !== oldYear) {
-    updated = updated.replace(/([/\-\s])((?:19|20)\d{2})(\s*)$/, `$1${newYear}$3`);
-  } else if (!replacedRoman) {
-    const standaloneRomanRegex = /([/\-]\s*)(XII|XI|IX|VIII|VII|VI|IV|V|III|II|I|X)(\s*)$/i;
-    if (standaloneRomanRegex.test(updated)) {
-      updated = updated.replace(standaloneRomanRegex, `$1${newRoman}$3`);
-    }
-  }
-
-  return updated;
+function getLocalTodayIso(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 const SPPD_JENIS = 'SPPD (Surat Perintah Perjalanan Dinas)';
@@ -237,7 +193,7 @@ export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast 
   const [jenis, setJenis] = useState('Surat keterangan aktif siswa');
   const [siswaId, setSiswaId] = useState('');
   const [noSurat, setNoSurat] = useState('');
-  const [tglSurat, setTglSurat] = useState(() => new Date().toISOString().split('T')[0]);
+  const [tglSurat, setTglSurat] = useState(() => getLocalTodayIso());
   const [tempat, setTempat] = useState(config.kabupaten || 'Cirebon');
   const [perihal, setPerihal] = useState('');
   const [tujuan, setTujuan] = useState('');
@@ -309,17 +265,18 @@ export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast 
   };
 
   const generateAutoNoSurat = (tgl: string) => {
-    const format = config.formatNoSurat || '421.2/{no:3}/SD/{romawi}/{tahun}';
+    const format = normalizeFormatNoSurat(config.formatNoSurat);
     const { year, monthPad, roman } = getYearAndRomanMonth(tgl);
     const nextNo = suratList.length + 1;
     const noPadded = String(nextNo).padStart(3, '0');
-    return format
+    const raw = format
       .replace(/\{no:3\}/g, noPadded)
       .replace(/\{no\}/g, String(nextNo))
       .replace(/\{romawi\}/g, roman)
       .replace(/\{bulan_romawi\}/g, roman)
       .replace(/\{bulan\}/g, monthPad)
       .replace(/\{tahun\}/g, year);
+    return syncNoSuratRomanWithDate(raw, tgl, tgl);
   };
 
   const openEditor = (surat?: ISuratKeluar | null) => {
@@ -327,7 +284,11 @@ export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast 
       setEditingSurat(surat);
       setJenis(surat.jenis);
       setSiswaId(surat.siswaId || '');
-      setNoSurat(surat.noSurat);
+      const syncedNo =
+        surat.noSurat?.trim() && surat.tglSurat
+          ? syncNoSuratRomanWithDate(surat.noSurat, surat.tglSurat, surat.tglSurat)
+          : surat.noSurat;
+      setNoSurat(syncedNo);
       setTglSurat(surat.tglSurat);
       setTempat(surat.tempat || config.kabupaten || 'Cirebon');
       setPerihal(surat.perihal);
@@ -352,7 +313,7 @@ export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast 
       setTplId('');
       setEditorKey((k) => k + 1);
     } else {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getLocalTodayIso();
       setEditingSurat(null);
       setJenis('Surat keterangan aktif siswa');
       const firstSiswa = siswaList[0];
@@ -488,7 +449,10 @@ export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast 
       id: editingSurat ? editingSurat.id : `sk_${Date.now()}`,
       noAgenda,
       tglSurat,
-      noSurat: noSurat.trim(),
+      noSurat:
+        noSurat.trim() && tglSurat
+          ? syncNoSuratRomanWithDate(noSurat.trim(), tglSurat, tglSurat)
+          : noSurat.trim(),
       jenis: isKustom ? 'Surat kustom' : jenis,
       siswaId: siswaId || undefined,
       sifat,
@@ -754,7 +718,11 @@ export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast 
     onToast(`Template "${t.judul}" dihapus.`);
   };
 
-  const renderSuratContent = (s: ISuratKeluar) => {
+  const renderSuratContent = (rawS: ISuratKeluar) => {
+    const s: ISuratKeluar =
+      rawS.noSurat?.trim() && rawS.tglSurat
+        ? { ...rawS, noSurat: syncNoSuratRomanWithDate(rawS.noSurat, rawS.tglSurat, rawS.tglSurat) }
+        : rawS;
     const isAktif = s.jenis === 'Surat keterangan aktif siswa';
     const isPindah = s.jenis === 'Surat keterangan pindah siswa' || Boolean(s.pindahData);
     const isTugas = s.jenis === 'Surat tugas' || Boolean(s.tugasData);
@@ -1478,7 +1446,11 @@ export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast 
                     <div className="text-[11px] text-[#566A6E]">Penandatangan: {s.penandatangan}</div>
                   </td>
                   <td className="py-3 px-4">
-                    <div className="font-mono font-bold text-[#13262A]">{s.noSurat || '-'}</div>
+                    <div className="font-mono font-bold text-[#13262A]">
+                      {s.noSurat?.trim() && s.tglSurat
+                        ? syncNoSuratRomanWithDate(s.noSurat, s.tglSurat, s.tglSurat)
+                        : s.noSurat || '-'}
+                    </div>
                     <div className="text-[11px] text-[#566A6E]">{s.tglSurat}</div>
                   </td>
                   <td className="py-3 px-4 text-[#566A6E]">{s.tujuan || '-'}</td>
@@ -1922,24 +1894,42 @@ export const SuratKeluar: React.FC<SuratKeluarProps> = ({ role, config, onToast 
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-[#566A6E] mb-1">Nomor Surat *</label>
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <label className="block text-xs font-semibold text-[#566A6E]">Nomor Surat *</label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!noSurat.trim()) {
+                            setNoSurat(generateAutoNoSurat(tglSurat));
+                          } else {
+                            setNoSurat((prev) => syncNoSuratRomanWithDate(prev, tglSurat, tglSurat));
+                          }
+                        }}
+                        className="text-[10px] font-bold text-[#0B6B58] hover:underline cursor-pointer"
+                        title="Samakan bulan romawi nomor surat dengan tanggal surat"
+                      >
+                        Sesuaikan Romawi ({getYearAndRomanMonth(tglSurat).roman})
+                      </button>
+                    </div>
                     <input
                       type="text"
                       value={noSurat}
                       onChange={(e) => setNoSurat(e.target.value)}
                       required
-                      placeholder="Contoh: 421.2/045/SD/XI/2026"
+                      placeholder={`Contoh: 421.2/045/SD/${getYearAndRomanMonth(tglSurat).roman}/${getYearAndRomanMonth(tglSurat).year}`}
                       className="w-full px-3 py-2 text-xs border border-[#D3DDD9] rounded-lg font-mono font-bold"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-[#566A6E] mb-1">Tanggal Surat</label>
+                    <label className="block text-xs font-semibold text-[#566A6E] mb-1">Tanggal Surat (Titimangsa)</label>
                     <input
                       type="date"
                       value={tglSurat}
                       onChange={(e) => {
                         const nextTgl = e.target.value;
-                        setNoSurat((prev) => syncNoSuratWithDate(prev, nextTgl, tglSurat));
+                        if (nextTgl) {
+                          setNoSurat((prev) => syncNoSuratRomanWithDate(prev, nextTgl, tglSurat));
+                        }
                         setTglSurat(nextTgl);
                       }}
                       className="w-full px-3 py-2 text-xs border border-[#D3DDD9] rounded-lg"
