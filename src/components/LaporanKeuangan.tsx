@@ -12,12 +12,10 @@ import { getKeuangan, saveKeuangan, subscribeToStorage } from '../lib/storage';
 import { triggerGooglePrint, printDomElement } from '../lib/print';
 import {
   SPJ_DOC_TABS,
-  SPJ_KATEGORI_META,
   DOC_ICON_MAP,
   SpjDocSheet,
   SpjDocEditor,
   computeSpjValues,
-  detectSpjKategori,
   getAllowedDocTabs,
   getBundleDocsForKategori,
   SPJ_A4_PRINT_OPTIONS,
@@ -1792,8 +1790,6 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
 
             <div className="kw-list divide-y divide-gray-100">
               {filteredBku.map((r) => {
-                const kat = state.edits[r.id]?.kategoriSpj ?? detectSpjKategori(state.edits[r.id]?.untuk ?? r.uraian, state.edits[r.id]?.kodeRek ?? r.kodeRek);
-                const katMeta = SPJ_KATEGORI_META[kat];
                 const tax = resolveBkuTax(r, state.edits[r.id], state.settings);
                 const rowTaxTotal = tax.ppn + tax.pph;
                 return (
@@ -1822,9 +1818,6 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
                       <div className="flex items-center justify-between gap-2 mt-1">
                         <span className="text-xs font-mono font-bold text-[#0B6B58]">
                           {formatRupiah(r.pengeluaran)}
-                        </span>
-                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border whitespace-nowrap ${katMeta.badgeCls}`}>
-                          {katMeta.shortLabel}
                         </span>
                       </div>
                       {rowTaxTotal > 0 && (
@@ -1864,15 +1857,6 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
                   </button>
                 );
               })}
-              {computedSpjSelected && (
-                <span
-                  className={`ml-auto text-[11px] font-semibold px-2.5 py-1 rounded-lg border whitespace-nowrap ${
-                    SPJ_KATEGORI_META[computedSpjSelected.kategori].badgeCls
-                  }`}
-                >
-                  {SPJ_KATEGORI_META[computedSpjSelected.kategori].label}
-                </span>
-              )}
             </div>
 
             <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
@@ -1889,11 +1873,7 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
                   <button
                     type="button"
                     onClick={handlePrintBundleSpj}
-                    title={
-                      computedSpjSelected
-                        ? SPJ_KATEGORI_META[computedSpjSelected.kategori].desc
-                        : 'Cetak seluruh dokumen SPJ A4 sesuai kategori transaksi'
-                    }
+                    title="Cetak seluruh paket bukti SPJ A4 sesuai jenis transaksi BKU"
                     className="px-3 py-2 text-xs font-semibold rounded-lg bg-white border border-[#0B6B58] text-[#0B6B58] hover:bg-emerald-50 cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
                   >
                     <Layers className="w-3.5 h-3.5" />

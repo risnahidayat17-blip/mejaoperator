@@ -32,7 +32,6 @@ import {
   Users,
   FileText,
   Calculator,
-  Tag,
 } from 'lucide-react';
 
 export interface SpjDocTabMeta {
@@ -86,7 +85,7 @@ export function detectSpjKategori(uraian?: string, kodeRek?: string): SpjKategor
   const txt = String(uraian || '').trim();
   const rek = String(kodeRek || '').trim();
   if (
-    /\b(sppd|perjalanan\s*dinas|perjadin|uang\s*harian|tiket|penginapan|akomodasi|transport\s*dinas|transportasi\s*dinas)\b/i.test(txt) ||
+    /\b(sppd|perjalanan\s*dinas|perjadin|uang\s*harian|tiket|penginapan|akomodasi|transport\s*dinas|transportasi\s*dinas|dalam\s*daerah|luar\s*daerah)\b/i.test(txt) ||
     /^5\.1\.02\.04\b/.test(rek)
   ) {
     return 'sppd';
@@ -95,10 +94,17 @@ export function detectSpjKategori(uraian?: string, kodeRek?: string): SpjKategor
     return 'lembur';
   }
   if (
-    /\b(honor|honorarium|insentif|upah\s*(?:mengajar|tenaga|guru|karyawan)|narasumber|pemateri|pelatih|ekskul|ekstrakurikuler|pengawas\s*(?:ujian|asesmen)|koreksi|panitia|petugas|gaji|guru\s*honorer|tendik|ptt|gtt|jasa\s*(?:profesi|pelatih|tenaga))\b/i.test(
+    /\b(listrik|pln|pdam|air\s+bersih|telepon|telkom|internet|wifi|indihome|pulsa|kuota\s+data|langganan\s+daya)\b/i.test(
+      txt
+    )
+  ) {
+    return 'barang_jasa';
+  }
+  if (
+    /\b(honor|honorarium|insentif|upah\s*(?:mengajar|tenaga|guru|karyawan|tukang)?|narasumber|pemateri|pelatih|ekskul|ekstrakurikuler|pengawas\s*(?:ujian|asesmen)|koreksi|panitia|petugas|gaji|guru\s*honorer|tendik|ptt|gtt|jasa\s*(?:profesi|pelatih|tenaga|pendidik|pengajar|operator|keamanan|kebersihan)|jaspel|pembina|penulis\s*ijazah|transport\s*(?:kegiatan|pelatihan|diklat|kkks|kkg|mgmp))\b/i.test(
       txt
     ) ||
-    /^5\.1\.02\.02\.01\b/.test(rek)
+    /^5\.1\.02\.02\.01\.00(?:0[1-9]|[1-4]\d)\b/.test(rek)
   ) {
     return 'honor';
   }
@@ -287,7 +293,7 @@ export function computeSpjValues(
   const prefix = (settings.prefix || 'BOSP').trim() || 'BOSP';
   const untuk = edit?.untuk ?? row.uraian;
   const kodeRek = edit?.kodeRek ?? row.kodeRek ?? '';
-  const kategori: SpjKategori = edit?.kategoriSpj ?? detectSpjKategori(untuk, kodeRek);
+  const kategori: SpjKategori = detectSpjKategori(untuk, kodeRek);
   const noKw = edit?.noKw ?? `BKU-${seq}`;
 
   const items: SpjItemRow[] =
@@ -1379,37 +1385,6 @@ export const SpjDocEditor: React.FC<SpjDocEditorProps> = ({
 
   return (
     <div className="mt-4 space-y-4 text-xs">
-      {/* 0. Pemilih Jenis Transaksi SPJ (Barang/Jasa vs Honor vs Lembur vs SPPD) */}
-      <div className="p-3 rounded-xl bg-white border border-[#D3DDD9] flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="font-bold text-[#13262A] flex items-center gap-1.5">
-            <Tag className="w-3.5 h-3.5 text-[#0B6B58]" />
-            Jenis Transaksi SPJ
-          </div>
-          <p className="text-[11px] text-[#566A6E] mt-0.5">{SPJ_KATEGORI_META[v.kategori].desc}</p>
-        </div>
-        <div className="inline-flex flex-wrap gap-1 rounded-lg border border-[#D3DDD9] bg-[#F8FAF9] p-1">
-          {(Object.keys(SPJ_KATEGORI_META) as SpjKategori[]).map((kat) => {
-            const meta = SPJ_KATEGORI_META[kat];
-            const active = v.kategori === kat;
-            return (
-              <button
-                key={kat}
-                type="button"
-                onClick={() => onPatch({ kategoriSpj: kat })}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition cursor-pointer whitespace-nowrap ${
-                  active
-                    ? 'bg-[#0B6B58] text-white shadow-xs'
-                    : 'text-[#566A6E] hover:bg-white hover:text-[#13262A]'
-                }`}
-              >
-                {meta.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       {/* 1. Data Inti BKU & Penerima (sinkron ke semua dokumen) */}
       <div className="p-3.5 rounded-xl bg-[#F8FAF9] border border-[#D3DDD9]">
         <div className="flex items-center justify-between flex-wrap gap-2 mb-2.5">

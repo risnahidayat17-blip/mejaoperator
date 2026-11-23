@@ -47,10 +47,9 @@ const KONSUMSI_RX =
 const JASA_RX =
   /\b(jasa|servis|service|sewa|perbaikan|pemeliharaan|rehab|tukang|sablon|percetakan|pengecatan|laundry|cuci|pasang|instalasi|kalibrasi|fotokopi|jilid)\b/i;
 
-function inferKategori(uraian: string, kodeRek: string, edit?: KeuanganEditRow): SpjKategori {
-  if (edit?.kategoriSpj) return edit.kategoriSpj;
+function inferKategori(uraian: string, kodeRek: string): SpjKategori {
   if (
-    /\b(sppd|perjalanan\s*dinas|perjadin|uang\s*harian|tiket|penginapan|akomodasi|transport\s*dinas|transportasi\s*dinas)\b/i.test(
+    /\b(sppd|perjalanan\s*dinas|perjadin|uang\s*harian|tiket|penginapan|akomodasi|transport\s*dinas|transportasi\s*dinas|dalam\s*daerah|luar\s*daerah)\b/i.test(
       uraian
     ) ||
     /^5\.1\.02\.04\b/.test(kodeRek)
@@ -61,10 +60,10 @@ function inferKategori(uraian: string, kodeRek: string, edit?: KeuanganEditRow):
     return 'lembur';
   }
   if (
-    /\b(honor|honorarium|insentif|upah\s*(?:mengajar|tenaga|guru|karyawan)|narasumber|pemateri|pelatih|ekskul|ekstrakurikuler|pengawas\s*(?:ujian|asesmen)|koreksi|panitia|petugas|gaji|guru\s*honorer|tendik|ptt|gtt|jasa\s*(?:profesi|pelatih|tenaga))\b/i.test(
+    /\b(honor|honorarium|insentif|upah\s*(?:mengajar|tenaga|guru|karyawan|tukang)?|narasumber|pemateri|pelatih|ekskul|ekstrakurikuler|pengawas\s*(?:ujian|asesmen)|koreksi|panitia|petugas|gaji|guru\s*honorer|tendik|ptt|gtt|jasa\s*(?:profesi|pelatih|tenaga|pendidik|pengajar|operator|keamanan|kebersihan)|jaspel|pembina|penulis\s*ijazah|transport\s*(?:kegiatan|pelatihan|diklat|kkks|kkg|mgmp))\b/i.test(
       uraian
     ) ||
-    /^5\.1\.02\.02\.01\b/.test(kodeRek)
+    /^5\.1\.02\.02\.01\.00(?:0[1-9]|[1-4]\d)\b/.test(kodeRek)
   ) {
     return 'honor';
   }
@@ -162,7 +161,7 @@ export function resolveBkuTax(
     skemaEfektif = chosenSkema;
     ruleReason = 'Pilihan skema pajak baris';
   } else {
-    const kat = inferKategori(uraian, kodeRek, edit);
+    const kat = inferKategori(uraian, kodeRek);
     if (MUTASI_KAS_RX.test(uraian)) {
       skemaEfektif = 'bebas';
       ruleReason = 'Mutasi / pergeseran kas bank (bukan belanja)';
