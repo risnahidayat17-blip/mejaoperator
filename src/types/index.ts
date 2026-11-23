@@ -201,6 +201,16 @@ export interface Aset {
   updatedAt?: number;
 }
 
+export interface KirRuang {
+  id: string;
+  nama: string;
+  kodeRuang?: string;
+  penanggungJawab?: string;
+  nipPenanggungJawab?: string;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
 /** Barang Milik Daerah (BMD) untuk cetak stiker inventaris (data SIKATON). */
 export interface BmdItem {
   id: string;

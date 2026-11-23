@@ -5,6 +5,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { StikerBmd } from './StikerBmd';
+import { KirRuanganTab } from './KirRuanganTab';
 import { SchoolConfig, Aset } from '../types';
 import { printDomElement } from '../lib/print';
 import {
@@ -12,6 +13,7 @@ import {
   saveAset,
   saveAsets,
   deleteAset,
+  getKirRuangs,
   getBmdItems,
   saveBmdItems,
   getStikerConfig,
@@ -53,16 +55,12 @@ export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, on
   const isOperator = role === 'operator';
   const [activeTab, setActiveTab] = useState<'daftar' | 'kir' | 'label' | 'bmd'>('daftar');
   const [asets, setAsets] = useState<Aset[]>(() => getAsets());
-  const kirPrintRef = useRef<HTMLDivElement>(null);
   const labelPrintRef = useRef<HTMLDivElement>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterKategori, setFilterKategori] = useState('');
   const [filterKondisi, setFilterKondisi] = useState('');
-
-  // KIR specific
-  const [selectedRuangan, setSelectedRuangan] = useState<string>('Semua Ruangan');
-  const [penanggungJawab, setPenanggungJawab] = useState<string>('Rudi Hartono, S.Pd.');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // Modal manual tambah/ubah
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -103,7 +101,12 @@ export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, on
     'KIB E - Aset Tetap Lainnya',
   ];
 
-  const ruanganList = Array.from(new Set(asets.map((a) => a.lokasi || 'Ruang Kelas 1').filter(Boolean))).sort();
+  const ruanganList = Array.from(
+    new Set([
+      ...getKirRuangs().map((r) => r.nama),
+      ...asets.map((a) => a.lokasi || 'Ruang Kelas 1'),
+    ].filter(Boolean))
+  ).sort();
 
   const filtered = asets.filter((a) => {
     const term = searchTerm.toLowerCase().trim();
@@ -150,11 +153,17 @@ export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, on
       onToast('Hanya Operator yang berhak menghapus data inventaris.', true);
       return;
     }
-    if (window.confirm(`Hapus inventaris "${name}"?`)) {
-      deleteAset(id);
-      reloadData();
-      onToast(`Barang "${name}" dihapus.`);
+    if (confirmDeleteId !== id) {
+      setConfirmDeleteId(id);
+      setTimeout(() => {
+        setConfirmDeleteId((prev) => (prev === id ? null : prev));
+      }, 3500);
+      return;
     }
+    deleteAset(id);
+    setConfirmDeleteId(null);
+    reloadData();
+    onToast(`Barang "${name}" dihapus.`);
   };
 
   const handleProcessFile = async (file: File) => {
@@ -228,10 +237,6 @@ export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, on
     setAvailableSheets([]);
     onToast(`Berhasil mengimpor ${newAsets.length} data aset dari SIKATON.`);
   };
-
-  const kirItems = asets.filter(
-    (a) => selectedRuangan === 'Semua Ruangan' || (a.lokasi || 'Ruang Kelas 1') === selectedRuangan
-  );
 
   return (
     <div className="space-y-5">
@@ -429,10 +434,15 @@ export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, on
                               <button
                                 type="button"
                                 onClick={() => handleDelete(a.id, a.nama)}
-                                className="p-1.5 text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
+                                className={`px-2 py-1.5 rounded transition cursor-pointer inline-flex items-center gap-1 text-[11px] font-semibold ${
+                                  confirmDeleteId === a.id
+                                    ? 'bg-rose-600 text-white'
+                                    : 'text-rose-600 hover:bg-rose-50'
+                                }`}
                                 title="Hapus Aset"
                               >
                                 <Trash2 className="w-4 h-4" />
+                                {confirmDeleteId === a.id ? 'Yakin?' : ''}
                               </button>
                             )}
                           </div>
@@ -467,107 +477,20 @@ export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, on
         </div>
       )}
 
-      {/* TAB 2: KIR */}
+      {/* TAB 2: KIR PER RUANG */}
       {activeTab === 'kir' && (
-        <div className="space-y-4">
-          <div className="bg-white p-3.5 rounded-xl border border-[#D3DDD9] flex flex-wrap items-center justify-between gap-3 shadow-xs">
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-semibold text-[#566A6E]">Pilih Ruangan:</span>
-              <select
-                value={selectedRuangan}
-                onChange={(e) => setSelectedRuangan(e.target.value)}
-                className="text-xs px-3 py-1.5 border border-[#D3DDD9] rounded-lg bg-white font-bold text-[#0B6B58]"
-              >
-                <option value="Semua Ruangan">Semua Ruangan</option>
-                {ruanganList.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-
-              <span className="text-xs font-semibold text-[#566A6E] ml-2">Penanggung Jawab:</span>
-              <input
-                type="text"
-                value={penanggungJawab}
-                onChange={(e) => setPenanggungJawab(e.target.value)}
-                className="text-xs px-3 py-1.5 border border-[#D3DDD9] rounded-lg w-56"
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={() => printDomElement(kirPrintRef.current, { paper: 'A4', margin: '12mm 16mm' })}
-              className="px-4 py-2 bg-[#0B6B58] hover:bg-[#095747] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-2 cursor-pointer"
-            >
-              <Printer className="w-4 h-4" /> Cetak KIR (Preview Google)
-            </button>
-          </div>
-
-          <div
-            ref={kirPrintRef}
-            className="bg-white border border-[#D3DDD9] rounded-xl p-8 shadow-xs select-text print-sheet"
-          >
-            <div className="text-center pb-4 border-b-2 border-black mb-6">
-              <h2 className="text-lg font-bold font-serif uppercase tracking-wider">
-                KARTU INVENTARIS RUANGAN (KIR)
-              </h2>
-              <div className="text-sm font-semibold uppercase">{config.namaSekolah}</div>
-              <div className="text-xs text-gray-700">
-                RUANGAN : <span className="font-bold underline">{selectedRuangan.toUpperCase()}</span>
-              </div>
-            </div>
-
-            <table className="w-full text-left text-xs border-collapse border border-black mb-6">
-              <thead>
-                <tr className="bg-gray-100 text-center font-bold">
-                  <th className="border border-black p-2 w-10">No</th>
-                  <th className="border border-black p-2">Nama Barang / Jenis</th>
-                  <th className="border border-black p-2">Merk / Model</th>
-                  <th className="border border-black p-2">Kode Barang</th>
-                  <th className="border border-black p-2 w-16">Tahun</th>
-                  <th className="border border-black p-2 w-16">Jumlah</th>
-                  <th className="border border-black p-2 w-24">Kondisi</th>
-                  <th className="border border-black p-2">Keterangan</th>
-                </tr>
-              </thead>
-              <tbody>
-                {kirItems.map((item, idx) => (
-                  <tr key={item.id}>
-                    <td className="border border-black p-2 text-center font-mono">{idx + 1}</td>
-                    <td className="border border-black p-2 font-bold">{item.nama}</td>
-                    <td className="border border-black p-2">{item.merk || '-'}</td>
-                    <td className="border border-black p-2 font-mono">{item.kode || '-'}</td>
-                    <td className="border border-black p-2 text-center">{item.tahunPerolehan || '-'}</td>
-                    <td className="border border-black p-2 text-center font-bold font-mono">{item.jumlah}</td>
-                    <td className="border border-black p-2 text-center font-semibold">{item.kondisi}</td>
-                    <td className="border border-black p-2">{item.keterangan || '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <div className="flex justify-between items-end mt-12 text-xs">
-              <div className="text-center w-64">
-                <div>Mengetahui,</div>
-                <div>Kepala Sekolah</div>
-                <div className="h-16" />
-                <div className="font-bold underline">{config.kepsek}</div>
-                <div>NIP. {config.nipKepsek}</div>
-              </div>
-              <div className="text-center w-64">
-                <div>
-                  {config.kabupaten},{' '}
-                  {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                </div>
-                <div>Penanggung Jawab Ruangan</div>
-                <div className="h-16" />
-                <div className="font-bold underline">{penanggungJawab}</div>
-                <div>Pengelola Ruang</div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <KirRuanganTab
+          isOperator={isOperator}
+          config={config}
+          asets={asets}
+          kibCategories={kibCategories}
+          onReloadAsets={reloadData}
+          onEditAsetModal={(item) => {
+            setEditingAset(item);
+            setIsModalOpen(true);
+          }}
+          onToast={onToast}
+        />
       )}
 
       {/* TAB 3: STIKER LABEL */}
@@ -718,14 +641,53 @@ export const AsetInventaris: React.FC<AsetInventarisProps> = ({ role, config, on
                 </div>
               </div>
 
-              <div>
-                <label className="block font-semibold text-[#566A6E] mb-1">Lokasi / Ruangan</label>
-                <input
-                  name="lokasi"
-                  defaultValue={editingAset?.lokasi || 'Ruang Kelas 1'}
-                  placeholder="Contoh: Ruang Kelas 4"
-                  className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-[#566A6E] mb-1">Lokasi / Ruangan</label>
+                  <input
+                    name="lokasi"
+                    list="aset-ruangan-datalist"
+                    defaultValue={editingAset?.lokasi || ruanganList[0] || 'Ruang Kelas 1'}
+                    placeholder="Contoh: Ruang Kelas 4"
+                    className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg"
+                  />
+                  <datalist id="aset-ruangan-datalist">
+                    {ruanganList.map((r) => (
+                      <option key={r} value={r} />
+                    ))}
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block font-semibold text-[#566A6E] mb-1">Harga Satuan (Rp)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    name="harga"
+                    defaultValue={editingAset?.harga || 0}
+                    className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-[#566A6E] mb-1">No. Register</label>
+                  <input
+                    name="noRegister"
+                    defaultValue={editingAset?.noRegister}
+                    placeholder="Contoh: 001-030"
+                    className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-[#566A6E] mb-1">Keterangan</label>
+                  <input
+                    name="keterangan"
+                    defaultValue={editingAset?.keterangan}
+                    placeholder="Catatan kondisi / barang"
+                    className="w-full px-3 py-2 border border-[#D3DDD9] rounded-lg"
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-[#D3DDD9]">

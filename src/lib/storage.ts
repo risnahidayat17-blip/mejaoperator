@@ -10,6 +10,7 @@ import {
   Guru,
   DokumenGtk,
   Aset,
+  KirRuang,
   BmdItem,
   StikerConfig,
   SuratMasuk,
@@ -72,6 +73,7 @@ export const KEYS = {
   GURU: 'mo_guru',
   DOKGTK: 'mo_dokgtk',
   ASET: 'mo_aset',
+  KIR_RUANG: 'mo_kir_ruang',
   BMD: 'mo_bmd',
   STIKER: 'mo_stiker_cfg',
   SURATMASUK: 'mo_suratmasuk',
@@ -2099,6 +2101,86 @@ export function saveAsets(list: Aset[], activity?: string): void {
   recordActivity('Aset', activity || `Perbarui data inventaris (${list.length} barang)`, false, 'update');
 }
 
+const DEFAULT_KIR_RUANG_NAMES = [
+  'Ruang Kepala Sekolah',
+  'Ruang Guru',
+  'Ruang Kelas 1',
+  'Ruang Kelas 2',
+  'Ruang Kelas 3',
+  'Ruang Kelas 4',
+  'Ruang Kelas 5',
+  'Ruang Kelas 6',
+  'Ruang Perpustakaan',
+  'Ruang UKS',
+];
+
+export function getKirRuangs(): KirRuang[] {
+  const saved = getFromStorage<KirRuang[] | null>(KEYS.KIR_RUANG, null);
+  if (Array.isArray(saved)) return saved;
+  const now = Date.now();
+  const seen = new Set<string>();
+  const seeded: KirRuang[] = [];
+  const addName = (rawName?: string, idxSeed: number = 0) => {
+    const clean = String(rawName || '').trim();
+    if (!clean) return;
+    const key = clean.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    seeded.push({
+      id: `kir_r_${idxSeed}_${clean.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
+      nama: clean,
+      kodeRuang: '',
+      penanggungJawab: '',
+      nipPenanggungJawab: '',
+      createdAt: now,
+      updatedAt: now,
+    });
+  };
+  getAsets().forEach((a, i) => addName(a.lokasi, i + 1));
+  DEFAULT_KIR_RUANG_NAMES.forEach((n, i) => addName(n, i + 100));
+  return seeded;
+}
+
+export function saveKirRuangs(list: KirRuang[], activity?: string): void {
+  const now = Date.now();
+  const prepared = list.map((r) => ({
+    ...r,
+    createdAt: r.createdAt || now,
+    updatedAt: now,
+  }));
+  setToStorage(KEYS.KIR_RUANG, prepared);
+  if (activity) {
+    recordActivity('Aset', activity, false, 'update');
+  }
+}
+
+export function saveKirRuang(ruang: KirRuang): void {
+  const list = getKirRuangs();
+  const idx = list.findIndex((r) => r.id === ruang.id || r.nama.toLowerCase() === ruang.nama.toLowerCase());
+  const now = Date.now();
+  const isNew = idx < 0;
+  if (idx >= 0) {
+    list[idx] = { ...list[idx], ...ruang, updatedAt: now };
+  } else {
+    list.push({ ...ruang, createdAt: ruang.createdAt || now, updatedAt: now });
+  }
+  setToStorage(KEYS.KIR_RUANG, list);
+  recordActivity(
+    'Aset',
+    isNew ? `Tambah ruangan KIR: ${ruang.nama}` : `Perbarui ruangan KIR: ${ruang.nama}`,
+    isNew,
+    isNew ? 'create' : 'update'
+  );
+}
+
+export function deleteKirRuang(id: string): void {
+  const current = getKirRuangs();
+  const target = current.find((r) => r.id === id);
+  const filtered = current.filter((r) => r.id !== id);
+  setToStorage(KEYS.KIR_RUANG, filtered);
+  recordActivity('Aset', `Hapus ruangan KIR: ${target?.nama || 'Ruangan'}`, false, 'delete');
+}
+
 // BMD & stiker inventaris
 export function getBmdItems(): BmdItem[] {
   return getFromStorage<BmdItem[]>(KEYS.BMD, initialBmd);
@@ -2391,6 +2473,7 @@ export function getAllExportableData(): Record<string, unknown> {
     [KEYS.GURU]: getGurus(),
     [KEYS.DOKGTK]: getDokumenGtks(),
     [KEYS.ASET]: getAsets(),
+    [KEYS.KIR_RUANG]: getKirRuangs(),
     [KEYS.BMD]: getBmdItems(),
     [KEYS.STIKER]: getStikerConfig(),
     [KEYS.SURATMASUK]: getSuratMasuk(),
@@ -2467,6 +2550,7 @@ export function resetToDefaults(): void {
   localStorage.setItem(KEYS.SISWA, JSON.stringify(initialSiswas));
   localStorage.setItem(KEYS.GURU, JSON.stringify(initialGurus));
   localStorage.setItem(KEYS.ASET, JSON.stringify(initialAsets));
+  localStorage.removeItem(KEYS.KIR_RUANG);
   localStorage.setItem(KEYS.BMD, JSON.stringify(initialBmd));
   localStorage.removeItem(KEYS.STIKER);
   localStorage.setItem(KEYS.SURATMASUK, JSON.stringify(initialSuratMasuk));
