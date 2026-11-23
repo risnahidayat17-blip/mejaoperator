@@ -12,10 +12,12 @@ import {
   SpjFotoItem,
   SpjHonorRow,
   SpjItemRow,
+  SpjKategori,
 } from '../types';
 import { KopSuratHD } from './KopSuratHD';
 import { compressImageFileToDataUrl } from '../lib/compress';
 import { isImageKitReady, uploadDataUrlToImageKit } from '../lib/imagekit';
+import { resolveBkuTax } from '../lib/pajakBku';
 import {
   Plus,
   Trash2,
@@ -30,14 +32,17 @@ import {
   Users,
   FileText,
   Calculator,
+  Tag,
 } from 'lucide-react';
 
-export const SPJ_DOC_TABS: Array<{
+export interface SpjDocTabMeta {
   id: SpjDocType;
   label: string;
   shortLabel: string;
   paperLabel: string;
-}> = [
+}
+
+export const SPJ_DOC_TABS: SpjDocTabMeta[] = [
   { id: 'kwitansi', label: 'Kwitansi BOS', shortLabel: 'Kwitansi', paperLabel: '215 × 75 mm / 180 × 76 mm' },
   { id: 'nota_pesanan', label: 'Nota Pesanan', shortLabel: 'Nota Pesanan', paperLabel: 'A4 Portrait' },
   { id: 'bast', label: 'BAST', shortLabel: 'BAST', paperLabel: 'A4 Portrait' },
@@ -46,6 +51,82 @@ export const SPJ_DOC_TABS: Array<{
   { id: 'dokumentasi', label: 'Dokumentasi Kegiatan', shortLabel: 'Dokumentasi', paperLabel: 'A4 Portrait' },
   { id: 'invoice', label: 'Invoice', shortLabel: 'Invoice', paperLabel: 'A4 Portrait' },
 ];
+
+export const SPJ_KATEGORI_META: Record<
+  SpjKategori,
+  { label: string; shortLabel: string; badgeCls: string; desc: string }
+> = {
+  barang_jasa: {
+    label: 'Pembelian Barang / Jasa',
+    shortLabel: 'Barang/Jasa',
+    badgeCls: 'bg-sky-50 text-sky-800 border-sky-200',
+    desc: 'Menggunakan Kwitansi, Nota Pesanan, BAST, Model A2, Dokumentasi & Invoice.',
+  },
+  honor: {
+    label: 'Pembayaran Honor',
+    shortLabel: 'Honor',
+    badgeCls: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+    desc: 'Menggunakan Kwitansi, Model A2, Tanda Terima Honor & Dokumentasi (tanpa Nota Pesanan/BAST/Invoice barang).',
+  },
+  lembur: {
+    label: 'Uang Lembur',
+    shortLabel: 'Lembur',
+    badgeCls: 'bg-amber-50 text-amber-800 border-amber-200',
+    desc: 'Menggunakan Kwitansi, Model A2, Tanda Terima Uang Lembur & Dokumentasi (tanpa kolom jenis barang).',
+  },
+  sppd: {
+    label: 'SPPD / Perjadin',
+    shortLabel: 'SPPD',
+    badgeCls: 'bg-violet-50 text-violet-800 border-violet-200',
+    desc: 'Menggunakan Kwitansi, Model A2, Daftar Biaya SPPD & Dokumentasi (tanpa kolom jenis barang).',
+  },
+};
+
+export function detectSpjKategori(uraian?: string, kodeRek?: string): SpjKategori {
+  const txt = String(uraian || '').trim();
+  const rek = String(kodeRek || '').trim();
+  if (
+    /\b(sppd|perjalanan\s*dinas|perjadin|uang\s*harian|tiket|penginapan|akomodasi|transport\s*dinas|transportasi\s*dinas)\b/i.test(txt) ||
+    /^5\.1\.02\.04\b/.test(rek)
+  ) {
+    return 'sppd';
+  }
+  if (/\b(lembur|uang\s*lembur|makan\s*lembur|overtime)\b/i.test(txt)) {
+    return 'lembur';
+  }
+  if (
+    /\b(honor|honorarium|insentif|upah\s*(?:mengajar|tenaga|guru|karyawan)|narasumber|pemateri|pelatih|ekskul|ekstrakurikuler|pengawas\s*(?:ujian|asesmen)|koreksi|panitia|petugas|gaji|guru\s*honorer|tendik|ptt|gtt|jasa\s*(?:profesi|pelatih|tenaga))\b/i.test(
+      txt
+    ) ||
+    /^5\.1\.02\.02\.01\b/.test(rek)
+  ) {
+    return 'honor';
+  }
+  return 'barang_jasa';
+}
+
+export function getAllowedDocTabs(kategori: SpjKategori): SpjDocTabMeta[] {
+  if (kategori === 'barang_jasa') {
+    return SPJ_DOC_TABS.filter((t) => t.id !== 'tanda_terima_honor');
+  }
+  const honorTabLabel =
+    kategori === 'lembur'
+      ? { label: 'Tanda Terima Lembur', shortLabel: 'Terima Lembur' }
+      : kategori === 'sppd'
+        ? { label: 'Tanda Terima SPPD', shortLabel: 'Terima SPPD' }
+        : { label: 'Tanda Terima Honor', shortLabel: 'Terima Honor' };
+
+  return SPJ_DOC_TABS.filter(
+    (t) => t.id === 'kwitansi' || t.id === 'model_a2' || t.id === 'tanda_terima_honor' || t.id === 'dokumentasi'
+  ).map((t) => (t.id === 'tanda_terima_honor' ? { ...t, ...honorTabLabel } : t));
+}
+
+export function getBundleDocsForKategori(kategori: SpjKategori): Exclude<SpjDocType, 'kwitansi'>[] {
+  if (kategori === 'barang_jasa') {
+    return ['nota_pesanan', 'bast', 'model_a2', 'dokumentasi', 'invoice'];
+  }
+  return ['model_a2', 'tanda_terima_honor', 'dokumentasi'];
+}
 
 const MONTH_NAMES = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -139,6 +220,7 @@ export function parseVolNumber(vol: string): number {
 }
 
 export interface ComputedSpjValues {
+  kategori: SpjKategori;
   seq: string;
   tahun: string;
   noKw: string;
@@ -204,6 +286,8 @@ export function computeSpjValues(
   const tahun = settings.tahunAnggaran?.trim() || year;
   const prefix = (settings.prefix || 'BOSP').trim() || 'BOSP';
   const untuk = edit?.untuk ?? row.uraian;
+  const kodeRek = edit?.kodeRek ?? row.kodeRek ?? '';
+  const kategori: SpjKategori = edit?.kategoriSpj ?? detectSpjKategori(untuk, kodeRek);
   const noKw = edit?.noKw ?? `BKU-${seq}`;
 
   const items: SpjItemRow[] =
@@ -217,16 +301,29 @@ export function computeSpjValues(
   );
 
   const penerima = edit?.penerima ?? '';
+  const defaultHonorNama =
+    penerima ||
+    (kategori === 'lembur' ? 'Pegawai Penerima Lembur' : kategori === 'sppd' ? 'Pelaksana Perjalanan Dinas' : 'Penerima Honorarium');
+  const defaultHonorJabatan =
+    kategori === 'lembur'
+      ? 'Guru / Tenaga Kependidikan'
+      : kategori === 'sppd'
+        ? 'Pelaksana Tugas / SPPD'
+        : 'Pelaksana / Narasumber / Petugas';
+  const defaultHonorVol = kategori === 'lembur' || kategori === 'sppd' ? '1 Hari' : '1 Kali';
+
+  const autoTax = resolveBkuTax(row, edit, settings);
+
   const honorRows: SpjHonorRow[] =
     edit?.honorRows && edit.honorRows.length > 0
       ? edit.honorRows
       : [
           {
-            nama: penerima || 'Penerima Honorarium',
-            jabatan: 'Pelaksana / Narasumber / Petugas',
-            vol: '1 Kali',
+            nama: defaultHonorNama,
+            jabatan: defaultHonorJabatan,
+            vol: defaultHonorVol,
             satuanHonor: Math.round(row.pengeluaran || 0),
-            pph: 0,
+            pph: autoTax.pph21 > 0 ? autoTax.pph21 : autoTax.pph > 0 && (kategori === 'honor' || kategori === 'lembur') ? autoTax.pph : 0,
           },
         ];
 
@@ -234,14 +331,16 @@ export function computeSpjValues(
   const honorPph = honorRows.reduce((s, r) => s + Math.round(Number(r.pph) || 0), 0);
   const honorNetto = Math.max(0, honorBruto - honorPph);
 
-  const ppn = Math.round(Number(edit?.ppn) || 0);
-  const pph = Math.round(Number(edit?.pph) || 0);
+  const ppn = autoTax.ppn;
+  const pph = autoTax.pph;
   const nettoA2 = Math.max(0, Math.round(row.pengeluaran || 0) - ppn - pph);
 
   const ppnInvoice = Math.round(Number(edit?.ppnInvoice) || 0);
   const invoiceTotal = itemsTotal + ppnInvoice;
+  const honorDocPrefix = kategori === 'lembur' ? 'DL' : kategori === 'sppd' ? 'SPD' : 'DH';
 
   return {
+    kategori,
     seq,
     tahun,
     noKw,
@@ -252,7 +351,7 @@ export function computeSpjValues(
     telpPenerima: edit?.telpPenerima ?? '',
     jabatanPenerima: edit?.jabatanPenerima ?? 'Pemilik / Penyedia',
     untuk,
-    kodeRek: edit?.kodeRek ?? row.kodeRek ?? '',
+    kodeRek,
     pelaksanaNama: edit?.pelaksanaNama ?? settings.bendaharaNama,
     pelaksanaNip: edit?.pelaksanaNip ?? settings.bendaharaNip,
     items,
@@ -273,9 +372,9 @@ export function computeSpjValues(
     kodeKegiatan: edit?.kodeKegiatan ?? prefix,
     ppn,
     pph,
-    jenisPph: edit?.jenisPph ?? 'PPh Ps. 21/22/23',
+    jenisPph: edit?.jenisPph ?? autoTax.jenisPph,
     nettoA2,
-    noHonor: edit?.noHonor ?? `${seq}/DH-${prefix}/${roman}/${tahun}`,
+    noHonor: edit?.noHonor ?? `${seq}/${honorDocPrefix}-${prefix}/${roman}/${tahun}`,
     tglHonor: edit?.tglHonor ?? tgl,
     honorJudul: edit?.honorJudul ?? untuk,
     honorRows,
@@ -734,14 +833,29 @@ const ModelA2Sheet: React.FC<Omit<SheetProps, 'docType'>> = ({ config, settings,
 };
 
 const TandaTerimaHonorSheet: React.FC<Omit<SheetProps, 'docType'>> = ({ config, settings, row, v }) => {
+  const titleText =
+    v.kategori === 'lembur'
+      ? 'DAFTAR TANDA TERIMA UANG LEMBUR PEGAWAI'
+      : v.kategori === 'sppd'
+        ? 'DAFTAR RINCIAN BIAYA & TANDA TERIMA PERJALANAN DINAS (SPPD)'
+        : 'DAFTAR TANDA TERIMA HONORARIUM / INSENTIF KEGIATAN';
+
+  const colNamaLabel =
+    v.kategori === 'lembur' ? 'Nama Pegawai' : v.kategori === 'sppd' ? 'Nama Pelaksana' : 'Nama Penerima';
+  const colJabatanLabel =
+    v.kategori === 'lembur' ? 'Jabatan / Gol' : v.kategori === 'sppd' ? 'Jabatan / Tujuan SPPD' : 'Jabatan / Tugas';
+  const colVolLabel =
+    v.kategori === 'lembur' ? 'Hari / Jam' : v.kategori === 'sppd' ? 'Lama' : 'Vol';
+  const colBrutoLabel =
+    v.kategori === 'sppd' ? 'Biaya SPPD / Transport' : 'Jumlah Bruto';
+  const colPajakLabel = v.kategori === 'sppd' ? 'Potongan' : 'Pot. PPh 21';
+
   return (
     <div className="spj-a4-sheet">
       <KopSuratHD config={config} logoHeight={68} className="!mb-3 !pb-2" />
 
       <div className="text-center mb-3">
-        <div className="text-[12pt] font-bold underline tracking-wide uppercase">
-          DAFTAR TANDA TERIMA HONORARIUM / INSENTIF KEGIATAN
-        </div>
+        <div className="text-[12pt] font-bold underline tracking-wide uppercase">{titleText}</div>
         <div className="text-[10pt]">Nomor: {v.noHonor}</div>
       </div>
 
@@ -772,11 +886,11 @@ const TandaTerimaHonorSheet: React.FC<Omit<SheetProps, 'docType'>> = ({ config, 
         <thead>
           <tr>
             <th style={{ width: '28px' }}>No</th>
-            <th>Nama Penerima</th>
-            <th style={{ width: '115px' }}>Jabatan / Tugas</th>
-            <th style={{ width: '62px' }}>Vol</th>
-            <th style={{ width: '82px' }}>Jumlah Bruto</th>
-            <th style={{ width: '74px' }}>Pot. PPh 21</th>
+            <th>{colNamaLabel}</th>
+            <th style={{ width: '120px' }}>{colJabatanLabel}</th>
+            <th style={{ width: '62px' }}>{colVolLabel}</th>
+            <th style={{ width: '86px' }}>{colBrutoLabel}</th>
+            <th style={{ width: '72px' }}>{colPajakLabel}</th>
             <th style={{ width: '86px' }}>Diterima Bersih</th>
             <th style={{ width: '100px' }}>Tanda Tangan</th>
           </tr>
@@ -878,7 +992,9 @@ const DokumentasiKegiatanSheet: React.FC<Omit<SheetProps, 'docType'>> = ({ confi
           </tr>
           {v.penerima && (
             <tr>
-              <td className="font-semibold bg-gray-100">Penyedia / Penerima</td>
+              <td className="font-semibold bg-gray-100">
+                {v.kategori === 'barang_jasa' ? 'Penyedia / Penerima' : 'Koordinator / Penerima'}
+              </td>
               <td>{v.penerima}</td>
             </tr>
           )}
@@ -1100,6 +1216,10 @@ const InvoiceSheet: React.FC<Omit<SheetProps, 'docType'>> = ({ config, settings,
 };
 
 export const SpjDocSheet: React.FC<SheetProps> = ({ docType, config, settings, row, v }) => {
+  // Pengaman: transaksi Honor / Lembur / SPPD tidak pernah menampilkan Nota Pesanan, BAST, atau Invoice barang
+  if (v.kategori !== 'barang_jasa' && (docType === 'nota_pesanan' || docType === 'bast' || docType === 'invoice')) {
+    return <TandaTerimaHonorSheet config={config} settings={settings} row={row} v={v} />;
+  }
   switch (docType) {
     case 'nota_pesanan':
       return <NotaPesananSheet config={config} settings={settings} row={row} v={v} />;
@@ -1254,16 +1374,48 @@ export const SpjDocEditor: React.FC<SpjDocEditorProps> = ({
     }
   };
 
-  const needsItemsEditor = docType === 'nota_pesanan' || docType === 'bast' || docType === 'invoice';
+  const isBarangJasa = v.kategori === 'barang_jasa';
+  const needsItemsEditor = isBarangJasa && (docType === 'nota_pesanan' || docType === 'bast' || docType === 'invoice');
 
   return (
     <div className="mt-4 space-y-4 text-xs">
-      {/* 1. Data Inti BKU & Rekanan (sinkron ke semua dokumen) */}
+      {/* 0. Pemilih Jenis Transaksi SPJ (Barang/Jasa vs Honor vs Lembur vs SPPD) */}
+      <div className="p-3 rounded-xl bg-white border border-[#D3DDD9] flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="font-bold text-[#13262A] flex items-center gap-1.5">
+            <Tag className="w-3.5 h-3.5 text-[#0B6B58]" />
+            Jenis Transaksi SPJ
+          </div>
+          <p className="text-[11px] text-[#566A6E] mt-0.5">{SPJ_KATEGORI_META[v.kategori].desc}</p>
+        </div>
+        <div className="inline-flex flex-wrap gap-1 rounded-lg border border-[#D3DDD9] bg-[#F8FAF9] p-1">
+          {(Object.keys(SPJ_KATEGORI_META) as SpjKategori[]).map((kat) => {
+            const meta = SPJ_KATEGORI_META[kat];
+            const active = v.kategori === kat;
+            return (
+              <button
+                key={kat}
+                type="button"
+                onClick={() => onPatch({ kategoriSpj: kat })}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition cursor-pointer whitespace-nowrap ${
+                  active
+                    ? 'bg-[#0B6B58] text-white shadow-xs'
+                    : 'text-[#566A6E] hover:bg-white hover:text-[#13262A]'
+                }`}
+              >
+                {meta.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 1. Data Inti BKU & Penerima (sinkron ke semua dokumen) */}
       <div className="p-3.5 rounded-xl bg-[#F8FAF9] border border-[#D3DDD9]">
         <div className="flex items-center justify-between flex-wrap gap-2 mb-2.5">
           <div className="font-bold text-[#13262A] flex items-center gap-1.5">
             <ReceiptText className="w-3.5 h-3.5 text-[#0B6B58]" />
-            Data Transaksi BKU &amp; Pihak Penerima / Rekanan (Terhubung Semua Dokumen)
+            Data Transaksi BKU &amp; {isBarangJasa ? 'Pihak Rekanan / Toko' : 'Penerima / Pelaksana'} (Terhubung Semua Dokumen)
           </div>
           <span className="text-[11px] font-mono font-semibold text-[#0B6B58]">
             Nilai BKU: {formatRupiah(bkuNominal)}
@@ -1299,17 +1451,17 @@ export const SpjDocEditor: React.FC<SpjDocEditorProps> = ({
           </div>
           <div>
             <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">
-              Penerima / Toko / Rekanan
+              {isBarangJasa ? 'Penerima / Toko / Rekanan' : 'Penerima / Koordinator'}
             </label>
             <input
               value={v.penerima}
               onChange={(e) => onPatch({ penerima: e.target.value })}
-              placeholder="Nama toko / penyedia / penerima"
+              placeholder={isBarangJasa ? 'Nama toko / penyedia' : 'Nama penerima / koordinator'}
               className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
             />
           </div>
 
-          {docType !== 'kwitansi' && (
+          {docType !== 'kwitansi' && isBarangJasa && (
             <>
               <div>
                 <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">Jabatan Rekanan</label>
@@ -1350,6 +1502,18 @@ export const SpjDocEditor: React.FC<SpjDocEditorProps> = ({
             </>
           )}
 
+          {docType !== 'kwitansi' && !isBarangJasa && (
+            <div className="md:col-span-2">
+              <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">NPWP / NIK Penerima (Opsional)</label>
+              <input
+                value={v.npwpPenerima}
+                onChange={(e) => onPatch({ npwpPenerima: e.target.value })}
+                placeholder="Opsional"
+                className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white font-mono"
+              />
+            </div>
+          )}
+
           <div className="md:col-span-4">
             <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">
               Untuk Pembayaran / Uraian Kegiatan
@@ -1364,7 +1528,7 @@ export const SpjDocEditor: React.FC<SpjDocEditorProps> = ({
         </div>
       </div>
 
-      {/* 2. Rincian Barang / Jasa (Nota Pesanan, BAST, Invoice) */}
+      {/* 2. Rincian Barang / Jasa (Hanya untuk kategori Pembelian Barang / Jasa) */}
       {needsItemsEditor && (
         <div className="p-3.5 rounded-xl bg-white border border-[#D3DDD9]">
           <div className="flex items-center justify-between flex-wrap gap-2 mb-2.5">
@@ -1564,9 +1728,24 @@ export const SpjDocEditor: React.FC<SpjDocEditorProps> = ({
       {/* 3C. Field Khusus Model A2 */}
       {docType === 'model_a2' && (
         <div className="p-3.5 rounded-xl bg-white border border-[#D3DDD9]">
-          <div className="font-bold text-[#13262A] flex items-center gap-1.5 mb-2.5">
-            <Calculator className="w-3.5 h-3.5 text-[#0B6B58]" />
-            Pengaturan Model A2 &amp; Pajak Belanja
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-2.5">
+            <div className="font-bold text-[#13262A] flex items-center gap-1.5">
+              <Calculator className="w-3.5 h-3.5 text-[#0B6B58]" />
+              Pengaturan Model A2 &amp; Pajak Belanja
+            </div>
+            {edit.pajakManual ? (
+              <button
+                type="button"
+                onClick={() => onPatch({ pajakManual: false, ppn: undefined, pph: undefined, jenisPph: undefined })}
+                className="text-[11px] font-semibold text-[#0B6B58] bg-emerald-50 hover:bg-emerald-100 border border-[#0B6B58]/30 px-2.5 py-1 rounded-lg cursor-pointer"
+              >
+                Kembalikan ke Potong Pajak Otomatis
+              </button>
+            ) : (
+              <span className="text-[11px] text-[#0B6B58] bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                Terhubung Pajak Otomatis BKU
+              </span>
+            )}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
@@ -1599,7 +1778,14 @@ export const SpjDocEditor: React.FC<SpjDocEditorProps> = ({
               <input
                 type="number"
                 value={v.ppn}
-                onChange={(e) => onPatch({ ppn: Math.max(0, Number(e.target.value) || 0) })}
+                onChange={(e) =>
+                  onPatch({
+                    ppn: Math.max(0, Number(e.target.value) || 0),
+                    pph: v.pph,
+                    jenisPph: v.jenisPph,
+                    pajakManual: true,
+                  })
+                }
                 className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg font-mono"
               />
             </div>
@@ -1607,7 +1793,14 @@ export const SpjDocEditor: React.FC<SpjDocEditorProps> = ({
               <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">Jenis PPh</label>
               <select
                 value={v.jenisPph}
-                onChange={(e) => onPatch({ jenisPph: e.target.value })}
+                onChange={(e) =>
+                  onPatch({
+                    jenisPph: e.target.value,
+                    ppn: v.ppn,
+                    pph: v.pph,
+                    pajakManual: true,
+                  })
+                }
                 className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg bg-white"
               >
                 <option value="PPh Ps. 21/22/23">PPh Ps. 21/22/23</option>
@@ -1622,7 +1815,14 @@ export const SpjDocEditor: React.FC<SpjDocEditorProps> = ({
               <input
                 type="number"
                 value={v.pph}
-                onChange={(e) => onPatch({ pph: Math.max(0, Number(e.target.value) || 0) })}
+                onChange={(e) =>
+                  onPatch({
+                    pph: Math.max(0, Number(e.target.value) || 0),
+                    ppn: v.ppn,
+                    jenisPph: v.jenisPph,
+                    pajakManual: true,
+                  })
+                }
                 className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg font-mono"
               />
             </div>
@@ -1630,13 +1830,17 @@ export const SpjDocEditor: React.FC<SpjDocEditorProps> = ({
         </div>
       )}
 
-      {/* 3D. Field Khusus Tanda Terima Honor */}
+      {/* 3D. Field Khusus Tanda Terima Honor / Lembur / SPPD */}
       {docType === 'tanda_terima_honor' && (
         <div className="p-3.5 rounded-xl bg-white border border-[#D3DDD9] space-y-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="font-bold text-[#13262A] flex items-center gap-1.5">
               <Users className="w-3.5 h-3.5 text-[#0B6B58]" />
-              Daftar Penerima Honorarium / Insentif
+              {v.kategori === 'lembur'
+                ? 'Daftar Penerima Uang Lembur Pegawai'
+                : v.kategori === 'sppd'
+                  ? 'Daftar Pelaksana & Rincian Biaya SPPD'
+                  : 'Daftar Penerima Honorarium / Insentif'}
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               {honorMatchBku ? (
@@ -1665,7 +1869,9 @@ export const SpjDocEditor: React.FC<SpjDocEditorProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
-              <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">Nomor Daftar Honor</label>
+              <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">
+                {v.kategori === 'lembur' ? 'Nomor Daftar Lembur' : v.kategori === 'sppd' ? 'Nomor Rincian SPPD' : 'Nomor Daftar Honor'}
+              </label>
               <input
                 value={v.noHonor}
                 onChange={(e) => onPatch({ noHonor: e.target.value })}
@@ -1682,7 +1888,9 @@ export const SpjDocEditor: React.FC<SpjDocEditorProps> = ({
               />
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">Judul Kegiatan Honor</label>
+              <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">
+                {v.kategori === 'lembur' ? 'Uraian Kegiatan Lembur' : v.kategori === 'sppd' ? 'Keperluan / Tujuan SPPD' : 'Judul Kegiatan Honor'}
+              </label>
               <input
                 value={v.honorJudul}
                 onChange={(e) => onPatch({ honorJudul: e.target.value })}
@@ -1695,11 +1903,21 @@ export const SpjDocEditor: React.FC<SpjDocEditorProps> = ({
             <table className="w-full text-xs border-collapse">
               <thead>
                 <tr className="bg-[#F8FAF9] text-[#566A6E]">
-                  <th className="border border-[#D3DDD9] px-2 py-1.5 text-left">Nama Penerima</th>
-                  <th className="border border-[#D3DDD9] px-2 py-1.5 text-left w-40">Jabatan / Tugas</th>
-                  <th className="border border-[#D3DDD9] px-2 py-1.5 w-24">Volume</th>
-                  <th className="border border-[#D3DDD9] px-2 py-1.5 w-28">Bruto (Rp)</th>
-                  <th className="border border-[#D3DDD9] px-2 py-1.5 w-24">PPh 21 (Rp)</th>
+                  <th className="border border-[#D3DDD9] px-2 py-1.5 text-left">
+                    {v.kategori === 'sppd' ? 'Nama Pelaksana' : 'Nama Penerima'}
+                  </th>
+                  <th className="border border-[#D3DDD9] px-2 py-1.5 text-left w-40">
+                    {v.kategori === 'sppd' ? 'Jabatan / Tujuan' : 'Jabatan / Tugas'}
+                  </th>
+                  <th className="border border-[#D3DDD9] px-2 py-1.5 w-24">
+                    {v.kategori === 'lembur' || v.kategori === 'sppd' ? 'Hari / Jam' : 'Volume'}
+                  </th>
+                  <th className="border border-[#D3DDD9] px-2 py-1.5 w-28">
+                    {v.kategori === 'sppd' ? 'Biaya (Rp)' : 'Bruto (Rp)'}
+                  </th>
+                  <th className="border border-[#D3DDD9] px-2 py-1.5 w-24">
+                    {v.kategori === 'sppd' ? 'Potongan (Rp)' : 'PPh 21 (Rp)'}
+                  </th>
                   <th className="border border-[#D3DDD9] px-2 py-1.5 w-28 text-right">Bersih</th>
                   <th className="border border-[#D3DDD9] px-2 py-1.5 w-10" />
                 </tr>

@@ -12,12 +12,18 @@ import { getKeuangan, saveKeuangan, subscribeToStorage } from '../lib/storage';
 import { triggerGooglePrint, printDomElement } from '../lib/print';
 import {
   SPJ_DOC_TABS,
+  SPJ_KATEGORI_META,
   DOC_ICON_MAP,
   SpjDocSheet,
   SpjDocEditor,
   computeSpjValues,
+  detectSpjKategori,
+  getAllowedDocTabs,
+  getBundleDocsForKategori,
   SPJ_A4_PRINT_OPTIONS,
 } from './SpjKeuanganDocs';
+import { BukuPembantuPajak } from './BukuPembantuPajak';
+import { resolveBkuTax } from '../lib/pajakBku';
 import {
   Upload,
   Printer,
@@ -26,6 +32,12 @@ import {
   EyeOff,
   Palette,
   Layers,
+  FileSpreadsheet,
+  ReceiptText,
+  FileText,
+  Plus,
+  Trash2,
+  ExternalLink,
 } from 'lucide-react';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
@@ -1037,14 +1049,24 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
   }
 
   const [state, setState] = useState<KeuanganState>(() => getKeuangan());
+  const [activeMenu, setActiveMenu] = useState<'spj' | 'import_bku' | 'buku_pajak'>('spj');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [searchFilter, setSearchFilter] = useState('');
   const [confirmClear, setConfirmClear] = useState(false);
+  const [confirmDeleteRowId, setConfirmDeleteRowId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [previewScale, setPreviewScale] = useState(1);
   const [activeDoc, setActiveDoc] = useState<SpjDocType>('kwitansi');
   const [printBundleMode, setPrintBundleMode] = useState(false);
+
+  // Manual BKU transaction input state inside Import BKU menu
+  const [showManualForm, setShowManualForm] = useState(false);
+  const [manualTgl, setManualTgl] = useState(() => new Date().toISOString().slice(0, 10));
+  const [manualNoBukti, setManualNoBukti] = useState('');
+  const [manualKodeRek, setManualKodeRek] = useState('');
+  const [manualUraian, setManualUraian] = useState('');
+  const [manualPengeluaran, setManualPengeluaran] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewContainerRef = useRef<HTMLDivElement>(null);
@@ -1096,7 +1118,7 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [hasData, naturalWidth, activeDoc]);
+  }, [hasData, naturalWidth, activeDoc, activeMenu]);
 
   const getComputedRowValues = (row: KeuanganState['bku'][0], index: number) => {
     const edit = state.edits[row.id] || {};
@@ -1132,6 +1154,13 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
     });
   };
 
+  const handlePatchAllEdits = (nextEdits: KeuanganState['edits']) => {
+    saveState({
+      ...state,
+      edits: nextEdits,
+    });
+  };
+
   const handleFileUpload = async (file?: File) => {
     if (!file) return;
     try {
@@ -1143,10 +1172,78 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
       });
       setCheckedIds(new Set());
       setSelectedId(records[0]?.id || null);
-      onToast(`${records.length} data pengeluaran dari BKU siap dibuat kwitansi.`);
+      const taxableCount = records.filter((r) => {
+        const tax = resolveBkuTax(r, state.edits[r.id], state.settings);
+        return tax.ppn + tax.pph > 0;
+      }).length;
+      onToast(`${records.length} data BKU dimuat (${taxableCount} transaksi terpotong pajak otomatis).`);
     } catch (err: any) {
       onToast(err?.message || 'Gagal membaca file BKU.', true);
     }
+  };
+
+  const handleAddManualBku = (e: React.FormEvent) => {
+    e.preventDefault();
+    const nominal = Math.max(0, Math.round(Number(manualPengeluaran) || 0));
+    if (!manualUraian.trim() || nominal <= 0) {
+      onToast('Uraian transaksi dan nominal pengeluaran wajib diisi.', true);
+      return;
+    }
+    const newRow: KeuanganState['bku'][0] = {
+      id: `bku-manual-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      tgl: manualTgl || new Date().toISOString().slice(0, 10),
+      noBukti: manualNoBukti.trim() || `BKU-${String(state.bku.length + 1).padStart(3, '0')}`,
+      uraian: manualUraian.trim(),
+      pengeluaran: nominal,
+      kodeRek: manualKodeRek.trim() || undefined,
+    };
+    const nextBku = [...state.bku, newRow];
+    saveState({
+      ...state,
+      bku: nextBku,
+      fileName: state.fileName || 'Input Manual BKU',
+    });
+    setSelectedId(newRow.id);
+    setManualNoBukti('');
+    setManualKodeRek('');
+    setManualUraian('');
+    setManualPengeluaran('');
+    setShowManualForm(false);
+    const autoTax = resolveBkuTax(newRow, undefined, state.settings);
+    const totalTax = autoTax.ppn + autoTax.pph;
+    onToast(
+      totalTax > 0
+        ? `Transaksi ditambahkan (Potong pajak otomatis: ${formatRupiah(totalTax)}).`
+        : 'Transaksi BKU ditambahkan (Non-pajak).'
+    );
+  };
+
+  const handleDeleteBkuRow = (rowId: string) => {
+    if (confirmDeleteRowId !== rowId) {
+      setConfirmDeleteRowId(rowId);
+      setTimeout(() => {
+        setConfirmDeleteRowId((prev) => (prev === rowId ? null : prev));
+      }, 3500);
+      return;
+    }
+    const nextBku = state.bku.filter((r) => r.id !== rowId);
+    const nextEdits = { ...state.edits };
+    delete nextEdits[rowId];
+    saveState({
+      ...state,
+      bku: nextBku,
+      edits: nextEdits,
+    });
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(rowId);
+      return next;
+    });
+    if (selectedId === rowId) {
+      setSelectedId(nextBku[0]?.id || null);
+    }
+    setConfirmDeleteRowId(null);
+    onToast('Baris BKU dihapus.');
   };
 
   const handleClearData = () => {
@@ -1169,8 +1266,31 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
   const filteredBku = useMemo(() => {
     const q = searchFilter.trim().toLowerCase();
     if (!q) return bku;
-    return bku.filter((r) => `${r.uraian} ${r.noBukti}`.toLowerCase().includes(q));
+    return bku.filter((r) => `${r.uraian} ${r.noBukti} ${r.kodeRek || ''}`.toLowerCase().includes(q));
   }, [bku, searchFilter]);
+
+  const bkuTaxTotals = useMemo(() => {
+    let totalBruto = 0;
+    let totalPpn = 0;
+    let totalPph = 0;
+    let taxableCount = 0;
+    bku.forEach((r) => {
+      const tax = resolveBkuTax(r, state.edits[r.id], state.settings);
+      totalBruto += r.pengeluaran;
+      totalPpn += tax.ppn;
+      totalPph += tax.pph;
+      if (tax.ppn + tax.pph > 0) taxableCount += 1;
+    });
+    const totalPajak = totalPpn + totalPph;
+    return {
+      totalBruto,
+      totalPpn,
+      totalPph,
+      totalPajak,
+      totalNetto: Math.max(0, totalBruto - totalPajak),
+      taxableCount,
+    };
+  }, [bku, state.edits, state.settings]);
 
   const toggleCheck = (id: string) => {
     setCheckedIds((prev) => {
@@ -1231,7 +1351,18 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
   const computedSpjSelected = selectedRow
     ? computeSpjValues(selectedRow, selectedIndex, state.edits[selectedRow.id], state.settings, config)
     : null;
-  const activeTabMeta = SPJ_DOC_TABS.find((t) => t.id === activeDoc) || SPJ_DOC_TABS[0];
+  const allowedTabs = computedSpjSelected
+    ? getAllowedDocTabs(computedSpjSelected.kategori)
+    : SPJ_DOC_TABS;
+  const activeTabMeta = allowedTabs.find((t) => t.id === activeDoc) || allowedTabs[0];
+
+  useEffect(() => {
+    if (!computedSpjSelected) return;
+    const allowed = getAllowedDocTabs(computedSpjSelected.kategori);
+    if (!allowed.some((t) => t.id === activeDoc)) {
+      setActiveDoc(computedSpjSelected.kategori === 'barang_jasa' ? 'nota_pesanan' : 'tanda_terima_honor');
+    }
+  }, [computedSpjSelected?.kategori, activeDoc]);
 
   return (
     <div className="space-y-5">
@@ -1240,14 +1371,14 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
         <div>
           <h1 className="text-2xl font-bold text-[#13262A] font-display">Laporan Keuangan &amp; SPJ BKU BOS</h1>
           <p className="text-xs text-[#566A6E] mt-1">
-            Import buku kas umum (BKU), kelola Kwitansi, Nota Pesanan, BAST, Model A2, Tanda Terima Honor, Dokumentasi Kegiatan &amp; Invoice terhubung otomatis.
+            Import BKU (Excel/CSV/PDF), kelola Kwitansi &amp; SPJ A4, serta Buku Pembantu Pajak otomatis (PPN, PPh Ps. 21/22/23).
           </p>
         </div>
 
         {hasData && (
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[11px] text-[#566A6E]">
-              {state.fileName} &middot; {bku.length} kwitansi
+              {state.fileName || 'Data BKU'} &middot; {bku.length} transaksi &middot; {bkuTaxTotals.taxableCount} kena pajak
             </span>
             <button
               type="button"
@@ -1267,6 +1398,66 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
         )}
       </div>
 
+      {/* Sub-Navigation Menu Bar Inside Laporan Keuangan */}
+      <div className="flex flex-wrap items-center gap-2 bg-white border border-[#D3DDD9] rounded-xl p-1.5">
+        <button
+          type="button"
+          onClick={() => setActiveMenu('spj')}
+          className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
+            activeMenu === 'spj'
+              ? 'bg-[#0B6B58] text-white shadow-xs'
+              : 'text-[#566A6E] hover:text-[#13262A] hover:bg-[#F4F7F5]'
+          }`}
+        >
+          <FileText className="w-3.5 h-3.5" />
+          <span>Kwitansi &amp; SPJ BKU</span>
+          {bku.length > 0 && (
+            <span
+              className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono ${
+                activeMenu === 'spj' ? 'bg-white/20 text-white' : 'bg-[#E8EFEC] text-[#0B6B58]'
+              }`}
+            >
+              {bku.length}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveMenu('import_bku')}
+          className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
+            activeMenu === 'import_bku'
+              ? 'bg-[#0B6B58] text-white shadow-xs'
+              : 'text-[#566A6E] hover:text-[#13262A] hover:bg-[#F4F7F5]'
+          }`}
+        >
+          <FileSpreadsheet className="w-3.5 h-3.5" />
+          <span>Import BKU</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveMenu('buku_pajak')}
+          className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
+            activeMenu === 'buku_pajak'
+              ? 'bg-[#0B6B58] text-white shadow-xs'
+              : 'text-[#566A6E] hover:text-[#13262A] hover:bg-[#F4F7F5]'
+          }`}
+        >
+          <ReceiptText className="w-3.5 h-3.5" />
+          <span>Buku Pembantu Pajak</span>
+          {bkuTaxTotals.totalPajak > 0 && (
+            <span
+              className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono ${
+                activeMenu === 'buku_pajak' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+              }`}
+            >
+              {bkuTaxTotals.taxableCount}
+            </span>
+          )}
+        </button>
+      </div>
+
       <input
         ref={fileInputRef}
         type="file"
@@ -1278,8 +1469,275 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
         }}
       />
 
-      {/* Upload Box if Empty */}
-      {!hasData && (
+      {/* MENU 3: BUKU PEMBANTU PAJAK */}
+      {activeMenu === 'buku_pajak' && (
+        <BukuPembantuPajak
+          config={config}
+          state={state}
+          onUpdateRowEdit={updateRowEdit}
+          onPatchAllEdits={handlePatchAllEdits}
+          onUpdateSettings={updateSettings}
+          onOpenInSpj={(rowId) => {
+            setSelectedId(rowId);
+            setActiveDoc('model_a2');
+            setActiveMenu('spj');
+          }}
+          onGoToImport={() => setActiveMenu('import_bku')}
+          onToast={onToast}
+        />
+      )}
+
+      {/* MENU 2: IMPORT BKU */}
+      {activeMenu === 'import_bku' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                handleFileUpload(e.dataTransfer.files?.[0]);
+              }}
+              onClick={() => fileInputRef.current?.click()}
+              className={`lg:col-span-2 border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition ${
+                isDragging ? 'border-[#0B6B58] bg-[#E8EFEC]' : 'border-[#D3DDD9] bg-white hover:border-[#0B6B58]'
+              }`}
+            >
+              <Upload className="w-9 h-9 mx-auto text-[#0B6B58]" />
+              <h3 className="font-bold text-sm text-[#13262A] mt-2">
+                {hasData ? 'Ganti / Import Ulang Buku Kas Umum (BKU)' : 'Import Buku Kas Umum (BKU)'}
+              </h3>
+              <p className="text-xs text-[#566A6E] mt-1">
+                Klik atau seret file <b>.xlsx / .xlsm / .csv / .pdf</b> (ARKAS BOSP) ke sini
+              </p>
+              <p className="text-[11px] text-[#566A6E] mt-2">
+                Kolom dibaca otomatis: <b>Tanggal</b> &middot; <b>Kode Rekening</b> &middot; <b>No. Bukti</b> &middot; <b>Uraian</b> &middot; <b>Pengeluaran</b> &rarr; Potong Pajak Otomatis di Buku Pembantu Pajak
+              </p>
+            </div>
+
+            <div className="bg-white border border-[#D3DDD9] rounded-xl p-4 flex flex-col justify-between space-y-3">
+              <div>
+                <div className="text-xs font-bold text-[#13262A]">Ringkasan Data BKU</div>
+                <div className="mt-2.5 space-y-1.5 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-[#566A6E]">Sumber File</span>
+                    <span className="font-semibold text-[#13262A] truncate max-w-[160px]">{state.fileName || '-'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#566A6E]">Total Transaksi</span>
+                    <span className="font-bold font-mono text-[#13262A]">{bku.length} baris</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#566A6E]">Belanja Bruto</span>
+                    <span className="font-bold font-mono text-[#13262A]">{formatRupiah(bkuTaxTotals.totalBruto)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#566A6E]">Potong Pajak Otomatis</span>
+                    <span className="font-bold font-mono text-amber-700">{formatRupiah(bkuTaxTotals.totalPajak)}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-[#E4EBE8] pt-1.5">
+                    <span className="text-[#566A6E]">Netto Dibayarkan</span>
+                    <span className="font-bold font-mono text-[#0B6B58]">{formatRupiah(bkuTaxTotals.totalNetto)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowManualForm((v) => !v)}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-[#0B6B58] text-[#0B6B58] hover:bg-emerald-50 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Tambah Manual
+                </button>
+                {hasData && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveMenu('buku_pajak')}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-[#0B6B58] text-white hover:bg-[#095747] cursor-pointer"
+                  >
+                    <ReceiptText className="w-3.5 h-3.5" />
+                    Buku Pajak
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {showManualForm && (
+            <form
+              onSubmit={handleAddManualBku}
+              className="bg-white border border-[#D3DDD9] rounded-xl p-4 grid grid-cols-1 md:grid-cols-6 gap-3 items-end text-xs"
+            >
+              <div>
+                <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">Tanggal</label>
+                <input
+                  type="date"
+                  value={manualTgl}
+                  onChange={(e) => setManualTgl(e.target.value)}
+                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">No. Bukti</label>
+                <input
+                  value={manualNoBukti}
+                  onChange={(e) => setManualNoBukti(e.target.value)}
+                  placeholder="BPU01 / Kwitansi"
+                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">Kode Rekening</label>
+                <input
+                  value={manualKodeRek}
+                  onChange={(e) => setManualKodeRek(e.target.value)}
+                  placeholder="5.1.02.01.0001"
+                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg font-mono"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">Uraian Transaksi</label>
+                <input
+                  value={manualUraian}
+                  onChange={(e) => setManualUraian(e.target.value)}
+                  placeholder="Contoh: Belanja ATK / Honor Pelatih / Konsumsi Rapat..."
+                  className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-[#566A6E] mb-1">Pengeluaran (Rp)</label>
+                <div className="flex gap-1.5">
+                  <input
+                    type="number"
+                    min={0}
+                    value={manualPengeluaran}
+                    onChange={(e) => setManualPengeluaran(e.target.value)}
+                    placeholder="2500000"
+                    className="w-full px-2.5 py-1.5 border border-[#D3DDD9] rounded-lg font-mono"
+                    required
+                  />
+                  <button
+                    type="submit"
+                    className="px-3 py-1.5 bg-[#0B6B58] text-white font-semibold rounded-lg hover:bg-[#095747] cursor-pointer whitespace-nowrap"
+                  >
+                    Simpan
+                  </button>
+                </div>
+              </div>
+            </form>
+          )}
+
+          {hasData && (
+            <div className="bg-white border border-[#D3DDD9] rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-[#D3DDD9] flex flex-wrap items-center justify-between gap-2">
+                <div className="text-xs font-bold text-[#13262A]">
+                  Daftar Transaksi BKU Terimport ({filteredBku.length} dari {bku.length} baris)
+                </div>
+                <div className="relative w-64">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-2 text-[#566A6E]" />
+                  <input
+                    value={searchFilter}
+                    onChange={(e) => setSearchFilter(e.target.value)}
+                    placeholder="Cari uraian, kode rek, bukti..."
+                    className="w-full pl-8 pr-3 py-1 text-xs border border-[#D3DDD9] rounded-lg bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-[#F4F7F5] border-b border-[#D3DDD9] text-[11px] text-[#13262A]">
+                      <th className="px-3 py-2 text-left font-bold">No</th>
+                      <th className="px-3 py-2 text-left font-bold whitespace-nowrap">Tanggal</th>
+                      <th className="px-3 py-2 text-left font-bold whitespace-nowrap">No. Bukti</th>
+                      <th className="px-3 py-2 text-left font-bold">Uraian</th>
+                      <th className="px-3 py-2 text-right font-bold whitespace-nowrap">Bruto BKU</th>
+                      <th className="px-3 py-2 text-right font-bold whitespace-nowrap">Potong Pajak</th>
+                      <th className="px-3 py-2 text-right font-bold whitespace-nowrap">Netto</th>
+                      <th className="px-3 py-2 text-center font-bold whitespace-nowrap">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#EAEFED]">
+                    {filteredBku.map((r, idx) => {
+                      const edit = state.edits[r.id];
+                      const tax = resolveBkuTax(r, edit, state.settings);
+                      const rowTaxTotal = tax.ppn + tax.pph;
+                      return (
+                        <tr key={r.id} className="hover:bg-gray-50/80">
+                          <td className="px-3 py-2 text-[#566A6E] font-mono">{idx + 1}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{r.tgl ? formatTglIndo(r.tgl) : '-'}</td>
+                          <td className="px-3 py-2 font-mono whitespace-nowrap">{r.noBukti || '-'}</td>
+                          <td className="px-3 py-2">
+                            <div className="font-semibold text-[#13262A]">{r.uraian}</div>
+                            {r.kodeRek && (
+                              <span className="text-[10px] font-mono text-[#566A6E]">Rek: {r.kodeRek}</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono font-bold text-[#13262A] whitespace-nowrap">
+                            {formatRupiah(r.pengeluaran)}
+                          </td>
+                          <td className="px-3 py-2 text-right whitespace-nowrap">
+                            {rowTaxTotal > 0 ? (
+                              <div>
+                                <div className="font-mono font-semibold text-amber-800">{formatRupiah(rowTaxTotal)}</div>
+                                <div className="text-[10px] text-[#566A6E]">{tax.skemaLabel}</div>
+                              </div>
+                            ) : (
+                              <span className="text-[11px] text-[#8EA09B]">Bebas</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono font-semibold text-[#0B6B58] whitespace-nowrap">
+                            {formatRupiah(tax.netto)}
+                          </td>
+                          <td className="px-3 py-2 text-center whitespace-nowrap">
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedId(r.id);
+                                  setActiveMenu('spj');
+                                }}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded border border-[#D3DDD9] text-[11px] font-semibold text-[#0B6B58] hover:bg-emerald-50 cursor-pointer"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                SPJ
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteBkuRow(r.id)}
+                                className={`inline-flex items-center gap-1 px-2 py-1 rounded border text-[11px] font-semibold cursor-pointer ${
+                                  confirmDeleteRowId === r.id
+                                    ? 'border-rose-500 bg-rose-600 text-white'
+                                    : 'border-[#D3DDD9] text-rose-700 hover:bg-rose-50'
+                                }`}
+                                title="Hapus baris BKU"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                {confirmDeleteRowId === r.id ? 'Yakin?' : ''}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MENU 1: KWITANSI & SPJ BKU - Upload Box if Empty */}
+      {activeMenu === 'spj' && !hasData && (
         <div
           onDragOver={(e) => {
             e.preventDefault();
@@ -1305,8 +1763,8 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
         </div>
       )}
 
-      {/* Main Content Layout */}
-      {hasData && selectedRow && computedSelected && (
+      {/* MENU 1: Main Content Layout */}
+      {activeMenu === 'spj' && hasData && selectedRow && computedSelected && (
         <div className="kw-layout">
           {/* Left: Transaction list */}
           <div className="bg-white border border-[#D3DDD9] rounded-xl overflow-hidden self-start">
@@ -1333,35 +1791,51 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
             </div>
 
             <div className="kw-list divide-y divide-gray-100">
-              {filteredBku.map((r) => (
-                <div
-                  key={r.id}
-                  onClick={() => setSelectedId(r.id)}
-                  className={`flex gap-2.5 px-3 py-2.5 cursor-pointer transition ${
-                    r.id === selectedId ? 'bg-[#E8EFEC]' : 'hover:bg-gray-50'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={checkedIds.has(r.id)}
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={() => toggleCheck(r.id)}
-                    className="mt-0.5 accent-[#0B6B58]"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[11px] text-[#566A6E]">
-                      {r.tgl ? formatTglIndo(r.tgl) : 'Tanpa tanggal'}
-                      {r.noBukti ? ` \xB7 ${r.noBukti}` : ''}
-                    </div>
-                    <div className="text-xs font-semibold text-[#13262A] leading-snug line-clamp-2">
-                      {r.uraian}
-                    </div>
-                    <div className="text-xs font-mono font-bold text-[#0B6B58] mt-0.5">
-                      {formatRupiah(r.pengeluaran)}
+              {filteredBku.map((r) => {
+                const kat = state.edits[r.id]?.kategoriSpj ?? detectSpjKategori(state.edits[r.id]?.untuk ?? r.uraian, state.edits[r.id]?.kodeRek ?? r.kodeRek);
+                const katMeta = SPJ_KATEGORI_META[kat];
+                const tax = resolveBkuTax(r, state.edits[r.id], state.settings);
+                const rowTaxTotal = tax.ppn + tax.pph;
+                return (
+                  <div
+                    key={r.id}
+                    onClick={() => setSelectedId(r.id)}
+                    className={`flex gap-2.5 px-3 py-2.5 cursor-pointer transition ${
+                      r.id === selectedId ? 'bg-[#E8EFEC]' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checkedIds.has(r.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={() => toggleCheck(r.id)}
+                      className="mt-0.5 accent-[#0B6B58]"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[11px] text-[#566A6E]">
+                        {r.tgl ? formatTglIndo(r.tgl) : 'Tanpa tanggal'}
+                        {r.noBukti ? ` \xB7 ${r.noBukti}` : ''}
+                      </div>
+                      <div className="text-xs font-semibold text-[#13262A] leading-snug line-clamp-2">
+                        {r.uraian}
+                      </div>
+                      <div className="flex items-center justify-between gap-2 mt-1">
+                        <span className="text-xs font-mono font-bold text-[#0B6B58]">
+                          {formatRupiah(r.pengeluaran)}
+                        </span>
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border whitespace-nowrap ${katMeta.badgeCls}`}>
+                          {katMeta.shortLabel}
+                        </span>
+                      </div>
+                      {rowTaxTotal > 0 && (
+                        <div className="text-[10px] text-amber-800 font-medium mt-0.5">
+                          Potong Pajak ({tax.skemaLabel}): {formatRupiah(rowTaxTotal)}
+                        </div>
+                      )}
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {filteredBku.length === 0 && (
                 <div className="p-6 text-center text-xs text-[#566A6E]">Tidak ada hasil.</div>
               )}
@@ -1370,9 +1844,9 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
 
           {/* Right: Live Preview & Editor */}
           <div className="bg-white border border-[#D3DDD9] rounded-xl p-4 min-w-0">
-            {/* Document Type Switcher Bar (Connected to BKU) */}
+            {/* Document Type Switcher Bar (Filtered by Transaction Category) */}
             <div className="flex items-center gap-1.5 flex-wrap pb-3 mb-3 border-b border-[#E4EBE8]">
-              {SPJ_DOC_TABS.map((tab) => {
+              {allowedTabs.map((tab) => {
                 const isActive = activeDoc === tab.id;
                 return (
                   <button
@@ -1390,6 +1864,15 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
                   </button>
                 );
               })}
+              {computedSpjSelected && (
+                <span
+                  className={`ml-auto text-[11px] font-semibold px-2.5 py-1 rounded-lg border whitespace-nowrap ${
+                    SPJ_KATEGORI_META[computedSpjSelected.kategori].badgeCls
+                  }`}
+                >
+                  {SPJ_KATEGORI_META[computedSpjSelected.kategori].label}
+                </span>
+              )}
             </div>
 
             <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
@@ -1406,7 +1889,11 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
                   <button
                     type="button"
                     onClick={handlePrintBundleSpj}
-                    title="Cetak seluruh 6 dokumen SPJ A4 (Nota Pesanan, BAST, Model A2, Tanda Terima Honor, Dokumentasi, Invoice)"
+                    title={
+                      computedSpjSelected
+                        ? SPJ_KATEGORI_META[computedSpjSelected.kategori].desc
+                        : 'Cetak seluruh dokumen SPJ A4 sesuai kategori transaksi'
+                    }
                     className="px-3 py-2 text-xs font-semibold rounded-lg bg-white border border-[#0B6B58] text-[#0B6B58] hover:bg-emerald-50 cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
                   >
                     <Layers className="w-3.5 h-3.5" />
@@ -1651,13 +2138,17 @@ export const LaporanKeuangan: React.FC<LaporanKeuanganProps> = ({ role, config, 
       {/* Hidden offscreen A4 SPJ print source cloned by printDomElement */}
       <div className="hidden" aria-hidden="true">
         <div ref={spjPrintSourceRef}>
-          {activeDoc !== 'kwitansi' &&
+          {(printBundleMode || activeDoc !== 'kwitansi') &&
             printItems.flatMap((r) => {
               const idx = bku.findIndex((item) => item.id === r.id);
               const v = computeSpjValues(r, idx, state.edits[r.id], state.settings, config);
               const docsToRender: Exclude<SpjDocType, 'kwitansi'>[] = printBundleMode
-                ? ['nota_pesanan', 'bast', 'model_a2', 'tanda_terima_honor', 'dokumentasi', 'invoice']
-                : [activeDoc];
+                ? getBundleDocsForKategori(v.kategori)
+                : v.kategori !== 'barang_jasa' && (activeDoc === 'nota_pesanan' || activeDoc === 'bast' || activeDoc === 'invoice')
+                  ? []
+                  : activeDoc === 'kwitansi'
+                    ? []
+                    : [activeDoc];
               return docsToRender.map((doc) => (
                 <SpjDocSheet
                   key={`${r.id}-${doc}`}

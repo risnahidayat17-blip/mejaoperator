@@ -18,7 +18,7 @@ interface Props {
   onToast: (msg: string, isError?: boolean) => void;
 }
 
-type Jenis = 'kelas' | 'pjok' | 'pai';
+type Jenis = 'kelas' | 'pjok' | 'pai' | 'ekskul';
 
 const JENIS: Record<Jenis, { label: string; judul: string; mapel: string; ttd: string; re: RegExp }> = {
   kelas: {
@@ -42,7 +42,26 @@ const JENIS: Record<Jenis, { label: string; judul: string; mapel: string; ttd: s
     ttd: 'Guru PAI',
     re: /agama|\bpai\b|islam/i,
   },
+  ekskul: {
+    label: 'Ekstrakurikuler',
+    judul: 'DAFTAR HADIR SISWA — EKSTRAKURIKULER',
+    mapel: 'Kegiatan Ekstrakurikuler',
+    ttd: 'Pembina Ekstrakurikuler',
+    re: /ekskul|ekstrakurikuler|pramuka|pembina|pelatih|drumband|tari|silat|futsal/i,
+  },
 };
+
+const EKSKUL_PRESETS = [
+  'Pramuka',
+  'Drumband',
+  'Pencak Silat',
+  'Seni Tari',
+  'Futsal / Olahraga',
+  'BTQ / Keagamaan',
+  'English Club',
+  'MIPA / Sains',
+  'TIK / Komputer',
+];
 
 const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
@@ -70,10 +89,12 @@ interface SheetProps {
   year: number;
   month: number; // 0-11
   hariLibur: 'minggu' | 'sabtuminggu';
-  /** PJOK / PAI: semester (1 = Juli–Desember, 2 = Januari–Juni) dan jumlah pertemuan per bulan. */
+  /** PJOK / PAI / Ekstrakurikuler: semester (1 = Juli–Desember, 2 = Januari–Juni) dan jumlah pertemuan per bulan. */
   semester: 1 | 2;
   pertemuan: number;
   scopeLabel: string;
+  ekskulNama: string;
+  jadwalEkskul: string;
   guruNama: string;
   guruNip: string;
   tempatTanggal: string;
@@ -84,9 +105,29 @@ const SEM_MONTHS: Record<1 | 2, number[]> = { 1: [6, 7, 8, 9, 10, 11], 2: [0, 1,
 const PX_MM = 25.4 / 96;
 const ROW = 6; // tinggi baris Guru Kelas (mm)
 
-const DaftarHadirPages: React.FC<SheetProps> = ({ config, jenis, rows, year, month, hariLibur, semester, pertemuan, scopeLabel, guruNama, guruNip, tempatTanggal, pakaiKop }) => {
+const DaftarHadirPages: React.FC<SheetProps> = ({
+  config,
+  jenis,
+  rows,
+  year,
+  month,
+  hariLibur,
+  semester,
+  pertemuan,
+  scopeLabel,
+  ekskulNama,
+  jadwalEkskul,
+  guruNama,
+  guruNip,
+  tempatTanggal,
+  pakaiKop,
+}) => {
   const meta = JENIS[jenis];
-  const sem = jenis !== 'kelas'; // PJOK & PAI: satu semester dalam satu halaman
+  const sem = jenis !== 'kelas'; // PJOK, PAI & Ekstrakurikuler: mingguan per semester
+  const sheetTitle =
+    jenis === 'ekskul' && ekskulNama.trim()
+      ? `DAFTAR HADIR SISWA — EKSTRAKURIKULER ${ekskulNama.trim().toUpperCase()}`
+      : meta.judul;
   const days = new Date(year, month + 1, 0).getDate();
   const isOff = (d: number) => {
     const w = new Date(year, month, d).getDay();
@@ -221,12 +262,17 @@ const DaftarHadirPages: React.FC<SheetProps> = ({ config, jenis, rows, year, mon
                 {pakaiKop && (
                   <KopSuratHD config={config} className="dh-kop" logoHeight={sem ? 68 : undefined} />
                 )}
-                <div className="dh-title">{meta.judul}</div>
+                <div className="dh-title">{sheetTitle}</div>
                 <div className="dh-info">
                   <div>
-                    <div><span>Mata Pelajaran</span>: {meta.mapel}</div>
-                    <div><span>Kelas / Rombel</span>: {scopeLabel}</div>
-                    <div><span>Nama Guru</span>: {guruNama || '................................'}</div>
+                    <div>
+                      <span>{jenis === 'ekskul' ? 'Ekstrakurikuler' : 'Mata Pelajaran'}</span>:{' '}
+                      {jenis === 'ekskul'
+                        ? `${ekskulNama.trim() || 'Ekstrakurikuler'}${jadwalEkskul.trim() ? ` (${jadwalEkskul.trim()})` : ''}`
+                        : meta.mapel}
+                    </div>
+                    <div><span>{jenis === 'ekskul' ? 'Kelompok / Kelas' : 'Kelas / Rombel'}</span>: {scopeLabel}</div>
+                    <div><span>{jenis === 'ekskul' ? 'Pembina / Pelatih' : 'Nama Guru'}</span>: {guruNama || '................................'}</div>
                   </div>
                   <div>
                     {sem ? (
@@ -241,7 +287,7 @@ const DaftarHadirPages: React.FC<SheetProps> = ({ config, jenis, rows, year, mon
               </>
             ) : (
               <div className="dh-title dh-title-sm">
-                {meta.judul} — {scopeLabel} — {sem ? semLabel : `${BULAN[month]} ${year}`} (lanjutan)
+                {sheetTitle} — {scopeLabel} — {sem ? semLabel : `${BULAN[month]} ${year}`} (lanjutan)
               </div>
             )}
 
@@ -271,7 +317,7 @@ const DaftarHadirPages: React.FC<SheetProps> = ({ config, jenis, rows, year, mon
               <>
                 <div className="dh-ket">
                   Keterangan: isi dengan tanda ✓ atau <b>H</b> = Hadir, <b>S</b> = Sakit, <b>I</b> = Izin, <b>A</b> = Alpa (tanpa keterangan).
-                  {sem ? ' Angka 1–' + per + ' di bawah nama bulan = pertemuan ke-.' : ' Kolom berwarna abu-abu = hari libur.'}
+                  {sem ? ` Angka 1–${per} di bawah nama bulan = pertemuan mingguan ke-.` : ' Kolom berwarna abu-abu = hari libur.'}
                 </div>
                 <div className="dh-ttd">
                   <div>
@@ -283,7 +329,11 @@ const DaftarHadirPages: React.FC<SheetProps> = ({ config, jenis, rows, year, mon
                   </div>
                   <div>
                     <div>{tempatTanggal}</div>
-                    <div>{meta.ttd}{jenis === 'kelas' ? ` ${scopeLabel}` : ''}</div>
+                    <div>
+                      {jenis === 'ekskul' && ekskulNama.trim()
+                        ? `Pembina ${ekskulNama.trim()}`
+                        : `${meta.ttd}${jenis === 'kelas' ? ` ${scopeLabel}` : ''}`}
+                    </div>
                     <div className="dh-gap" />
                     <div className="dh-nm2">{guruNama || '................................'}</div>
                     <div>{guruNip ? `NIP. ${guruNip}` : ''}</div>
@@ -308,6 +358,12 @@ export const DaftarHadir: React.FC<Props> = ({ config, siswa, guru, onToast }) =
   const [pakaiKop, setPakaiKop] = useState(true);
   const [agamaFilter, setAgamaFilter] = useState<'islam' | 'semua'>('semua');
   const [scope, setScope] = useState('');
+  const [ekskulPreset, setEkskulPreset] = useState('Pramuka');
+  const [ekskulCustom, setEkskulCustom] = useState('');
+  const [jadwalEkskul, setJadwalEkskul] = useState('');
+  const [pilihPesertaManual, setPilihPesertaManual] = useState(false);
+  const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set());
+  const [pesertaSearch, setPesertaSearch] = useState('');
   const [guruId, setGuruId] = useState('');
   const [manualNama, setManualNama] = useState('');
   const [manualNip, setManualNip] = useState('');
@@ -329,14 +385,30 @@ export const DaftarHadir: React.FC<Props> = ({ config, siswa, guru, onToast }) =
     if (!scope) setScope(rombelNames[0] ? `R:${rombelNames[0]}` : tingkatNames[0] ? `T:${tingkatNames[0]}` : '');
   }, [rombelNames, tingkatNames, scope]);
 
-  // jenis -> bawaan kolom & filter agama
+  // jenis -> bawaan kolom, filter agama & reset scope ekskul jika berpindah ke kelas/pjok/pai
   useEffect(() => {
     setAgamaFilter(jenis === 'pai' ? 'islam' : 'semua');
-  }, [jenis]);
+    if (jenis !== 'ekskul' && (scope === 'ALL' || scope.startsWith('G:'))) {
+      setScope(rombelNames[0] ? `R:${rombelNames[0]}` : tingkatNames[0] ? `T:${tingkatNames[0]}` : '');
+    }
+    if (jenis !== 'ekskul') {
+      setPilihPesertaManual(false);
+    }
+  }, [jenis, scope, rombelNames, tingkatNames]);
 
+  const ekskulNama = ekskulPreset === '__custom__' ? ekskulCustom : ekskulPreset;
   const scopeKind = scope.slice(0, 1);
   const scopeVal = scope.slice(2);
-  const scopeLabel = scopeKind === 'T' ? `${scopeVal} (semua rombel)` : scopeVal;
+  const scopeLabel =
+    scope === 'ALL'
+      ? 'Semua Siswa (Kelas 1–6)'
+      : scope === 'G:1-3'
+        ? 'Kelas 1–3 (Siaga / Kelas Rendah)'
+        : scope === 'G:4-6'
+          ? 'Kelas 4–6 (Penggalang / Kelas Tinggi)'
+          : scopeKind === 'T'
+            ? `${scopeVal} (semua rombel)`
+            : scopeVal;
 
   const guruOpts = useMemo(
     () => guru.filter((g) => g.status === 'Aktif' && g.jenisGtk !== 'Tendik').sort((a, b) => a.nama.localeCompare(b.nama, 'id')),
@@ -361,17 +433,38 @@ export const DaftarHadir: React.FC<Props> = ({ config, siswa, guru, onToast }) =
   const guruNama = gSel ? gSel.nama : manualNama;
   const guruNip = gSel ? gSel.nip || '' : manualNip;
 
-  const filtered = useMemo(() => {
+  const matchesScope = (s: Siswa) => {
+    if (scope === 'ALL') return true;
+    if (scope === 'G:1-3') return ['1', '2', '3'].includes(tingkatOf(s));
+    if (scope === 'G:4-6') return ['4', '5', '6'].includes(tingkatOf(s));
+    return scopeKind === 'T' ? tingkatOf(s) === scopeVal : rombelOf(s) === scopeVal;
+  };
+
+  const baseScopeRows = useMemo(() => {
     return aktif
-      .filter((s) => (scopeKind === 'T' ? tingkatOf(s) === scopeVal : rombelOf(s) === scopeVal))
+      .filter(matchesScope)
       .filter((s) => agamaFilter === 'semua' || /islam/i.test(s.agama || ''))
       .sort((a, b) => a.nama.localeCompare(b.nama, 'id'));
-  }, [aktif, scopeKind, scopeVal, agamaFilter]);
+  }, [aktif, scope, scopeKind, scopeVal, agamaFilter]);
+
+  const filtered = useMemo(() => {
+    if (jenis !== 'ekskul' || !pilihPesertaManual) return baseScopeRows;
+    return baseScopeRows.filter((s) => !excludedIds.has(s.id));
+  }, [baseScopeRows, jenis, pilihPesertaManual, excludedIds]);
 
   const excluded = useMemo(() => {
     if (agamaFilter === 'semua') return 0;
-    return aktif.filter((s) => (scopeKind === 'T' ? tingkatOf(s) === scopeVal : rombelOf(s) === scopeVal)).length - filtered.length;
-  }, [aktif, filtered, scopeKind, scopeVal, agamaFilter]);
+    return aktif.filter(matchesScope).length - baseScopeRows.length;
+  }, [aktif, baseScopeRows, scope, scopeKind, scopeVal, agamaFilter]);
+
+  const togglePeserta = (id: string) => {
+    setExcludedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const [yy, mm] = ym.split('-').map(num);
   const sheetProps: SheetProps = {
@@ -384,6 +477,8 @@ export const DaftarHadir: React.FC<Props> = ({ config, siswa, guru, onToast }) =
     semester,
     pertemuan: Math.min(6, Math.max(3, pertemuan)),
     scopeLabel,
+    ekskulNama,
+    jadwalEkskul,
     guruNama,
     guruNip,
     tempatTanggal,
@@ -410,16 +505,17 @@ export const DaftarHadir: React.FC<Props> = ({ config, siswa, guru, onToast }) =
     ro.observe(wrap);
     ro.observe(inner);
     return () => ro.disconnect();
-  }, []);
+  }, [filtered.length, jenis, semester, pertemuan, pakaiKop]);
 
   const handlePrint = () => {
     if (!filtered.length) {
       onToast('Tidak ada siswa pada pilihan ini.', true);
       return;
     }
+    const labelLog = jenis === 'ekskul' ? `Ekstrakurikuler ${ekskulNama || ''}`.trim() : JENIS[jenis].label;
     recordActivity(
       'Daftar Hadir',
-      `Cetak/Simpan PDF ${JENIS[jenis].label} - ${scopeLabel} (Periode ${ym})`,
+      `Cetak/Simpan PDF ${labelLog} - ${scopeLabel} (${jenis === 'kelas' ? `Periode ${ym}` : `Semester ${semester}`})`,
       false,
       'update'
     );
@@ -433,6 +529,12 @@ export const DaftarHadir: React.FC<Props> = ({ config, siswa, guru, onToast }) =
   const sel = 'w-full px-3 py-2 text-sm border border-[#D3DDD9] rounded-lg bg-white focus:outline-hidden focus:border-[#0B6B58]';
   const lbl = 'block text-[11px] font-bold text-[#566A6E] mb-1';
 
+  const searchedPickerRows = useMemo(() => {
+    const q = pesertaSearch.trim().toLowerCase();
+    if (!q) return baseScopeRows;
+    return baseScopeRows.filter((s) => `${s.nama} ${rombelOf(s)}`.toLowerCase().includes(q));
+  }, [baseScopeRows, pesertaSearch]);
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -440,7 +542,9 @@ export const DaftarHadir: React.FC<Props> = ({ config, siswa, guru, onToast }) =
           <h2 className="text-xl font-bold text-[#13262A] font-display flex items-center gap-2">
             <ClipboardList className="w-5 h-5 text-[#0B6B58]" /> Daftar Hadir Siswa
           </h2>
-          <p className="text-xs text-[#566A6E] mt-0.5">Cetak daftar hadir per kelas untuk Guru Kelas, Guru PJOK, dan Guru PAI (A4 mendatar).</p>
+          <p className="text-xs text-[#566A6E] mt-0.5">
+            Cetak daftar hadir per kelas &amp; mingguan semester untuk Guru Kelas, Guru PJOK, Guru PAI, dan Ekstrakurikuler (A4 mendatar).
+          </p>
         </div>
         <button
           type="button"
@@ -468,9 +572,52 @@ export const DaftarHadir: React.FC<Props> = ({ config, siswa, guru, onToast }) =
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {jenis === 'ekskul' && (
+            <>
+              <div>
+                <label className={lbl}>Kegiatan Ekstrakurikuler</label>
+                <select className={sel} value={ekskulPreset} onChange={(e) => setEkskulPreset(e.target.value)}>
+                  {EKSKUL_PRESETS.map((nm) => (
+                    <option key={nm} value={nm}>
+                      {nm}
+                    </option>
+                  ))}
+                  <option value="__custom__">— Ketik nama lain —</option>
+                </select>
+              </div>
+              {ekskulPreset === '__custom__' && (
+                <div>
+                  <label className={lbl}>Nama Ekstrakurikuler</label>
+                  <input
+                    className={sel}
+                    value={ekskulCustom}
+                    onChange={(e) => setEkskulCustom(e.target.value)}
+                    placeholder="mis. Marching Band / Karawitan"
+                  />
+                </div>
+              )}
+              <div>
+                <label className={lbl}>Hari / Jadwal Latihan (opsional)</label>
+                <input
+                  className={sel}
+                  value={jadwalEkskul}
+                  onChange={(e) => setJadwalEkskul(e.target.value)}
+                  placeholder="mis. Sabtu, 14.00 WIB"
+                />
+              </div>
+            </>
+          )}
+
           <div>
-            <label className={lbl}>Kelas / Rombel</label>
+            <label className={lbl}>{jenis === 'ekskul' ? 'Kelompok / Kelas Peserta' : 'Kelas / Rombel'}</label>
             <select className={sel} value={scope} onChange={(e) => setScope(e.target.value)}>
+              {jenis === 'ekskul' && (
+                <optgroup label="Gabungan Ekstrakurikuler">
+                  <option value="ALL">Semua Siswa Aktif (Kelas 1–6)</option>
+                  <option value="G:1-3">Kelas 1–3 (Siaga / Kelas Rendah)</option>
+                  <option value="G:4-6">Kelas 4–6 (Penggalang / Kelas Tinggi)</option>
+                </optgroup>
+              )}
               <optgroup label="Per rombel">
                 {rombelNames.map((r) => (
                   <option key={r} value={`R:${r}`}>
@@ -496,7 +643,7 @@ export const DaftarHadir: React.FC<Props> = ({ config, siswa, guru, onToast }) =
               <div>
                 <label className={lbl}>Hari libur diarsir</label>
                 <select className={sel} value={hariLibur} onChange={(e) => setHariLibur(e.target.value as 'minggu' | 'sabtuminggu')}>
-                  <option value="sabtuminggu">Sabtu & Minggu</option>
+                  <option value="sabtuminggu">Sabtu &amp; Minggu</option>
                   <option value="minggu">Minggu saja</option>
                 </select>
               </div>
@@ -511,14 +658,14 @@ export const DaftarHadir: React.FC<Props> = ({ config, siswa, guru, onToast }) =
                 </select>
               </div>
               <div>
-                <label className={lbl}>Pertemuan per bulan (3 – 6)</label>
+                <label className={lbl}>Pertemuan mingguan / bulan (3 – 6)</label>
                 <input type="number" min={3} max={6} className={sel} value={pertemuan} onChange={(e) => setPertemuan(num(e.target.value))} />
               </div>
             </>
           )}
 
           <div>
-            <label className={lbl}>Nama guru</label>
+            <label className={lbl}>{jenis === 'ekskul' ? 'Nama Pembina / Pelatih' : 'Nama guru'}</label>
             <select className={sel} value={guruId} onChange={(e) => setGuruId(e.target.value)}>
               <option value="">— Ketik manual —</option>
               {guruOpts.map((g) => (
@@ -532,7 +679,7 @@ export const DaftarHadir: React.FC<Props> = ({ config, siswa, guru, onToast }) =
           {!gSel && (
             <>
               <div>
-                <label className={lbl}>Nama guru (manual)</label>
+                <label className={lbl}>{jenis === 'ekskul' ? 'Nama Pembina / Pelatih (manual)' : 'Nama guru (manual)'}</label>
                 <input className={sel} value={manualNama} onChange={(e) => setManualNama(e.target.value)} placeholder="Nama lengkap + gelar" />
               </div>
               <div>
@@ -563,10 +710,77 @@ export const DaftarHadir: React.FC<Props> = ({ config, siswa, guru, onToast }) =
           </div>
         </div>
 
+        {jenis === 'ekskul' && baseScopeRows.length > 0 && (
+          <div className="border border-[#D3DDD9] rounded-xl p-3 bg-[#F8FAF9] space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="inline-flex items-center gap-2 text-xs font-bold text-[#13262A] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={pilihPesertaManual}
+                  onChange={(e) => setPilihPesertaManual(e.target.checked)}
+                  className="accent-[#0B6B58]"
+                />
+                Pilih anggota ekskul tertentu saja ({filtered.length} dari {baseScopeRows.length} siswa dipilih)
+              </label>
+              {pilihPesertaManual && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setExcludedIds(new Set())}
+                    className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-white border border-[#D3DDD9] text-[#0B6B58] hover:bg-emerald-50 cursor-pointer"
+                  >
+                    Centang Semua
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExcludedIds(new Set(baseScopeRows.map((s) => s.id)))}
+                    className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-white border border-[#D3DDD9] text-rose-700 hover:bg-rose-50 cursor-pointer"
+                  >
+                    Kosongkan
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {pilihPesertaManual && (
+              <div className="space-y-2">
+                <input
+                  value={pesertaSearch}
+                  onChange={(e) => setPesertaSearch(e.target.value)}
+                  placeholder="Cari nama atau rombel siswa..."
+                  className="w-full sm:w-72 px-2.5 py-1.5 text-xs border border-[#D3DDD9] rounded-lg bg-white focus:outline-hidden focus:border-[#0B6B58]"
+                />
+                <div className="max-h-44 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5 pr-1">
+                  {searchedPickerRows.map((s) => {
+                    const checked = !excludedIds.has(s.id);
+                    return (
+                      <label
+                        key={s.id}
+                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer ${
+                          checked ? 'bg-white border-[#0B6B58]/40 text-[#13262A]' : 'bg-gray-50 border-gray-200 text-[#566A6E]'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => togglePeserta(s.id)}
+                          className="accent-[#0B6B58] shrink-0"
+                        />
+                        <span className="truncate flex-1 font-medium">{s.nama}</span>
+                        <span className="text-[10px] font-mono text-[#566A6E] shrink-0">Kls {rombelOf(s)}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="text-xs text-[#566A6E]">
           {filtered.length} siswa aktif akan dicetak
           {excluded > 0 && ` (${excluded} siswa non-Islam tidak dicantumkan)`}.
-          {jenis !== 'kelas' && !gSel && ' Guru belum terpilih otomatis — pilih dari daftar atau ketik manual.'}
+          {jenis !== 'kelas' && !gSel && ' Pembina/guru belum terpilih otomatis — pilih dari daftar atau ketik manual.'}
         </div>
       </div>
 

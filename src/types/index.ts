@@ -482,6 +482,8 @@ export type SpjDocType =
   | 'dokumentasi'
   | 'invoice';
 
+export type SpjKategori = 'barang_jasa' | 'honor' | 'lembur' | 'sppd';
+
 export interface SpjItemRow {
   nama: string;
   vol: string;
@@ -502,7 +504,17 @@ export interface SpjFotoItem {
   caption?: string;
 }
 
+export type SpjPajakSkema =
+  | 'auto'
+  | 'ppn_pph22'
+  | 'ppn_pph23'
+  | 'pph21'
+  | 'pph23'
+  | 'ppn_only'
+  | 'bebas';
+
 export interface KeuanganEditRow {
+  kategoriSpj?: SpjKategori;
   noKw?: string;
   tgl?: string;
   penerima?: string;
@@ -525,13 +537,20 @@ export interface KeuanganEditRow {
   noBast?: string;
   tglBast?: string;
   catatanBast?: string;
-  // Model A2
+  // Model A2 & Pajak Otomatis / Buku Pembantu Pajak
   noA2?: string;
   tglA2?: string;
   kodeKegiatan?: string;
   ppn?: number;
   pph?: number;
   jenisPph?: string;
+  pajakManual?: boolean;
+  pajakSkema?: SpjPajakSkema;
+  pajakHasNpwp?: boolean;
+  tarifPph21?: number;
+  pajakDisetor?: boolean;
+  pajakTglSetor?: string;
+  pajakNtpn?: string;
   // Tanda Terima Honor
   noHonor?: string;
   tglHonor?: string;
@@ -566,6 +585,10 @@ export interface KeuanganState {
     warnaKwitansi?: 'biru' | 'hijau' | 'kuning' | 'merah' | 'ungu' | 'abu';
     previewGambar?: boolean;
     printGambar?: boolean;
+    pajakOtomatis?: boolean;
+    tarifPpn?: number;
+    tarifPph21Default?: number;
+    defaultNpwp?: boolean;
   };
   bku: Array<{
     id: string;
